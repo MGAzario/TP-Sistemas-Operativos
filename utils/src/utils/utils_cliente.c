@@ -108,3 +108,12 @@ void liberar_conexion(int socket_cliente)
 {
 	close(socket_cliente);
 }
+// Función para establecer la conexión con un módulo. Si falla, tira error.
+int conectar_modulo(char* ip, char* puerto)
+{
+    int socket_modulo = crear_conexion(ip, puerto);
+    if (socket_modulo == -1) {
+        printf("Error al conectar con el módulo en %s:%s.\n", ip, puerto);
+    }
+    return socket_modulo;
+}
