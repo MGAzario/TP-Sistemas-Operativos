@@ -35,14 +35,14 @@ int main(int argc, char* argv[]) {
     }
 
 
-    // Establecer conexión con el módulo Memoria
-    // char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
-    // char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
-    // int socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
-    // if (socket_memoria != -1) {
-    //     enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
-    //     liberar_conexion(socket_memoria);
-    // }
+    //Establecer conexión con el módulo Memoria
+    char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
+    char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
+    int socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
+    if (socket_memoria != -1) {
+         enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
+         liberar_conexion(socket_memoria);
+     }
 
     printf("Terminó\n");
     

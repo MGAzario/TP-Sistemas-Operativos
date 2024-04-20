@@ -1,35 +1,45 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <utils/hello.h>
 #include <utils/utils_server.h>
+#include <utils/utils_cliente.h>
+#include <utils/hello.h>
 
 t_config *config;
 
+void recibir_kernel_planificador();
+
 int main(int argc, char* argv[]) {
     decir_hola("Memoria");
+    recibir_kernel();
     return 0;
 }
 
-void recibir_kernel(){
-    // Esto es repetido de lo que hice en el CPU, todas las recepciones por ahora son iguales o hay algo que estoy haciendo mal.
-    //TODO PUERTO_MEMORIA
-    int socket_memoria = crear_servidor(PUERTO_MEMORIA);
+void recibir_kernel_planificador(){
 
-    // Espero a un cliente (el Kernel, CPU o las interfaces). 
-    //Aca el tema es que hay 3 modulos interactuando. Son 3 sockets? Es 1 socket que encola los pedidos? La memoria es dios?
-    int socket_escucha = esperar_cliente(socket_memoria);
+    config = config_create("./memoria.config");
+    if (config == NULL)
+    {
+        printf("Ocurrió un error al leer el archivo de configuración\n");
+        abort();
+    }
+
+    // Crear socket memoria, tomando el puerto de un archivo. El IP no lo pasamos como parametro al iniciar servidor, entiendo que deberiamos.
+    char *puerto_memoria= config_get_string_value(config, "PUERTO_MEMORIA");
+    int socket_memoria = iniciar_servidor(puerto_memoria);
+
+    // Espero a un cliente (el Kernel). El mensaje entiendo que se programa despues
+    int socket_kernel_planificador = esperar_cliente(socket_memoria);
 
     //Si falla, no se pudo aceptar
-    if (socket_kernel == -1) {
+    if (socket_kernel_planificador == -1) {
         printf("Error al aceptar la conexión del kernel.\n");
         liberar_conexion(socket_memoria);
-        return 1;
     }
-    //Esto deberia recibir el mensaje que manda cualquiera de los modulos
-    recibir_mensaje(socket_escucha);
+    //Esto deberia recibir el mensaje que manda el kernel
+    recibir_mensaje(socket_kernel_planificador);
 
     // Cerrar conexión con el cliente
-    liberar_conexion(socket_escucha);
+    liberar_conexion(socket_kernel_planificador);
 
     // Cerrar socket servidor
     liberar_conexion(socket_memoria);
