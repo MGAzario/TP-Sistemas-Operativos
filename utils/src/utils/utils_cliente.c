@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "utils_cliente.h"
 
 
 void* serializar_paquete(t_paquete* paquete, int bytes)
@@ -34,7 +34,11 @@ int crear_conexion(char *ip, char* puerto)
                     servinfo->ai_protocol);
 
 	// Ahora que tenemos el socket, vamos a conectarlo
-	connect(socket_cliente, servinfo->ai_addr, servinfo->ai_addrlen);
+	while (connect(socket_cliente, servinfo->ai_addr, servinfo->ai_addrlen) == -1)
+	{
+		printf("Intentando conectar con %s:%s ...", ip, puerto);
+		sleep(3);
+	}
 
 	freeaddrinfo(servinfo);
 

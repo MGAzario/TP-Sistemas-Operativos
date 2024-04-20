@@ -1,7 +1,7 @@
 // registros.h
 
-#ifndef CPU_H
-#define CPU_H
+#ifndef REGISTROS_H
+#define REGISTROS_H
 
 #include <stdint.h>
 

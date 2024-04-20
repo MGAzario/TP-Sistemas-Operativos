@@ -3,6 +3,8 @@
 #include <utils/hello.h>
 #include <utils/utils_server.h>
 
+t_config *config;
+
 int main(int argc, char* argv[]) {
     decir_hola("Memoria");
     return 0;
