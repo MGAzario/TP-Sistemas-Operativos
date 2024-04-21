@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
     config = config_create("./cpu.config");
     if (config == NULL)
     {
-        perror("Ocurrió un error al leer el archivo de configuración\n");
+        log_error(cpu_logger,"Ocurrió un error al leer el archivo de configuración\n");
         abort();
     }
 

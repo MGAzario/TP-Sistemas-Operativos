@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
     config = config_create("./kernel.config");
     if (config == NULL)
     {
-        perror("Ocurrió un error al leer el archivo de Configuración del Kernel\n");
+        log_error(kernel_logger,"Ocurrió un error al leer el archivo de Configuración del Kernel\n");
         abort();
     }
 

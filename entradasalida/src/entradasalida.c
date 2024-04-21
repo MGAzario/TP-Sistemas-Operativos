@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
     config = config_create("./entradasalida.config");
     if (config == NULL)
     {
-        perror("Ocurrió un error al leer el archivo de configuración de Entrada/Salida\n");
+        log_error(entradasalida_logger,"Ocurrió un error al leer el archivo de configuración de Entrada/Salida\n");
         abort();
     }
 

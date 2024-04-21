@@ -1,6 +1,6 @@
 #include "utils_server.h"
 
-t_log* logger;
+t_log* utils_logger = log_create("./utils.log","LOG_UTILS",true,LOG_LEVEL_INFO);
 
 int iniciar_servidor(char *puerto)
 {
@@ -25,7 +25,7 @@ int iniciar_servidor(char *puerto)
 	listen(socket_servidor, SOMAXCONN);
 	
 	freeaddrinfo(servinfo);
-	printf("Listo para escuchar a mi cliente\n");
+	log_info(utils_logger,"Listo para escuchar a mi cliente\n");
 
 	return socket_servidor;
 }
@@ -34,7 +34,7 @@ int esperar_cliente(int socket_servidor)
 {
 	// Aceptamos un nuevo cliente
 	int socket_cliente = accept(socket_servidor, NULL, NULL);
-	printf("Se conecto un cliente!\n");
+	log_info(utils_logger,"Se conecto un cliente!\n");
 
 	return socket_cliente;
 }
@@ -66,7 +66,7 @@ void recibir_mensaje(int socket_cliente)
 {
 	int size;
 	char* buffer = recibir_buffer(&size, socket_cliente);
-	printf("Me llego el mensaje %s\n", buffer);
+	log_info(utils_logger,"Me llego el mensaje %s\n", buffer);
 	free(buffer);
 }
 

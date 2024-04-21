@@ -1,5 +1,6 @@
 #include "utils_cliente.h"
 
+t_log* utils_logger = log_create("./utils.log","LOG_UTILS",true,LOG_LEVEL_INFO);
 
 void* serializar_paquete(t_paquete* paquete, int bytes)
 {
@@ -21,6 +22,12 @@ int crear_conexion(char *ip, char* puerto)
 	struct addrinfo hints;
 	struct addrinfo *servinfo;
 
+	t_log* conexion_logger = log_create("./conexion.log","LOG_CONEXION",true,LOG_LEVEL_INFO);
+    if(conexion_logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de Conexion");
+		abort();
+	}
+
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
@@ -36,7 +43,7 @@ int crear_conexion(char *ip, char* puerto)
 	// Ahora que tenemos el socket, vamos a conectarlo
 	while (connect(socket_cliente, servinfo->ai_addr, servinfo->ai_addrlen) == -1)
 	{
-		printf("Intentando conectar con %s:%s ...", ip, puerto);
+		log_info(utils_logger,"Intentando conectar con %s:%s ...", ip, puerto);
 		sleep(3);
 	}
 
@@ -115,9 +122,15 @@ void liberar_conexion(int socket_cliente)
 // Función para establecer la conexión con un módulo. Si falla, tira error.
 int conectar_modulo(char* ip, char* puerto)
 {
+	t_log* modulo_logger = log_create("./modulo.log","LOG_MODULO",true,LOG_LEVEL_INFO);
+    if(modulo_logger == NULL){
+		log_error(utils_logger,"Ocurrió un error al leer el archivo de Log de Modulo");
+		abort();
+	}
+
     int socket_modulo = crear_conexion(ip, puerto);
     if (socket_modulo == -1) {
-        printf("Error al conectar con el módulo en %s:%s.\n", ip, puerto);
+        log_info(utils_logger,"Error al conectar con el módulo en %s:%s.\n", ip, puerto);
     }
     return socket_modulo;
 }

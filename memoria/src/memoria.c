@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     config = config_create("./memoria.config");
     if (config == NULL)
     {
-        perror("Ocurrió un error al leer el archivo de configuración\n");
+        log_error(memoria_logger,"Ocurrió un error al leer el archivo de configuración\n");
         abort();
     }
 
