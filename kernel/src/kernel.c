@@ -19,10 +19,16 @@ typedef struct {
 int main(int argc, char* argv[]) {
     decir_hola("Kernel");
 
+    t_log* kernel_logger = log_create("./kernel.log","LOG_KERNEL",true,LOG_LEVEL_INFO);
+    if(kernel_logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de Kernel");
+		abort();
+	}
+    
     config = config_create("./kernel.config");
     if (config == NULL)
     {
-        printf("Ocurrió un error al leer el archivo de configuración\n");
+        perror("Ocurrió un error al leer el archivo de Configuración del Kernel\n");
         abort();
     }
 
@@ -61,7 +67,7 @@ int main(int argc, char* argv[]) {
 
     //Si falla, no se pudo aceptar
     if (socket_entradasalida == -1) {
-        printf("Error al aceptar la conexión del kernel asl socket de dispatch.\n");
+        log_info(kernel_logger,"Error al aceptar la conexión del kernel asl socket de dispatch.\n");
         liberar_conexion(socket_kernel);
     }
     //Esto deberia recibir el mensaje que manda el kernel
@@ -73,7 +79,7 @@ int main(int argc, char* argv[]) {
     // Cerrar socket servidor
     liberar_conexion(socket_kernel);
 
-    printf("Terminó\n");
+    log_info(kernel_logger,"Terminó\n");
     
     return 0;
 }

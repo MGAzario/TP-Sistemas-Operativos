@@ -8,10 +8,16 @@ t_config *config;
 int main(int argc, char* argv[]) {
     decir_hola("una Interfaz de Entrada/Salida");
 
+    t_log* entradasalida_logger = log_create("./entradasalida.log","LOG_IO",true,LOG_LEVEL_INFO);
+    if(entradasalida_logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de Entrada/Salida");
+		abort();
+	}
+
     config = config_create("./entradasalida.config");
     if (config == NULL)
     {
-        printf("Ocurrió un error al leer el archivo de configuración\n");
+        perror("Ocurrió un error al leer el archivo de configuración de Entrada/Salida\n");
         abort();
     }
 
@@ -33,7 +39,7 @@ int main(int argc, char* argv[]) {
         liberar_conexion(socket_memoria);
     }
 
-    printf("Terminó\n");
+    log_info(entradasalida_logger,"Terminó\n");
     
     return 0;
 }
