@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <utils/utils_cliente.h>
+#include <utils/utils_server.h>
 #include <utils/registros.h>
 #include <utils/hello.h>
 
@@ -25,13 +26,22 @@ int main(int argc, char* argv[]) {
         abort();
     }
 
-    // Establecer conexión con el módulo CPU
     char *ip_cpu = config_get_string_value(config, "IP_CPU");
+
+    // Establecer conexión con el módulo CPU (dispatch)
     char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_CPU_DISPATCH");
-    int socket_cpu = conectar_modulo(ip_cpu, puerto_cpu_dispatch);
-    if (socket_cpu != -1) {
-        enviar_mensaje("Mensaje al CPU desde el Kernel", socket_cpu);
-        liberar_conexion(socket_cpu);
+    int socket_cpu_dispatch = conectar_modulo(ip_cpu, puerto_cpu_dispatch);
+    if (socket_cpu_dispatch != -1) {
+        enviar_mensaje("Mensaje al CPU desde el Kernel por dispatch", socket_cpu_dispatch);
+        liberar_conexion(socket_cpu_dispatch);
+    }
+
+    // Establecer conexión con el módulo CPU (interrupt)
+    char *puerto_cpu_interrupt = config_get_string_value(config, "PUERTO_CPU_INTERRUPT");
+    int socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
+    if (socket_cpu_interrupt != -1) {
+        enviar_mensaje("Mensaje al CPU desde el Kernel por interrupt", socket_cpu_interrupt);
+        liberar_conexion(socket_cpu_interrupt);
     }
 
     // Establecer conexión con el módulo Memoria
@@ -47,7 +57,7 @@ int main(int argc, char* argv[]) {
     int socket_kernel = iniciar_servidor(puerto_kernel);
 
     // Espero a un cliente (entradasalida). El mensaje entiendo que se programa despues
-    int socket_entradasalida = esperar_cliente(socket_entradasalida);
+    int socket_entradasalida = esperar_cliente(socket_kernel);
 
     //Si falla, no se pudo aceptar
     if (socket_entradasalida == -1) {

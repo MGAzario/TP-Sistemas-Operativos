@@ -1,11 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <utils/utils_cliente.h>
 #include <utils/hello.h>
+
+t_config *config;
 
 int main(int argc, char* argv[]) {
     decir_hola("una Interfaz de Entrada/Salida");
 
-    config = config_create("./kernel.config");
+    config = config_create("./entradasalida.config");
     if (config == NULL)
     {
         printf("Ocurrió un error al leer el archivo de configuración\n");
@@ -29,26 +32,6 @@ int main(int argc, char* argv[]) {
         enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
         liberar_conexion(socket_memoria);
     }
-
-    char *puerto_kernel= config_get_string_value(config, "PUERTO_ESCUCHA");
-    int socket_kernel = iniciar_servidor(puerto_kernel);
-
-    // Espero a un cliente (entradasalida). El mensaje entiendo que se programa despues
-    int socket_entradasalida = esperar_cliente(socket_entradasalida);
-
-    //Si falla, no se pudo aceptar
-    if (socket_entradasalida == -1) {
-        printf("Error al aceptar la conexión del kernel asl socket de dispatch.\n");
-        liberar_conexion(socket_kernel);
-    }
-    //Esto deberia recibir el mensaje que manda el kernel
-    recibir_mensaje(socket_entradasalida);
-
-    // Cerrar conexión con el cliente
-    liberar_conexion(socket_entradasalida);
-
-    // Cerrar socket servidor
-    liberar_conexion(socket_kernel);
 
     printf("Terminó\n");
     
