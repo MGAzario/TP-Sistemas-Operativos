@@ -33,6 +33,9 @@ int main(int argc, char* argv[]) {
         liberar_conexion(socket_memoria);
     }
 
+    liberar_conexion(socket_kernel);
+    liberar_conexion(socket_memoria);
+
     printf("Terminó\n");
     
     return 0;

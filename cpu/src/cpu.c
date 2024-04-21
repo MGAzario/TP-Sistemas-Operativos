@@ -52,9 +52,13 @@ int main(int argc, char* argv[]) {
 
     // Cerrar conexión con el cliente
     liberar_conexion(socket_kernel_dispatch);
+    liberar_conexion(socket_kernel_interrupt);
 
     // Cerrar socket servidor
     liberar_conexion(socket_cpu_dispatch);
+    liberar_conexion(socket_cpu_interrupt);
+
+    printf("Terminó\n");
 
     return 0;
 }

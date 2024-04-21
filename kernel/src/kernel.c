@@ -73,6 +73,9 @@ int main(int argc, char* argv[]) {
     // Cerrar socket servidor
     liberar_conexion(socket_kernel);
 
+    liberar_conexion(socket_cpu_dispatch);
+    liberar_conexion(socket_cpu_interrupt);
+
     printf("Terminó\n");
     
     return 0;
