@@ -1,6 +1,5 @@
 #include "utils_cliente.h"
 
-
 void* serializar_paquete(t_paquete* paquete, int bytes)
 {
 	void * magic = malloc(bytes);
@@ -36,7 +35,7 @@ int crear_conexion(char *ip, char* puerto)
 	// Ahora que tenemos el socket, vamos a conectarlo
 	while (connect(socket_cliente, servinfo->ai_addr, servinfo->ai_addrlen) == -1)
 	{
-		printf("Intentando conectar con %s:%s ...", ip, puerto);
+		log_info(logger,"Intentando conectar con %s:%s ...", ip, puerto);
 		sleep(3);
 	}
 
@@ -117,7 +116,7 @@ int conectar_modulo(char* ip, char* puerto)
 {
     int socket_modulo = crear_conexion(ip, puerto);
     if (socket_modulo == -1) {
-        printf("Error al conectar con el módulo en %s:%s.\n", ip, puerto);
+        log_info(logger,"Error al conectar con el módulo en %s:%s.\n", ip, puerto);
     }
     return socket_modulo;
 }

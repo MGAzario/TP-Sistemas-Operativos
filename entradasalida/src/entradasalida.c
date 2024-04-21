@@ -4,14 +4,22 @@
 #include <utils/hello.h>
 
 t_config *config;
+t_log* logger;
 
 int main(int argc, char* argv[]) {
+
+    logger = log_create("./entradasalida.log","LOG_IO",true,LOG_LEVEL_INFO);
+    if(logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de Entrada/Salida");
+		abort();
+	}
+
     decir_hola("una Interfaz de Entrada/Salida");
 
     config = config_create("./entradasalida.config");
     if (config == NULL)
     {
-        printf("Ocurrió un error al leer el archivo de configuración\n");
+        log_error(logger,"Ocurrió un error al leer el archivo de configuración de Entrada/Salida\n");
         abort();
     }
 
@@ -36,7 +44,7 @@ int main(int argc, char* argv[]) {
     liberar_conexion(socket_kernel);
     liberar_conexion(socket_memoria);
 
-    printf("Terminó\n");
+    log_info(logger,"Terminó\n");
     
     return 0;
 }

@@ -11,6 +11,8 @@
 #include<commons/log.h>
 #include<commons/config.h>
 
+extern t_log* logger;
+
 typedef enum
 {
 	MENSAJE,

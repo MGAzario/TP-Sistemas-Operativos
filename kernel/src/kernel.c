@@ -6,6 +6,7 @@
 #include <utils/hello.h>
 
 t_config *config;
+t_log* logger;
 
 // Definición del PCB
 typedef struct {
@@ -17,12 +18,19 @@ typedef struct {
 } PCB;
 
 int main(int argc, char* argv[]) {
-    decir_hola("Kernel");
 
+    logger = log_create("./kernel.log","LOG_KERNEL",true,LOG_LEVEL_INFO);
+    if(logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de Kernel");
+		abort();
+	}
+
+    decir_hola("Kernel");
+    
     config = config_create("./kernel.config");
     if (config == NULL)
     {
-        printf("Ocurrió un error al leer el archivo de configuración\n");
+        log_error(logger,"Ocurrió un error al leer el archivo de Configuración del Kernel\n");
         abort();
     }
 
@@ -61,7 +69,7 @@ int main(int argc, char* argv[]) {
 
     //Si falla, no se pudo aceptar
     if (socket_entradasalida == -1) {
-        printf("Error al aceptar la conexión del kernel asl socket de dispatch.\n");
+        log_info(logger,"Error al aceptar la conexión del kernel asl socket de dispatch.\n");
         liberar_conexion(socket_kernel);
     }
     //Esto deberia recibir el mensaje que manda el kernel
@@ -76,7 +84,7 @@ int main(int argc, char* argv[]) {
     liberar_conexion(socket_cpu_dispatch);
     liberar_conexion(socket_cpu_interrupt);
 
-    printf("Terminó\n");
+    log_info(logger,"Terminó\n");
     
     return 0;
 }

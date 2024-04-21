@@ -5,14 +5,22 @@
 #include <utils/hello.h>
 
 t_config *config;
+t_log* logger;
 
 int main(int argc, char* argv[]) {
-    decir_hola("Memoria");
     
+    logger = log_create("./memoria.log","LOG_MEMORIA",true,LOG_LEVEL_INFO);
+    if(logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de Memoria");
+		abort();
+	}
+
+    decir_hola("Memoria");
+
     config = config_create("./memoria.config");
     if (config == NULL)
     {
-        printf("Ocurrió un error al leer el archivo de configuración\n");
+        log_error(logger,"Ocurrió un error al leer el archivo de configuración\n");
         abort();
     }
 
@@ -23,19 +31,19 @@ int main(int argc, char* argv[]) {
     // Espero a los clientes. El mensaje entiendo que se programa despues
     int socket_kernel = esperar_cliente(socket_memoria);
     if (socket_kernel == -1) {
-        printf("Error al aceptar la conexión del kernel.\n");
+        log_info(logger,"Error al aceptar la conexión del kernel.\n");
         liberar_conexion(socket_memoria);
     }
 
     int socket_cpu = esperar_cliente(socket_memoria);
     if (socket_cpu == -1) {
-        printf("Error al aceptar la conexión del kernel.\n");
+        log_info(logger,"Error al aceptar la conexión del kernel.\n");
         liberar_conexion(socket_memoria);
     }
 
     int socket_entradasalida = esperar_cliente(socket_memoria);
     if (socket_entradasalida == -1) {
-        printf("Error al aceptar la conexión del kernel.\n");
+        log_info(logger,"Error al aceptar la conexión del kernel.\n");
         liberar_conexion(socket_memoria);
     }
 

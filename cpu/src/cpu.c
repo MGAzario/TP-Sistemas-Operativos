@@ -5,16 +5,24 @@
 #include <utils/hello.h>
 
 t_config *config;
+t_log* logger;
 
 void recibir_kernel();
 
 int main(int argc, char* argv[]) {
+
+    logger = log_create("./cpu.log","LOG_CPU",true,LOG_LEVEL_INFO);
+    if(logger == NULL){
+		perror("Ocurrió un error al leer el archivo de Log de CPU");
+		abort();
+	}
+
     decir_hola("CPU");
 
     config = config_create("./cpu.config");
     if (config == NULL)
     {
-        printf("Ocurrió un error al leer el archivo de configuración\n");
+        log_error(logger,"Ocurrió un error al leer el archivo de configuración\n");
         abort();
     }
 
@@ -40,11 +48,11 @@ int main(int argc, char* argv[]) {
 
     //Si falla, no se pudo aceptar
     if (socket_kernel_dispatch == -1) {
-        printf("Error al aceptar la conexión del kernel asl socket de dispatch.\n");
+        log_info(logger,"Error al aceptar la conexión del kernel asl socket de dispatch.\n");
         liberar_conexion(socket_cpu_dispatch);
     }
     if (socket_kernel_interrupt == -1) {
-        printf("Error al aceptar la conexión del kernel al socket de interrupt.\n");
+        log_info(logger,"Error al aceptar la conexión del kernel al socket de interrupt.\n");
         liberar_conexion(socket_cpu_interrupt);
     }
     //Esto deberia recibir el mensaje que manda el kernel
