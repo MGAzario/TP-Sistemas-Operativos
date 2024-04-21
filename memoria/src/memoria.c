@@ -20,19 +20,32 @@ int main(int argc, char* argv[]) {
     char *puerto_memoria= config_get_string_value(config, "PUERTO_MEMORIA");
     int socket_memoria = iniciar_servidor(puerto_memoria);
 
-    // Espero a un cliente (el Kernel). El mensaje entiendo que se programa despues
-    int socket_kernel_planificador = esperar_cliente(socket_memoria);
-
-    //Si falla, no se pudo aceptar
+    // Espero a los clientes. El mensaje entiendo que se programa despues
+    int socket_kernel = esperar_cliente(socket_memoria);
     if (socket_kernel_planificador == -1) {
         printf("Error al aceptar la conexión del kernel.\n");
         liberar_conexion(socket_memoria);
     }
+
+    int socket_cpu = esperar_cliente(socket_memoria);
+    if (socket_kernel_planificador == -1) {
+        printf("Error al aceptar la conexión del kernel.\n");
+        liberar_conexion(socket_memoria);
+    }
+
+    int socket_entradasalida = esperar_cliente(socket_memoria);
+    if (socket_kernel_planificador == -1) {
+        printf("Error al aceptar la conexión del kernel.\n");
+        liberar_conexion(socket_memoria);
+    }
+
     //Esto deberia recibir el mensaje que manda el kernel
     recibir_mensaje(socket_kernel_planificador);
 
-    // Cerrar conexión con el cliente
-    liberar_conexion(socket_kernel_planificador);
+    // Cerrar conexión con los clientes
+    liberar_conexion(socket_kernel);
+    liberar_conexion(socket_cpu);
+    liberar_conexion(socket_memoria);
 
     // Cerrar socket servidor
     liberar_conexion(socket_memoria);
