@@ -18,40 +18,49 @@ typedef struct {
 } PCB;
 
 int main(int argc, char* argv[]) {
+    decir_hola("Kernel");
+    
+    crear_logger();
+    crear_config();
 
+    char *ip_cpu = config_get_string_value(config, "IP_CPU");
+
+    //Usan la misma IP, se las paso por parametro.
+    //Conexiones con CPU: Dispatch e Interrupt
+    conectar_dispatch_cpu(ip_cpu);
+    conectar_interrupt_cpu(ip_cpu);
+    
+    //Kernel a Memoria
+    conectar_memoria();
+
+    //Entrada salida a Kernel
+    recibir_entradasalida();
+
+    
+
+    log_info(logger,"Terminó\n");
+    
+    return 0;
+}
+
+void crear_logger(){
     logger = log_create("./kernel.log","LOG_KERNEL",true,LOG_LEVEL_INFO);
     if(logger == NULL){
 		perror("Ocurrió un error al leer el archivo de Log de Kernel");
 		abort();
 	}
+}
 
-    decir_hola("Kernel");
-    
+void crear_config(){
     config = config_create("./kernel.config");
     if (config == NULL)
     {
         log_error(logger,"Ocurrió un error al leer el archivo de Configuración del Kernel\n");
         abort();
     }
+}
 
-    char *ip_cpu = config_get_string_value(config, "IP_CPU");
-
-    // Establecer conexión con el módulo CPU (dispatch)
-    char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_CPU_DISPATCH");
-    int socket_cpu_dispatch = conectar_modulo(ip_cpu, puerto_cpu_dispatch);
-    if (socket_cpu_dispatch != -1) {
-        enviar_mensaje("Mensaje al CPU desde el Kernel por dispatch", socket_cpu_dispatch);
-        liberar_conexion(socket_cpu_dispatch);
-    }
-
-    // Establecer conexión con el módulo CPU (interrupt)
-    char *puerto_cpu_interrupt = config_get_string_value(config, "PUERTO_CPU_INTERRUPT");
-    int socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
-    if (socket_cpu_interrupt != -1) {
-        enviar_mensaje("Mensaje al CPU desde el Kernel por interrupt", socket_cpu_interrupt);
-        liberar_conexion(socket_cpu_interrupt);
-    }
-
+void conectar_memoria(){
     // Establecer conexión con el módulo Memoria
     char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
     char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
@@ -60,7 +69,29 @@ int main(int argc, char* argv[]) {
         enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
         liberar_conexion(socket_memoria);
     }
+}
 
+void conectar_dispatch_cpu(char* ip_cpu){
+    // Establecer conexión con el módulo CPU (dispatch)
+    char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_CPU_DISPATCH");
+    int socket_cpu_dispatch = conectar_modulo(ip_cpu, puerto_cpu_dispatch);
+    if (socket_cpu_dispatch != -1) {
+        enviar_mensaje("Mensaje al CPU desde el Kernel por dispatch", socket_cpu_dispatch);
+        liberar_conexion(socket_cpu_dispatch);
+    }
+}
+
+void conectar_interrupt_cpu(char* ip_cpu){
+    // Establecer conexión con el módulo CPU (interrupt)
+    char *puerto_cpu_interrupt = config_get_string_value(config, "PUERTO_CPU_INTERRUPT");
+    int socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
+    if (socket_cpu_interrupt != -1) {
+        enviar_mensaje("Mensaje al CPU desde el Kernel por interrupt", socket_cpu_interrupt);
+        liberar_conexion(socket_cpu_interrupt);
+    }
+}
+
+void recibir_entradasalida(){
     char *puerto_kernel= config_get_string_value(config, "PUERTO_ESCUCHA");
     int socket_kernel = iniciar_servidor(puerto_kernel);
 
@@ -72,7 +103,7 @@ int main(int argc, char* argv[]) {
         log_info(logger,"Error al aceptar la conexión del kernel asl socket de dispatch.\n");
         liberar_conexion(socket_kernel);
     }
-    //Esto deberia recibir el mensaje que manda el kernel
+    //Esto deberia recibir el mensaje que manda la entrada salida
     recibir_mensaje(socket_entradasalida);
 
     // Cerrar conexión con el cliente
@@ -80,11 +111,4 @@ int main(int argc, char* argv[]) {
 
     // Cerrar socket servidor
     liberar_conexion(socket_kernel);
-
-    liberar_conexion(socket_cpu_dispatch);
-    liberar_conexion(socket_cpu_interrupt);
-
-    log_info(logger,"Terminó\n");
-    
-    return 0;
 }
