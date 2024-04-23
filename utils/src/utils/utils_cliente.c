@@ -120,3 +120,13 @@ int conectar_modulo(char* ip, char* puerto)
     }
     return socket_modulo;
 }
+
+//############################################
+//Para crear paquetes de distintas operaciones, y poder ir mandandolos con una identificacion.
+t_paquete* crear_paquetev2(op_code codigo_operacion)
+{
+	t_paquete* paquete = malloc(sizeof(t_paquete));
+	paquete->codigo_operacion = codigo_operacion;
+	crear_buffer(paquete);
+	return paquete;
+}

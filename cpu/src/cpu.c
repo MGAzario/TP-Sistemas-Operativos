@@ -10,8 +10,8 @@ t_log* logger;
 void crear_logger();
 void crear_config();
 void conectar_memoria(); 
-void recibir_kernel_dispatch;
-void recibir_kernel_interrupt;
+void recibir_kernel_dispatch();
+void recibir_kernel_interrupt();
 
 int main(int argc, char* argv[]) {
     decir_hola("CPU");
@@ -90,4 +90,23 @@ void conectar_memoria(){
         enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
         liberar_conexion(socket_memoria);
     }
+}
+
+// Función para manejar la conexión entrante
+void manejar_mensaje_kernel(int socket_cliente) {
+    t_paquete* paquete = recibir_paquete(socket_cliente);
+
+    if (paquete == NULL) {
+        log_info(logger, "Error al recibir el paquete\n");
+        return;
+    }
+
+    if (paquete->codigo_operacion == DISPATCH) {
+        log_info(logger, "Paquete DISPATCH recibido desde el Kernel\n");
+        t_list lista_pcb = recibir_paquete(socket_cliente);
+    } else if (paquete->codigo_operacion == INTERRUPT) {
+        log_info(logger, "Paquete INTERRUPT recibido desde el Kernel\n");
+    }
+
+    eliminar_paquete(paquete);
 }

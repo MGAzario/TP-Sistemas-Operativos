@@ -16,7 +16,12 @@ extern t_log* logger;
 typedef enum
 {
 	MENSAJE,
-	PAQUETE
+	PAQUETE,
+	DISPATCH,
+	INTERRUPT,
+	CPU_SOLICITAR_INSTRUCCION,
+	KERNEL_CREACION_PROCESO,
+	MENSAJE_ENTRADA_SALIDA
 }op_code;
 
 typedef struct
@@ -41,5 +46,6 @@ void enviar_paquete(t_paquete* paquete, int socket_cliente);
 void liberar_conexion(int socket_cliente);
 void eliminar_paquete(t_paquete* paquete);
 int conectar_modulo(char* ip, char* puerto);
+void enviar_paquete_pcb(int socket_cliente, PCB* pcb, op_code codigo_operacion);
 
 #endif /* UTILS_H_ */
