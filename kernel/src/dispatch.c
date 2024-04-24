@@ -6,15 +6,15 @@
 #include <commons/collections/queue.h>
 #include <kernel.h>
 
-
-//Requisito Checkpoint: Es capaz de enviar un proceso a la CPU
-/*Una vez seleccionado el siguiente proceso a ejecutar, se lo transicionará al estado EXEC y se enviará su Contexto de Ejecución al CPU 
-a través del puerto de dispatch, quedando a la espera de recibir dicho contexto actualizado después de la ejecución, 
+// Requisito Checkpoint: Es capaz de enviar un proceso a la CPU
+/*Una vez seleccionado el siguiente proceso a ejecutar, se lo transicionará al estado EXEC y se enviará su Contexto de Ejecución al CPU
+a través del puerto de dispatch, quedando a la espera de recibir dicho contexto actualizado después de la ejecución,
 junto con un motivo de desalojo por el cual fue desplazado a manejar.*/
 extern t_config *config;
-extern t_log* logger;
+extern t_log *logger;
 
-void iniciar_dispatch_cpu(){
+void iniciar_dispatch_cpu()
+{
     // Establecer conexión con el módulo CPU (dispatch)
     char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_CPU_DISPATCH");
     char *ip_cpu = config_get_string_value(config, "IP_CPU");
@@ -22,10 +22,12 @@ void iniciar_dispatch_cpu(){
     return socket_cpu_dispatch;
 }
 
-void enviar_pcb(int socket_cliente, PCB* pcb) {
+void enviar_pcb(int socket_cliente, PCB *pcb)
+{
     // Crear un paquete para enviar los PCBs
-    t_paquete* paquete = crear_paquete();
-    if (paquete == NULL) {
+    t_paquete *paquete = crear_paquete();
+    if (paquete == NULL)
+    {
         log_info(logger, "Error al crear el paquete\n");
         return;
     }
@@ -35,7 +37,7 @@ void enviar_pcb(int socket_cliente, PCB* pcb) {
 
     // Agregar el PCB al paquete
     agregar_a_paquete(paquete, pcb, sizeof(PCB));
-    
+
     // Enviar el paquete a la CPU
     enviar_paquete(paquete, socket_cliente);
 
@@ -43,11 +45,12 @@ void enviar_pcb(int socket_cliente, PCB* pcb) {
     eliminar_paquete(paquete);
 }
 
-void conectar_dispatch_cpu(PCB* proceso_enviar){
-    //Prendo la conexion al dispatch, creando un socket
+void conectar_dispatch_cpu(PCB *proceso_enviar)
+{
+    // Prendo la conexion al dispatch, creando un socket
     int socket_cpu_dispatch = iniciar_dispatch_cpu();
-    //Envio el PCB del proceso que pase a ejecucion en la planificacion
+    // Envio el PCB del proceso que pase a ejecucion en la planificacion
     enviar_pcb(socket_cpu_dispatch, proceso_enviar);
-    //Libero la conexion para que se pueda volver a usar.
+    // Libero la conexion para que se pueda volver a usar.
     liberar_conexion(socket_cpu_dispatch);
 }
