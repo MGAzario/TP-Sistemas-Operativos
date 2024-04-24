@@ -2,23 +2,21 @@
 #include <stdio.h>
 #include <utils/utils_cliente.h>
 #include <utils/utils_server.h>
-#include <utils/registros.h>
-#include <utils/estados.h>
 #include <utils/hello.h>
+#include <commons/collections/list.h>
+#include <commons/collections/queue.h>
+#include <kernel.h>
 
 t_config *config;
 t_log* logger;
-
-// Definición del PCB
-typedef struct {
-    int PID;
-    uint32_t program_counter;
-    int quantum;
-    CPU_Registers cpu_registers;
-    estado_proceso estado;
-} PCB;
+t_queue cola_new;
+t_queue cola_ready;
 
 static int ultimo_pid = 0;
+//Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
+char *algoritmo_planificacion;
+char *ip_cpu;
+int socket_cpu_dispatch;
 
 int main(int argc, char* argv[]) {
     decir_hola("Kernel");
@@ -26,11 +24,17 @@ int main(int argc, char* argv[]) {
     crear_logger();
     crear_config();
 
+    //Creo la cola que voy a usar para guardar mis PCBs
+    cola_new = queue_create();
+    cola_ready = queue_create();
+
     
 
     //Usan la misma IP, se las paso por parametro.
     //Conexiones con CPU: Dispatch e Interrupt
-    char *ip_cpu = config_get_string_value(config, "IP_CPU");
+    algoritmo_planificacion = config_get_string_value(config,"ALGORITMO_PLANIFICACION");
+    ip_cpu = config_get_string_value(config, "IP_CPU");
+
     conectar_dispatch_cpu(ip_cpu);
     conectar_interrupt_cpu(ip_cpu);
     
@@ -75,17 +79,6 @@ void conectar_memoria(){
     }
 }
 
-void conectar_dispatch_cpu(char* ip_cpu){
-    // Establecer conexión con el módulo CPU (dispatch)
-    char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_CPU_DISPATCH");
-    int socket_cpu_dispatch = conectar_modulo(ip_cpu, puerto_cpu_dispatch);
-    if (socket_cpu_dispatch != -1) {
-        //enviar_paquete_pcb(socket_cpu_dispatch, pcb, codigo_operacion)
-        enviar_mensaje("Mensaje al CPU desde el Kernel por dispatch", socket_cpu_dispatch);
-        liberar_conexion(socket_cpu_dispatch);
-    }
-}
-
 void conectar_interrupt_cpu(char* ip_cpu){
     // Establecer conexión con el módulo CPU (interrupt)
     char *puerto_cpu_interrupt = config_get_string_value(config, "PUERTO_CPU_INTERRUPT");
@@ -119,7 +112,7 @@ void recibir_entradasalida(){
 }
 
 //Requisito Checkpoint: Es capaz de crear un PCB y planificarlo por FIFO y RR.
-PCB* crear_pcb(int quantum) {
+void crear_pcb(int quantum) {
     PCB* pcb = malloc(sizeof(PCB));
     if (pcb == NULL) {
         printf("Error al crear el PCB\n");
@@ -131,73 +124,79 @@ PCB* crear_pcb(int quantum) {
     pcb->program_counter = 0;
     pcb->quantum = quantum;
     pcb->estado = NEW;
-    return pcb;
+    //El PCB se agrega a la cola de los procesos NEW
+    queue_push(cola_new, pcb);
+    // Crear un buffer para almacenar el mensaje con el último PID
+    char mensaje[100];
+    // Usar sprintf para formatear el mensaje con el último PID
+    sprintf(mensaje, "Se crea el proceso %d en NEW\n", ultimo_pid);
+    log_info(logger,mensaje);
 }
 
 /*En caso de que el grado de multiprogramación lo permita, los procesos creados podrán pasar de la cola de NEW a la cola de READY, 
 caso contrario, se quedarán a la espera de que finalicen procesos que se encuentran en ejecución*/
-void mover_procesos_ready(PCB *cola_new[], PCB *cola_ready[]) {
+void mover_procesos_ready() {
     // Obtener el grado de multiprogramación del archivo de configuración
     int grado_multiprogramacion = config_get_string_value(config, "GRADO_MULTIPROGRAMACION");
     
     // Calcular la cantidad de procesos en la cola de NEW y en la cola de READY
-    int cantidad_procesos_new = list_size(cola_new);
+    int cantidad_procesos_new = queue_size(cola_new);
     
-    int cantidad_procesos_ready = list_size(cola_ready);
+    int cantidad_procesos_ready = queue_size(cola_ready);
 
     // Verificar si el grado de multiprogramación lo permite
     if (cantidad_procesos_ready < grado_multiprogramacion) {
         // Mover procesos de la cola de NEW a la cola de READY
         while (cantidad_procesos_new > 0 && cantidad_procesos_ready < grado_multiprogramacion) {
             // Seleccionar el primer proceso de la cola de NEW
-            PCB *proceso_nuevo = cola_new[0];
+            PCB *proceso_nuevo = queue_peek(cola_new);
+            //Borro el proceso que acabo de seleccionar
+            queue_pop();
             
             // Cambiar el estado del proceso a READY
             proceso_nuevo->estado = READY;
             
             // Agregar el proceso a la cola de READY
-            cola_ready[cantidad_procesos_ready] = proceso_nuevo;
+            queue_push(cola_ready,proceso_nuevo);
             cantidad_procesos_ready++;
             
             // Reducir la cantidad de procesos en la cola de NEW
             cantidad_procesos_new--;
-            
-            // Eliminar el proceso seleccionado de la cola de NEW (FIFO)
-            for (int i = 0; i < cantidad_procesos_new; i++) {
-                cola_new[i] = cola_new[i+1];
-            }
-            //Borra el proximo espacio ocupado dejandolo en NULL
-            cola_new[cantidad_procesos_new] = NULL;
         }
     } else {
         printf("El grado de multiprogramación máximo ha sido alcanzado. Los procesos permanecerán en la cola de NEW.\n");
     }
 }
 
-//Requisito Checkpoint: Es capaz de enviar un proceso a la CPU
-/*Una vez seleccionado el siguiente proceso a ejecutar, se lo transicionará al estado EXEC y se enviará su Contexto de Ejecución al CPU 
-a través del puerto de dispatch, quedando a la espera de recibir dicho contexto actualizado después de la ejecución, 
-junto con un motivo de desalojo por el cual fue desplazado a manejar.*/
-void enviar_lista_pcb(int socket_cliente, t_list* lista_pcb) {
-    // Crear un paquete para enviar los PCBs
-    t_paquete* paquete = crear_paquete();
-    if (paquete == NULL) {
-        log_info(logger, "Error al crear el paquete\n");
-        return;
+//Planificador corto plazo
+void planificar_procesos(char algoritmo_planificacion) {
+    PCB* proceso_ejecucion;
+    switch (algoritmo_planificacion) {
+        case 'FIFO':
+            proceso_ejecucion = planificar_fifo();
+            break;
+        case 'RR':
+            proceso_ejecucion = planificar_rr();
+            break;
+        case 'VRR':
+            proceso_ejecucion = planificar_vrr();
+            break;
+        default:
+            printf("Algoritmo de planificación desconocido\n");
+            break;
     }
+    //Estado pasa a ejecucion
+    proceso_ejecucion->estado = EXEC;
+    //Me conecto al CPU a traves del dispatch
+    conectar_dispatch_cpu(proceso_ejecucion);
+}
+PCB* planificar_fifo(){
+    if (!queue_is_empty(cola_ready)){
+        //FIFO toma el primer proceso de la cola
+        PCB* proceso_ejecucion = queue_peek(cola_ready);
+        //Borro ese proceso de mi cola de ready
+        queue_pop(cola_ready);
 
-    // Establecer el código de operación
-    paquete->codigo_operacion = DISPATCH;
-
-    // Recorrer la lista de PCBs y agregar cada uno al paquete
-    for (int i = 0; i < list_size(lista_pcb); i++) {
-        PCB* pcb = list_get(lista_pcb, i);
-        agregar_a_paquete(paquete, pcb, sizeof(PCB));
+        return proceso_ejecucion
     }
-
-    // Enviar el paquete a la CPU
-    enviar_paquete(paquete, socket_cliente);
-
-    // Eliminar el paquete después de enviarlo
-    eliminar_paquete(paquete);
 }
