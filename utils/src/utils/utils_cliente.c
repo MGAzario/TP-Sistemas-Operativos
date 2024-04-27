@@ -1,4 +1,6 @@
 #include "utils_cliente.h"
+#include "estados.h"
+#include "registros.h"
 
 void* serializar_paquete(t_paquete* paquete, int bytes)
 {
@@ -123,10 +125,29 @@ int conectar_modulo(char* ip, char* puerto)
 
 //############################################
 //Para crear paquetes de distintas operaciones, y poder ir mandandolos con una identificacion.
-t_paquete* crear_paquetev2(op_code codigo_operacion)
-{
-	t_paquete* paquete = malloc(sizeof(t_paquete));
-	paquete->codigo_operacion = codigo_operacion;
+t_paquete* crear_paquete_pcb(void) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = DISPATCH;
 	crear_buffer(paquete);
-	return paquete;
+    // Crear un buffer para almacenar el PCB
+    paquete->buffer->size = sizeof(PCB); // Tamaño del PCB
+    paquete->buffer->stream = malloc(sizeof(PCB)); // Reservar memoria para el PCB
+    return paquete;
+}
+
+void agregar_pcb_a_paquete(t_paquete* paquete, PCB* pcb) {
+    // Copiar el PCB al stream del buffer del paquete
+    memcpy(paquete->buffer->stream, pcb, sizeof(PCB));
+}
+
+void enviar_paquete_pcb(t_paquete* paquete, int socket_cliente) {
+
+    // Calcular el tamaño total del paquete
+    int bytes = paquete->buffer->size + 2 * sizeof(int);
+    // Serializar el paquete
+    void* a_enviar = serializar_paquete(paquete, bytes);
+    // Enviar el paquete a través del socket
+    send(socket_cliente, a_enviar, bytes, 0);
+    // Liberar la memoria utilizada por el paquete y su buffer
+    eliminar_paquete(paquete);
 }

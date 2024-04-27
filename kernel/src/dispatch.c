@@ -25,24 +25,12 @@ void iniciar_dispatch_cpu()
 void enviar_pcb(int socket_cliente, PCB *pcb)
 {
     // Crear un paquete para enviar los PCBs
-    t_paquete *paquete = crear_paquete();
-    if (paquete == NULL)
-    {
-        log_info(logger, "Error al crear el paquete\n");
-        return;
-    }
+    t_paquete* paquete = crear_paquete_pcb();
+    //Agrega el PCB a enviar
+    agregar_pcb_a_paquete(pcb);
+    //Lo envia a traves de la conexion
+    enviar_paquete_pcb(paquete, socket_cliente);
 
-    // Establecer el código de operación
-    paquete->codigo_operacion = DISPATCH;
-
-    // Agregar el PCB al paquete
-    agregar_a_paquete(paquete, pcb, sizeof(PCB));
-
-    // Enviar el paquete a la CPU
-    enviar_paquete(paquete, socket_cliente);
-
-    // Eliminar el paquete después de enviarlo
-    eliminar_paquete(paquete);
 }
 
 void conectar_dispatch_cpu(PCB *proceso_enviar)
@@ -50,7 +38,7 @@ void conectar_dispatch_cpu(PCB *proceso_enviar)
     // Prendo la conexion al dispatch, creando un socket
     int socket_cpu_dispatch = iniciar_dispatch_cpu();
     // Envio el PCB del proceso que pase a ejecucion en la planificacion
-    enviar_pcb(socket_cpu_dispatch, proceso_enviar);
+    enviar_pcb(socket_cpu_dispatch,proceso_enviar);
     // Libero la conexion para que se pueda volver a usar.
     liberar_conexion(socket_cpu_dispatch);
 }

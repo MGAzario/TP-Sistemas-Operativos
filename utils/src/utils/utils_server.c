@@ -1,4 +1,6 @@
 #include "utils_server.h"
+#include "estados.h"
+#include "registros.h"
 
 int iniciar_servidor(char *puerto)
 {
@@ -15,15 +17,15 @@ int iniciar_servidor(char *puerto)
 
 	// Creamos el socket de escucha del servidor
 	socket_servidor = socket(servinfo->ai_family,
-						servinfo->ai_socktype,
-						servinfo->ai_protocol);
+							 servinfo->ai_socktype,
+							 servinfo->ai_protocol);
 	// Asociamos el socket a un puerto
 	bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
 	// Escuchamos las conexiones entrantes
 	listen(socket_servidor, SOMAXCONN);
-	
+
 	freeaddrinfo(servinfo);
-	log_info(logger,"Listo para escuchar a mi cliente\n");
+	log_info(logger, "Listo para escuchar a mi cliente\n");
 
 	return socket_servidor;
 }
@@ -32,7 +34,7 @@ int esperar_cliente(int socket_servidor)
 {
 	// Aceptamos un nuevo cliente
 	int socket_cliente = accept(socket_servidor, NULL, NULL);
-	log_info(logger,"Se conecto un cliente!\n");
+	log_info(logger, "Se conecto un cliente!\n");
 
 	return socket_cliente;
 }
@@ -40,7 +42,7 @@ int esperar_cliente(int socket_servidor)
 int recibir_operacion(int socket_cliente)
 {
 	int cod_op;
-	if(recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
+	if (recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
 		return cod_op;
 	else
 	{
@@ -49,9 +51,9 @@ int recibir_operacion(int socket_cliente)
 	}
 }
 
-void* recibir_buffer(int* size, int socket_cliente)
+void *recibir_buffer(int *size, int socket_cliente)
 {
-	void * buffer;
+	void *buffer;
 
 	recv(socket_cliente, size, sizeof(int), MSG_WAITALL);
 	buffer = malloc(*size);
@@ -63,29 +65,40 @@ void* recibir_buffer(int* size, int socket_cliente)
 void recibir_mensaje(int socket_cliente)
 {
 	int size;
-	char* buffer = recibir_buffer(&size, socket_cliente);
-	log_info(logger,"Me llego el mensaje %s\n", buffer);
+	char *buffer = recibir_buffer(&size, socket_cliente);
+	log_info(logger, "Me llego el mensaje %s\n", buffer);
 	free(buffer);
 }
 
-t_list* recibir_paquete(int socket_cliente)
+t_list *recibir_paquete(int socket_cliente)
 {
 	int size;
 	int desplazamiento = 0;
-	void * buffer;
-	t_list* valores = list_create();
+	void *buffer;
+	t_list *valores = list_create();
 	int tamanio;
 
 	buffer = recibir_buffer(&size, socket_cliente);
-	while(desplazamiento < size)
+	while (desplazamiento < size)
 	{
 		memcpy(&tamanio, buffer + desplazamiento, sizeof(int));
-		desplazamiento+=sizeof(int);
-		char* valor = malloc(tamanio);
-		memcpy(valor, buffer+desplazamiento, tamanio);
-		desplazamiento+=tamanio;
+		desplazamiento += sizeof(int);
+		char *valor = malloc(tamanio);
+		memcpy(valor, buffer + desplazamiento, tamanio);
+		desplazamiento += tamanio;
 		list_add(valores, valor);
 	}
 	free(buffer);
 	return valores;
+}
+
+// Recibir PCB solo se deberia usar cuando se que voy a recibir un paquete del dispatch
+PCB *recibir_pcb(int socket_cliente)
+{
+	int size;
+	void *buffer = recibir_buffer(&size, socket_cliente);
+	PCB *pcb = malloc(sizeof(PCB));
+	memcpy(pcb, buffer, sizeof(PCB));
+	free(buffer);
+	return pcb;
 }

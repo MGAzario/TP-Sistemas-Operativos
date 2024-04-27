@@ -4,6 +4,7 @@
 #define REGISTROS_H
 
 #include <stdint.h>
+#include <estados.h>
 
 // Definición de los registros de la CPU
 typedef struct {
@@ -21,4 +22,17 @@ typedef struct {
     // Aca son todos los registros que estan en el enunciado
 } CPU_Registers;
 
+//Definicion de un PCB
+typedef struct
+{
+    int PID;
+    uint32_t program_counter;
+    int quantum;
+    CPU_Registers cpu_registers;
+    estado_proceso estado;
+} PCB;
+
+//Declaracion de los semaforos
+extern sem_t sem_nuevo_pcb;
+extern sem_t sem_proceso_liberado;
 #endif /* CPU_H */

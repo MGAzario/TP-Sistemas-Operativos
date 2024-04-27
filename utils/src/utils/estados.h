@@ -1,4 +1,4 @@
-// registros.h
+// estados.h
 
 #ifndef ESTADOS_H
 #define ESTADOS_H

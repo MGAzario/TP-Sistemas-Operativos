@@ -6,34 +6,58 @@
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
 #include <kernel.h>
+#include <dispatch.h>
+#include <pthread.h>
 
+
+
+
+// Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
 t_config *config;
 t_log *logger;
 t_queue cola_new;
 t_queue cola_ready;
 
 static int ultimo_pid = 0;
-// Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
 char *ip_cpu;
 int socket_cpu_dispatch;
+int grado_multiprogramacion_activo;
+int grado_multiprogramacion_max;
+
+sem_t sem_nuevo_pcb;
+sem_t sem_proceso_liberado;
+
+pthread_t hilo_planificador_largo_plazo;
 
 int main(int argc, char *argv[])
 {
     decir_hola("Kernel");
-
+    sem_init(&sem_nuevo_pcb, 0, 0);
+    sem_init(&sem_proceso_liberado, 0, 0);
     crear_logger();
     crear_config();
+    //El grado de multiprogramacion va a ser una variable global, que van a manejar entre CPU y Kernel
+    grado_multiprogramacion_max = config_get_string_value(config, "GRADO_MULTIPROGRAMACION");
+    //El grado activo empieza en 0 y se ira incrementando
+    grado_multiprogramacion_activo = 0;
 
     // Creo la cola que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
 
+    //Creo un hilo para el planificador de largo plazo
+    if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo) != 0){
+        log_error(logger, "Error al inicializar el Hilo Planificador de Largo Plazo");
+        exit(EXIT_FAILURE);
+    }
+    //Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
+    pthread_detach(hilo_planificador_largo_plazo);
     // Creo un PCB de Quantum 2
     crear_pcb(2);
     crear_pcb(1);
     mover_procesos_ready();
 
-    planificar_procesos();
+    planificador_corto_plazo();
     // Usan la misma IP, se las paso por parametro.
     // Conexiones con CPU: Dispatch e Interrupt
     ip_cpu = config_get_string_value(config, "IP_CPU");
@@ -45,6 +69,7 @@ int main(int argc, char *argv[])
 
     // Entrada salida a Kernel
     recibir_entradasalida();
+    int grado_multiprogramacion_max = config_get_string_value(config, "GRADO_MULTIPROGRAMACION");
 
     log_info(logger, "Terminó\n");
 
@@ -142,86 +167,124 @@ void crear_pcb(int quantum)
     // Usar sprintf para formatear el mensaje con el último PID
     sprintf(mensaje, "Se crea el proceso %d en NEW\n", ultimo_pid);
     log_info(logger, mensaje);
+    // Despertar el mover procesos a ready
+    sem_post(&sem_nuevo_pcb);
 }
 
 /*En caso de que el grado de multiprogramación lo permita, los procesos creados podrán pasar de la cola de NEW a la cola de READY,
 caso contrario, se quedarán a la espera de que finalicen procesos que se encuentran en ejecución*/
-void mover_procesos_ready()
+void planificador_largo_plazo()
 {
-    // Obtener el grado de multiprogramación del archivo de configuración
-    int grado_multiprogramacion = config_get_string_value(config, "GRADO_MULTIPROGRAMACION");
-
-    // Calcular la cantidad de procesos en la cola de NEW y en la cola de READY
-    int cantidad_procesos_new = queue_size(cola_new);
-
-    int cantidad_procesos_ready = queue_size(cola_ready);
-
-    // Verificar si el grado de multiprogramación lo permite
-    if (cantidad_procesos_ready < grado_multiprogramacion)
+    while (1)
     {
+        // Esperar hasta que se cree un nuevo PCB
+        sem_wait(&sem_nuevo_pcb);
+        // Calcular la cantidad de procesos en la cola de NEW y en la cola de READY
+        int cantidad_procesos_new = queue_size(cola_new);
+
+        // Verificar si el grado de multiprogramación lo permite
         // Mover procesos de la cola de NEW a la cola de READY
-        while (cantidad_procesos_new > 0 && cantidad_procesos_ready < grado_multiprogramacion)
+        while (cantidad_procesos_new > 0 && grado_multiprogramacion_activo < grado_multiprogramacion_max)
         {
             // Seleccionar el primer proceso de la cola de NEW
             PCB *proceso_nuevo = queue_peek(cola_new);
             // Borro el proceso que acabo de seleccionar
-            queue_pop();
+            queue_pop(cola_new);
 
             // Cambiar el estado del proceso a READY
             proceso_nuevo->estado = READY;
 
             // Agregar el proceso a la cola de READY
             queue_push(cola_ready, proceso_nuevo);
-            cantidad_procesos_ready++;
+            //Aumentamos el grado de multiprogramacion activo
+            grado_multiprogramacion_activo++;
 
             // Reducir la cantidad de procesos en la cola de NEW
             cantidad_procesos_new--;
+
         }
-    }
-    if (cantidad_procesos_new == 0)
-    {
-        printf("Ya no hay más procesos en la cola de NEW.\n");
-    }
-    else
-    {
-        printf("El grado de multiprogramación máximo ha sido alcanzado. %d procesos permanecerán en la cola de NEW.\n",cantidad_procesos_new);
+        //Este semaforo se usaria para que la CPU no reste al grado de multiprogramacion al mismo tiempo que se modifica aca.
+        sem_post(&sem_proceso_liberado);
     }
 }
 
 // Planificador corto plazo
-void planificar_procesos()
+void planificador_corto_plazo()
 {
-    PCB *proceso_ejecucion;
-    char* algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+    char *algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
     switch (algoritmo_planificacion)
     {
     case 'FIFO':
-        proceso_ejecucion = planificar_fifo();
+        planificar_fifo();
         break;
     case 'RR':
-        proceso_ejecucion = planificar_rr();
+        planificar_round_robin();
         break;
     case 'VRR':
-        proceso_ejecucion = planificar_vrr();
+        planificar_vrr();
         break;
     default:
         printf("Algoritmo de planificación desconocido\n");
         break;
     }
-    // Estado pasa a ejecucion
-    proceso_ejecucion->estado = EXEC;
-    // Me conecto al CPU a traves del dispatch
-    conectar_dispatch_cpu(proceso_ejecucion);
 }
-PCB *planificar_fifo()
+void planificar_fifo()
 {
-    if (!queue_is_empty(cola_ready))
+    while (1)
     {
-        // FIFO toma el primer proceso de la cola
-        PCB *proceso_ejecucion = queue_peek(cola_ready);
-        // Borro ese proceso de mi cola de ready
-        queue_pop(cola_ready);
+        // Esperar a que se cree un nuevo PCB
+        sem_wait(&sem_nuevo_pcb);
+        if (!queue_is_empty(cola_ready))
+        {
+            // FIFO toma el primer proceso de la cola
+            PCB *proceso_ejecucion = queue_peek(cola_ready);
+            // Borro ese proceso de mi cola de ready
+            queue_pop(cola_ready);
+            // Estado pasa a ejecucion
+            proceso_ejecucion->estado = EXEC;
+            // Me conecto al CPU a traves del dispatch
+            conectar_dispatch_cpu(proceso_ejecucion);
+        }
+    }
+}
 
-        return proceso_ejecucion
+// Función para planificar los procesos usando Round Robin
+void planificar_round_robin()
+{
+    int quantum_kernel = config_get_string_value(config, "QUANTUM");
+    // Ejecutar hasta que la cola de procesos en READY esté vacía
+    while (1)
+    {
+        if (!queue_is_empty(cola_ready))
+        {
+            int tiempo_usado = 0;
+            // Obtener el proceso listo para ejecutarse de la cola
+            PCB *proceso_ejecucion = queue_peek(cola_ready);
+            queue_pop(cola_ready);
+
+            // Cambiar el estado del proceso a EXEC
+            proceso_ejecucion->estado = EXEC;
+
+            // TODO Enviar el proceso a la CPU
+            conectar_dispatch_cpu(proceso_ejecucion);
+            // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+            // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+            while (proceso_ejecucion->quantum > 0)
+            {
+                if (tiempo_usado < quantum_kernel)
+                {
+                    proceso_ejecucion->quantum--;
+                    tiempo_usado++;
+                }
+                // Aca el proceso cortaria porque se le agoto su quantum
+                else if (tiempo_usado == quantum_kernel)
+                {
+                    // TODO, desalojar de CPU con interrupcion.
+                    proceso_ejecucion->estado = READY;
+                    queue_push(cola_ready, proceso_ejecucion);
+                    break;
+                }
+            }
+        }
     }
 }

@@ -2,14 +2,20 @@
 #define KERNEL_H
 #include <utils/registros.h>
 #include <utils/estados.h>
-// Definición del PCB
-typedef struct
-{
-    int PID;
-    uint32_t program_counter;
-    int quantum;
-    CPU_Registers cpu_registers;
-    estado_proceso estado;
-} PCB;
+
+
+
+void crear_logger();
+void crear_config();
+void conectar_memoria();
+void conectar_interrupt_cpu(char *ip_cpu);
+void recibir_entradasalida();
+void crear_pcb(int quantum);
+void mover_procesos_ready();
+void planificador_corto_plazo();
+void planificador_largo_plazo();
+void planificar_fifo();
+void planificar_round_robin();
+
 
 #endif /*KERNEL_H*/
