@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
 void crear_logger()
 {
-    logger = log_create("./kernel.log", "LOG_KERNEL", true, LOG_LEVEL_INFO);
+    logger = log_create("./kernel.log", "LOG_KERNEL", false, LOG_LEVEL_INFO);
     if (logger == NULL)
     {
         perror("Ocurrió un error al leer el archivo de Log de Kernel");
