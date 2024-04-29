@@ -6,6 +6,7 @@
 #include <utils/utils_cliente.h>
 #include <utils/utils_server.h>
 #include <utils/hello.h>
+#include <readline/readline.h>
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
 #include <pthread.h>
@@ -13,7 +14,6 @@
 #include <utils/estados.h>
 
 
-void procedimiento_de_prueba();
 void crear_logger();
 void crear_config();
 void conectar_memoria();

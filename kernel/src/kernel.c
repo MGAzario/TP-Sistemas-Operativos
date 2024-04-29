@@ -1,5 +1,4 @@
 #include "kernel.h"
-#include "dispatch.h"
 
 // Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
 t_config *config;
@@ -64,10 +63,6 @@ int main(int argc, char *argv[])
     //Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
     pthread_detach(hilo_planificador_corto_plazo);
 
-    // Creo un PCB
-    sleep(4);
-    crear_pcb();
-
     consola();
 
     // Kernel a Memoria
@@ -86,7 +81,7 @@ int main(int argc, char *argv[])
 
 void crear_logger()
 {
-    logger = log_create("./kernel.log", "LOG_KERNEL", true, LOG_LEVEL_TRACE);
+    logger = log_create("./kernel.log", "LOG_KERNEL", false, LOG_LEVEL_TRACE);
     if (logger == NULL)
     {
         perror("Ocurrió un error al leer el archivo de Log de Kernel");
@@ -131,29 +126,29 @@ void conectar_interrupt_cpu(char *ip_cpu)
     socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
 }
 
-// void recibir_entradasalida()
-// {
-//     char *puerto_kernel = config_get_string_value(config, "PUERTO_ESCUCHA");
-//     int socket_kernel = iniciar_servidor(puerto_kernel);
+void recibir_entradasalida()
+{
+    char *puerto_kernel = config_get_string_value(config, "PUERTO_ESCUCHA");
+    int socket_kernel = iniciar_servidor(puerto_kernel);
 
-//     // Espero a un cliente (entradasalida). El mensaje entiendo que se programa despues
-//     int socket_entradasalida = esperar_cliente(socket_kernel);
+    // Espero a un cliente (entradasalida). El mensaje entiendo que se programa despues
+    int socket_entradasalida = esperar_cliente(socket_kernel);
 
-//     // Si falla, no se pudo aceptar
-//     if (socket_entradasalida == -1)
-//     {
-//         log_info(logger, "Error al aceptar la conexión del kernel asl socket de dispatch.\n");
-//         liberar_conexion(socket_kernel);
-//     }
-//     // Esto deberia recibir el mensaje que manda la entrada salida
-//     recibir_mensaje(socket_entradasalida);
+    // Si falla, no se pudo aceptar
+    if (socket_entradasalida == -1)
+    {
+        log_info(logger, "Error al aceptar la conexión del kernel asl socket de dispatch.\n");
+        liberar_conexion(socket_kernel);
+    }
+    // Esto deberia recibir el mensaje que manda la entrada salida
+    recibir_mensaje(socket_entradasalida);
 
-//     // Cerrar conexión con el cliente
-//     liberar_conexion(socket_entradasalida);
+    // Cerrar conexión con el cliente
+    liberar_conexion(socket_entradasalida);
 
-//     // Cerrar socket servidor
-//     liberar_conexion(socket_kernel);
-// }
+    // Cerrar socket servidor
+    liberar_conexion(socket_kernel);
+}
 
 // Requisito Checkpoint: Es capaz de crear un PCB y planificarlo por FIFO y RR.
 void crear_pcb()
@@ -164,7 +159,7 @@ void crear_pcb()
     registros->pc = 0;
     registros->normales[AX] = 0;
     registros->normales[BX] = 0;
-    registros->normales[CX] = 48;
+    registros->normales[CX] = 0;
     registros->normales[DX] = 0;
     registros->extendidos[EAX] = 0;
     registros->extendidos[EBX] = 0;
@@ -177,7 +172,7 @@ void crear_pcb()
     pcb->pid = ultimo_pid;
     // Termino de completar el PCB
     pcb->cpu_registers = registros;
-    pcb->quantum = 2;
+    pcb->quantum = 0;
     pcb->estado = NEW;
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
@@ -333,7 +328,7 @@ void esperar_cpu()
                 free(pcb_prueba->cpu_registers);
                 free(pcb_prueba);
             }
-            while(1){log_debug(logger, "Haciendo nada..."); sleep(2);}
+            while(1){}
             break;
         default:
             log_debug(logger, "Paquete desconocido\n");
@@ -345,65 +340,59 @@ void esperar_cpu()
 
 void consola()
 {
+    char *linea;
     while(1)
     {
-        //TODO: Consola
+        linea = readline("> ");
+
+        char comando[30];
+        sscanf(linea, "%s", comando);
+
+        if(strcmp(comando, "COMANDOS") == 0){
+            printf("EJECUTAR_SCRIPT [PATH]\n");
+            printf("INICIAR_PROCESO [PATH]\n");
+            printf("FINALIZAR_PROCESO [PID]\n");
+            printf("DETENER_PLANIFICACION\n");
+            printf("INICIAR_PLANIFICACION\n");
+            printf("MULTIPROGRAMACION [VALOR]\n");
+            printf("PROCESO_ESTADO\n");
+        }
+        if(strcmp(comando, "EJECUTAR_SCRIPT") == 0){
+            char path[300];
+            sscanf(linea, "%s %s", comando, path);
+
+            printf("Falta implementar\n"); // TODO
+        }
+        if(strcmp(comando, "INICIAR_PROCESO") == 0){
+            char path[300];
+            sscanf(linea, "%s %s", comando, path);
+
+            printf("Path: %s\n", path); // TODO: Sacar instrucciones del path
+
+            crear_pcb();
+        }
+        if(strcmp(comando, "FINALIZAR_PROCESO") == 0){
+            int pid;
+            sscanf(linea, "%s %i", comando, &pid);
+            
+            printf("Falta implementar\n"); // TODO
+        }
+        if(strcmp(comando, "DETENER_PLANIFICACION") == 0){
+            printf("Falta implementar\n"); // TODO
+        }
+        if(strcmp(comando, "INICIAR_PLANIFICACION") == 0){
+            printf("Falta implementar\n"); // TODO
+        }
+        if(strcmp(comando, "MULTIPROGRAMACION") == 0){
+            int valor;
+            sscanf(linea, "%s %i", comando, &valor);
+
+            printf("Falta implementar\n"); // TODO
+        }
+        if(strcmp(comando, "PROCESO_ESTADO") == 0){
+            printf("Falta implementar\n"); // TODO
+        }
+
+        free(linea);
     }
-}
-
-void procedimiento_de_prueba()
-{
-    t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
-    registros->pc = 10;
-    registros->normales[AX] = 8;
-    registros->normales[BX] = 8;
-    registros->normales[CX] = 8;
-    registros->normales[DX] = 8;
-    registros->extendidos[EAX] = 21;
-    registros->extendidos[EBX] = 21;
-    registros->extendidos[ECX] = 21;
-    registros->extendidos[EDX] = 21;
-    registros->si = 1;
-    registros->di= 1;
-
-    t_pcb *pcb = malloc(sizeof(t_pcb));
-
-    pcb->pid = 11;
-    pcb->quantum = 4;
-    pcb->estado = NEW;
-    pcb->cpu_registers = registros;
-
-    enviar_pcb(socket_cpu_dispatch, pcb);
-
-    free(pcb);
-
-    sleep(5);
-
-    t_pcb *pcb_2 = malloc(sizeof(t_pcb));
-
-    pcb_2->pid = 5;
-    pcb_2->quantum = 24;
-    pcb_2->estado = NEW;
-    pcb_2->cpu_registers = registros;
-
-    enviar_pcb(socket_cpu_dispatch, pcb_2);
-
-    free(pcb_2);
-
-    sleep(5);
-
-    t_pcb *pcb_3 = malloc(sizeof(t_pcb));
-
-    pcb_3->pid = 45;
-    pcb_3->quantum = 21;
-    pcb_3->estado = NEW;
-    pcb_3->cpu_registers = registros;
-
-    enviar_pcb(socket_cpu_dispatch, pcb_3);
-
-    free(pcb_3);
-
-    free(registros);
-
-    sleep(5);
 }

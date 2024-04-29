@@ -79,6 +79,8 @@ void conectar_memoria()
 // Función para manejar la conexión entrante
 void recibir_procesos_kernel(int socket_cliente)
 {
+    // Todo este while es solo para probar recibir un pcb y devolverlo modificado.
+    // Hay que cambiar esto por una implementación del ciclo de instrucción.
     int el_kernel_sigue_conectado = 1;
     while(el_kernel_sigue_conectado)
     {
@@ -106,58 +108,6 @@ void recibir_procesos_kernel(int socket_cliente)
             pcb_prueba->cpu_registers->normales[AX] = 124;
 
             enviar_pcb(socket_cliente, pcb_prueba);
-
-            free(pcb_prueba->cpu_registers);
-            free(pcb_prueba);
-        } else {
-            el_kernel_sigue_conectado = 0;
-        }
-    }
-
-    // while (1)
-    // {
-    //     op_code cod_op = recibir_operacion(socket_cliente);
-    //     switch (cod_op)
-    //     {
-    //     case DISPATCH:
-    //         log_info(logger, "t_pcb recibido desde el Kernel\n");
-    //         // La funcion recibir_pcb es una variante de los utils, especifica para poder recibir un PCB del dispatch
-    //         // t_pcb *proceso_ejecucion = recibir_pcb(socket_cliente);
-    //         break;
-    //     case INTERRUPT:
-    //         log_info(logger, "Paquete INTERRUPT recibido desde el Kernel\n");
-    //         break;
-    //     default:
-    //         log_info(logger, "Paquete desconocido\n");
-    //         break;
-    //     } 
-    // }
-}
-
-void procedimiento_de_prueba()
-{
-    int el_kernel_sigue_conectado = 1;
-    while(el_kernel_sigue_conectado)
-    {
-        op_code cod_op = recibir_operacion(socket_kernel_dispatch);
-        if (cod_op != DESCONEXION)
-        {
-            t_pcb *pcb_prueba = recibir_pcb(socket_kernel_dispatch);
-            log_info(logger, "código de operación: %i", cod_op);
-            log_info(logger, "PID: %i", pcb_prueba->pid);
-            log_info(logger, "program counter: %i", pcb_prueba->cpu_registers->pc);
-            log_info(logger, "quantum: %i", pcb_prueba->quantum);
-            log_info(logger, "estado: %i", pcb_prueba->estado);
-            log_info(logger, "SI: %i", pcb_prueba->cpu_registers->si);
-            log_info(logger, "DI: %i", pcb_prueba->cpu_registers->di);
-            log_info(logger, "AX: %i", pcb_prueba->cpu_registers->normales[AX]);
-            log_info(logger, "BX: %i", pcb_prueba->cpu_registers->normales[BX]);
-            log_info(logger, "CX: %i", pcb_prueba->cpu_registers->normales[CX]);
-            log_info(logger, "DX: %i", pcb_prueba->cpu_registers->normales[DX]);
-            log_info(logger, "EAX: %i", pcb_prueba->cpu_registers->extendidos[EAX]);
-            log_info(logger, "EBX: %i", pcb_prueba->cpu_registers->extendidos[EBX]);
-            log_info(logger, "ECX: %i", pcb_prueba->cpu_registers->extendidos[ECX]);
-            log_info(logger, "EDX: %i", pcb_prueba->cpu_registers->extendidos[EDX]);
 
             free(pcb_prueba->cpu_registers);
             free(pcb_prueba);

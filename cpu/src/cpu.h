@@ -10,7 +10,6 @@
 #include <utils/hello.h>
 
 
-void procedimiento_de_prueba();
 void crear_logger();
 void crear_config();
 void iniciar_servidores();
