@@ -9,12 +9,13 @@
 #include <utils/estados.h>
 #include <utils/hello.h>
 
+
 void procedimiento_de_prueba();
 void crear_logger();
 void crear_config();
 void iniciar_servidores();
 void conectar_memoria();
-void recibir_kernel_dispatch();
-void recibir_kernel_interrupt();
+void recibir_procesos_kernel(int socket_cliente);
+
 
 #endif /*CPU_H*/

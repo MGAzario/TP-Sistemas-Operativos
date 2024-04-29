@@ -51,7 +51,7 @@ op_code recibir_operacion(int socket_cliente)
 	else
 	{
 		close(socket_cliente);
-		return MENSAJE;
+		return DESCONEXION;
 	}
 }
 

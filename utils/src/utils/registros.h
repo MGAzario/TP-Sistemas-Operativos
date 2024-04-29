@@ -38,5 +38,4 @@ typedef struct
 
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
-extern sem_t sem_proceso_liberado;
 #endif /* CPU_H */

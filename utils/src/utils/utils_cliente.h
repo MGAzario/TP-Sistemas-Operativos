@@ -22,7 +22,8 @@ typedef enum
 	INTERRUPT,
 	CPU_SOLICITAR_INSTRUCCION,
 	KERNEL_CREACION_PROCESO,
-	MENSAJE_ENTRADA_SALIDA
+	MENSAJE_ENTRADA_SALIDA,
+	DESCONEXION
 }op_code;
 
 typedef struct
@@ -50,6 +51,6 @@ int conectar_modulo(char* ip, char* puerto);
 t_paquete* crear_paquete_pcb();
 void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb);
 void enviar_paquete_pcb(t_paquete* paquete, int socket_cliente);
-// void enviar_paquete_pcb(int socket_cliente, t_pcb* pcb, op_code codigo_operacion);
+void enviar_pcb(int socket_cliente, t_pcb *pcb);
 
 #endif /* UTILS_CLIENTE_H_ */
