@@ -1,6 +1,5 @@
 #include "utils_server.h"
-#include "estados.h"
-#include "registros.h"
+#include "utils_cliente.h"
 
 int iniciar_servidor(char *puerto)
 {
@@ -19,6 +18,11 @@ int iniciar_servidor(char *puerto)
 	socket_servidor = socket(servinfo->ai_family,
 							 servinfo->ai_socktype,
 							 servinfo->ai_protocol);
+
+	/* Esto está para que se pueda  reutilizar el puerto. Si esto no está solo se conecta una vez
+	y luego no puede conectarse una segunda vez*/
+	const int cosa = 1;
+	setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &cosa, sizeof(int));
 	// Asociamos el socket a un puerto
 	bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
 	// Escuchamos las conexiones entrantes
@@ -39,15 +43,15 @@ int esperar_cliente(int socket_servidor)
 	return socket_cliente;
 }
 
-int recibir_operacion(int socket_cliente)
+op_code recibir_operacion(int socket_cliente)
 {
-	int cod_op;
-	if (recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
+	op_code cod_op;
+	if (recv(socket_cliente, &cod_op, sizeof(cod_op), MSG_WAITALL) > 0)
 		return cod_op;
 	else
 	{
 		close(socket_cliente);
-		return -1;
+		return MENSAJE;
 	}
 }
 
@@ -93,12 +97,50 @@ t_list *recibir_paquete(int socket_cliente)
 }
 
 // Recibir PCB solo se deberia usar cuando se que voy a recibir un paquete del dispatch
-PCB *recibir_pcb(int socket_cliente)
+t_pcb *recibir_pcb(int socket_cliente)
 {
 	int size;
-	void *buffer = recibir_buffer(&size, socket_cliente);
-	PCB *pcb = malloc(sizeof(PCB));
-	memcpy(pcb, buffer, sizeof(PCB));
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_pcb *pcb = malloc(sizeof(t_pcb));
+	t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
+	pcb->cpu_registers = registros;
+
+
+	memcpy(&(pcb->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(pcb->quantum), buffer, sizeof(int));
+	buffer += sizeof(int);
+
+	memcpy(&(pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(pcb->cpu_registers->normales[AX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(pcb->cpu_registers->normales[BX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(pcb->cpu_registers->normales[CX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(pcb->cpu_registers->normales[DX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+
+	memcpy(&(pcb->cpu_registers->extendidos[EAX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(pcb->cpu_registers->extendidos[EBX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(pcb->cpu_registers->extendidos[ECX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(pcb->cpu_registers->extendidos[EDX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(pcb->estado), buffer, sizeof(estado_proceso));
+
+	buffer = buffer - 2 * sizeof(int) - 7 * sizeof(uint32_t) - 4 * sizeof(uint8_t);
 	free(buffer);
 	return pcb;
 }

@@ -4,10 +4,11 @@
 #include <utils/estados.h>
 
 
-
+void procedimiento_de_prueba();
 void crear_logger();
 void crear_config();
 void conectar_memoria();
+void conectar_dispatch_cpu(char *ip_cpu);
 void conectar_interrupt_cpu(char *ip_cpu);
 void recibir_entradasalida();
 void crear_pcb(int quantum);

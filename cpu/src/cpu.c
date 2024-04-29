@@ -1,41 +1,42 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <utils/utils_server.h>
-#include <utils/utils_cliente.h>
-#include <utils/registros.h>
-#include <utils/estados.h>
-#include <semaphore.h>
+#include"cpu.h"
 
 t_config *config;
 t_log *logger;
 
-void crear_logger();
-void crear_config();
-void conectar_memoria();
-void recibir_kernel_dispatch();
-void recibir_kernel_interrupt();
+int socket_cpu_dispatch;
+int socket_cpu_interrupt;
+int socket_kernel_dispatch;
+int socket_kernel_interrupt;
+
 //Semaforos
 extern sem_t sem_proceso_liberado;
 
 int main(int argc, char *argv[])
 {
-    decir_hola("CPU");
     // Las creaciones se pasan a funciones para limpiar el main.
     crear_logger();
     crear_config();
-    // Establecer conexión con el módulo Memoria
-    conectar_memoria();
-    // Recibir mensaje del dispatch del Kernel
-    recibir_conexiones_kernel();
 
-    printf("Terminó\n");
+    decir_hola("CPU");
+
+    iniciar_servidores();
+    // Establecer conexión con el módulo Memoria
+    // conectar_memoria();
+    // Recibir mensaje del dispatch del Kernel
+    // recibir_conexiones_kernel();
+
+    procedimiento_de_prueba();
+
+    liberar_conexion(socket_cpu_dispatch);
+
+    log_info(logger, "Terminó");
 
     return 0;
 }
 
 void crear_logger()
 {
-    logger = log_create("./cpu.log", "LOG_CPU", true, LOG_LEVEL_INFO);
+    logger = log_create("./cpu.log", "LOG_CPU", true, LOG_LEVEL_TRACE);
     // Tira error si no se pudo crear
     if (logger == NULL)
     {
@@ -54,42 +55,15 @@ void crear_config()
     }
 }
 
-void recibir_kernel_dispatch()
-{
-    // Crear socket servidor para aceptar conexion de CPU siguiendo la arquitectura del sistema.
+void iniciar_servidores() {
+    // Iniciar servidor de dispatch
     char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_ESCUCHA_DISPATCH");
-    int socket_cpu_dispatch = iniciar_servidor(puerto_cpu_dispatch);
-    int socket_kernel_dispatch = esperar_cliente(socket_cpu_dispatch);
-    if (socket_kernel_dispatch == -1)
-    {
-        log_info(logger, "Error al aceptar la conexión del kernel asl socket de dispatch.\n");
-        liberar_conexion(socket_cpu_dispatch);
-    }
-    // Esto deberia recibir el mensaje que manda el kernel
-    recibir_mensaje(socket_kernel_dispatch);
-    // Cerrar conexión con el cliente
-    liberar_conexion(socket_kernel_dispatch);
-    // Cerrar socket servidor
-    liberar_conexion(socket_cpu_dispatch);
-}
-
-// Revisar si es necesario tener 2 sockets distintos para las funcionalidades, o 1 solo que tenga una logica dentro. Esto aplica para Kernel y otros modulos.
-void recibir_kernel_interrupt()
-{
+    socket_cpu_dispatch = iniciar_servidor(puerto_cpu_dispatch);
+    socket_kernel_dispatch = esperar_cliente(socket_cpu_dispatch);
+    // Iniciar servidor de interrupt
     char *puerto_cpu_interrupt = config_get_string_value(config, "PUERTO_ESCUCHA_INTERRUPT");
-    int socket_cpu_interrupt = iniciar_servidor(puerto_cpu_interrupt);
-    int socket_kernel_interrupt = esperar_cliente(socket_cpu_interrupt);
-    // Si falla, no se pudo aceptar
-    if (socket_kernel_interrupt == -1)
-    {
-        log_info(logger, "Error al aceptar la conexión del kernel al socket de interrupt.\n");
-        liberar_conexion(socket_cpu_interrupt);
-    }
-    recibir_mensaje(socket_kernel_interrupt);
-    // Cerrar conexión con el cliente
-    liberar_conexion(socket_kernel_interrupt);
-    // Cerrar socket servidor
-    liberar_conexion(socket_cpu_interrupt);
+    socket_cpu_interrupt = iniciar_servidor(puerto_cpu_interrupt);
+    socket_kernel_interrupt = esperar_cliente(socket_cpu_interrupt);
 }
 
 void conectar_memoria()
@@ -113,9 +87,9 @@ void recibir_conexiones_kernel(int socket_cliente)
         switch (cod_op)
         {
         case DISPATCH:
-            log_info(logger, "PCB recibido desde el Kernel\n");
+            log_info(logger, "t_pcb recibido desde el Kernel\n");
             // La funcion recibir_pcb es una variante de los utils, especifica para poder recibir un PCB del dispatch
-            PCB *proceso_ejecucion = recibir_pcb(socket_cliente);
+            // t_pcb *proceso_ejecucion = recibir_pcb(socket_cliente);
             break;
         case INTERRUPT:
             log_info(logger, "Paquete INTERRUPT recibido desde el Kernel\n");
@@ -132,5 +106,38 @@ void liberar_proceso_ejecucion() {
     // Código para liberar el proceso de ejecución en el CPU
     // ...
     // Señalizar que se ha liberado un proceso de ejecución
-    sem_post(&sem_proceso_liberado);
+    // sem_post(&sem_proceso_liberado);
+}
+
+void procedimiento_de_prueba()
+{
+    int el_kernel_sigue_conectado = 1;
+    while(el_kernel_sigue_conectado)
+    {
+        op_code cod_op = recibir_operacion(socket_kernel_dispatch);
+        if (cod_op != MENSAJE)
+        {
+            t_pcb *pcb_prueba = recibir_pcb(socket_kernel_dispatch);
+            log_info(logger, "código de operación: %i", cod_op);
+            log_info(logger, "PID: %i", pcb_prueba->pid);
+            log_info(logger, "program counter: %i", pcb_prueba->cpu_registers->pc);
+            log_info(logger, "quantum: %i", pcb_prueba->quantum);
+            log_info(logger, "estado: %i", pcb_prueba->estado);
+            log_info(logger, "SI: %i", pcb_prueba->cpu_registers->si);
+            log_info(logger, "DI: %i", pcb_prueba->cpu_registers->di);
+            log_info(logger, "AX: %i", pcb_prueba->cpu_registers->normales[AX]);
+            log_info(logger, "BX: %i", pcb_prueba->cpu_registers->normales[BX]);
+            log_info(logger, "CX: %i", pcb_prueba->cpu_registers->normales[CX]);
+            log_info(logger, "DX: %i", pcb_prueba->cpu_registers->normales[DX]);
+            log_info(logger, "EAX: %i", pcb_prueba->cpu_registers->extendidos[EAX]);
+            log_info(logger, "EBX: %i", pcb_prueba->cpu_registers->extendidos[EBX]);
+            log_info(logger, "ECX: %i", pcb_prueba->cpu_registers->extendidos[ECX]);
+            log_info(logger, "EDX: %i", pcb_prueba->cpu_registers->extendidos[EDX]);
+
+            free(pcb_prueba->cpu_registers);
+            free(pcb_prueba);
+        } else {
+            el_kernel_sigue_conectado = 0;
+        }
+    }
 }

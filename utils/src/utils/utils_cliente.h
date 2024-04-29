@@ -10,6 +10,7 @@
 #include<string.h>
 #include<commons/log.h>
 #include<commons/config.h>
+#include"registros.h"
 
 extern t_log* logger;
 
@@ -46,6 +47,9 @@ void enviar_paquete(t_paquete* paquete, int socket_cliente);
 void liberar_conexion(int socket_cliente);
 void eliminar_paquete(t_paquete* paquete);
 int conectar_modulo(char* ip, char* puerto);
-void enviar_paquete_pcb(int socket_cliente, PCB* pcb, op_code codigo_operacion);
+t_paquete* crear_paquete_pcb();
+void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb);
+void enviar_paquete_pcb(t_paquete* paquete, int socket_cliente);
+// void enviar_paquete_pcb(int socket_cliente, t_pcb* pcb, op_code codigo_operacion);
 
-#endif /* UTILS_H_ */
+#endif /* UTILS_CLIENTE_H_ */
