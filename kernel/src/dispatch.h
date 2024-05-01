@@ -5,8 +5,9 @@
 
 #include <stdint.h>
 #include <kernel.h>
+#include <utils/utils.h>
 
-void iniciar_dispatch_cpu();
+int iniciar_dispatch_cpu();
 void enviar_pcb(int socket_cliente, PCB *pcb);
 void conectar_dispatch_cpu(PCB *proceso_enviar);
 

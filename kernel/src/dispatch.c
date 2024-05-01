@@ -13,7 +13,7 @@ junto con un motivo de desalojo por el cual fue desplazado a manejar.*/
 extern t_config *config;
 extern t_log *logger;
 
-void iniciar_dispatch_cpu()
+int iniciar_dispatch_cpu()
 {
     // Establecer conexión con el módulo CPU (dispatch)
     char *puerto_cpu_dispatch = config_get_string_value(config, "PUERTO_CPU_DISPATCH");
@@ -27,7 +27,7 @@ void enviar_pcb(int socket_cliente, PCB *pcb)
     // Crear un paquete para enviar los PCBs
     t_paquete* paquete = crear_paquete_pcb();
     //Agrega el PCB a enviar
-    agregar_pcb_a_paquete(pcb);
+    agregar_pcb_a_paquete(paquete,pcb);
     //Lo envia a traves de la conexion
     enviar_paquete_pcb(paquete, socket_cliente);
 

@@ -2,8 +2,7 @@
 #include <stdio.h>
 #include <utils/utils_server.h>
 #include <utils/utils_cliente.h>
-#include <utils/registros.h>
-#include <utils/estados.h>
+#include <utils/utils.h>
 #include <semaphore.h>
 
 t_config *config;

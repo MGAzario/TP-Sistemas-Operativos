@@ -5,28 +5,12 @@
 #include <utils/hello.h>
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
-#include <kernel.h>
 #include <dispatch.h>
 #include <pthread.h>
-
-
-
-
-// Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
-t_config *config;
-t_log *logger;
-t_queue cola_new;
-t_queue cola_ready;
+#include <utils/utils.h>
+#include <kernel.h>
 
 static int ultimo_pid = 0;
-char *ip_cpu;
-int socket_cpu_dispatch;
-int grado_multiprogramacion_activo;
-int grado_multiprogramacion_max;
-
-sem_t sem_nuevo_pcb;
-sem_t sem_proceso_liberado;
-
 pthread_t hilo_planificador_largo_plazo;
 
 int main(int argc, char *argv[])
@@ -36,21 +20,22 @@ int main(int argc, char *argv[])
     sem_init(&sem_proceso_liberado, 0, 0);
     crear_logger();
     crear_config();
-    //El grado de multiprogramacion va a ser una variable global, que van a manejar entre CPU y Kernel
-    grado_multiprogramacion_max = config_get_string_value(config, "GRADO_MULTIPROGRAMACION");
-    //El grado activo empieza en 0 y se ira incrementando
+    // El grado de multiprogramacion va a ser una variable global, que van a manejar entre CPU y Kernel
+    grado_multiprogramacion_max = atoi(config_get_string_value(config, "GRADO_MULTIPROGRAMACION"));
+    // El grado activo empieza en 0 y se ira incrementando
     grado_multiprogramacion_activo = 0;
 
     // Creo la cola que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
 
-    //Creo un hilo para el planificador de largo plazo
-    if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo) != 0){
+    // Creo un hilo para el planificador de largo plazo
+    if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo,NULL) != 0)
+    {
         log_error(logger, "Error al inicializar el Hilo Planificador de Largo Plazo");
         exit(EXIT_FAILURE);
     }
-    //Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
+    // Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
     pthread_detach(hilo_planificador_largo_plazo);
     // Creo un PCB de Quantum 2
     crear_pcb(2);
@@ -69,7 +54,6 @@ int main(int argc, char *argv[])
 
     // Entrada salida a Kernel
     recibir_entradasalida();
-    int grado_multiprogramacion_max = config_get_string_value(config, "GRADO_MULTIPROGRAMACION");
 
     log_info(logger, "Terminó\n");
 
@@ -149,11 +133,6 @@ void recibir_entradasalida()
 void crear_pcb(int quantum)
 {
     PCB *pcb = malloc(sizeof(PCB));
-    if (pcb == NULL)
-    {
-        printf("Error al crear el PCB\n");
-        return NULL;
-    }
     // Incrementar el PID y asignarlo al nuevo PCB
     ultimo_pid++;
     pcb->PID = ultimo_pid;
@@ -163,10 +142,7 @@ void crear_pcb(int quantum)
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
     // Crear un buffer para almacenar el mensaje con el último PID
-    char mensaje[100];
-    // Usar sprintf para formatear el mensaje con el último PID
-    sprintf(mensaje, "Se crea el proceso %d en NEW\n", ultimo_pid);
-    log_info(logger, mensaje);
+    log_info(logger, "Se crea el proceso %d en NEW\n", ultimo_pid);
     // Despertar el mover procesos a ready
     sem_post(&sem_nuevo_pcb);
 }
@@ -196,14 +172,13 @@ void planificador_largo_plazo()
 
             // Agregar el proceso a la cola de READY
             queue_push(cola_ready, proceso_nuevo);
-            //Aumentamos el grado de multiprogramacion activo
+            // Aumentamos el grado de multiprogramacion activo
             grado_multiprogramacion_activo++;
 
             // Reducir la cantidad de procesos en la cola de NEW
             cantidad_procesos_new--;
-
         }
-        //Este semaforo se usaria para que la CPU no reste al grado de multiprogramacion al mismo tiempo que se modifica aca.
+        // Este semaforo se usaria para que la CPU no reste al grado de multiprogramacion al mismo tiempo que se modifica aca.
         sem_post(&sem_proceso_liberado);
     }
 }
@@ -212,20 +187,24 @@ void planificador_largo_plazo()
 void planificador_corto_plazo()
 {
     char *algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
-    switch (algoritmo_planificacion)
+    if (strcmp(algoritmo_planificacion, "FIFO") == 0)
     {
-    case 'FIFO':
+        // Código para el caso FIFO
         planificar_fifo();
-        break;
-    case 'RR':
+    }
+    else if (strcmp(algoritmo_planificacion, "RR") == 0)
+    {
+        // Código para el caso RR
         planificar_round_robin();
-        break;
-    case 'VRR':
+    }
+    else if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    {
+        // Código para el caso VRR
         planificar_vrr();
-        break;
-    default:
-        printf("Algoritmo de planificación desconocido\n");
-        break;
+    }
+    else
+    {
+        // Manejo para un valor no reconocido
     }
 }
 void planificar_fifo()
@@ -251,7 +230,7 @@ void planificar_fifo()
 // Función para planificar los procesos usando Round Robin
 void planificar_round_robin()
 {
-    int quantum_kernel = config_get_string_value(config, "QUANTUM");
+    int quantum_kernel = atoi(config_get_string_value(config, "QUANTUM"));
     // Ejecutar hasta que la cola de procesos en READY esté vacía
     while (1)
     {
