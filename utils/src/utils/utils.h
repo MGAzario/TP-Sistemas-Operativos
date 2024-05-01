@@ -1,10 +1,16 @@
-// registros.h
-
-#ifndef REGISTROS_H
-#define REGISTROS_H
+#ifndef UTILS_H
+#define UTILS_H
 
 #include <stdint.h>
-#include "estados.h"
+#include <semaphore.h>
+
+typedef enum {
+    NEW,
+    READY,
+    BLOCKED,
+    EXEC,
+    EXIT
+} estado_proceso;
 
 // Definición de los registros de la CPU
 typedef struct {
@@ -35,4 +41,7 @@ typedef struct
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
 extern sem_t sem_proceso_liberado;
-#endif /* CPU_H */
+
+
+
+#endif /* UTILS_H */

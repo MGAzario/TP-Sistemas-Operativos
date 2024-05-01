@@ -1,6 +1,5 @@
 #include "utils_cliente.h"
-#include "estados.h"
-#include "registros.h"
+
 
 void* serializar_paquete(t_paquete* paquete, int bytes)
 {

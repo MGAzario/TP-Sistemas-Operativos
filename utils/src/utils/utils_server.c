@@ -1,6 +1,4 @@
 #include "utils_server.h"
-#include "estados.h"
-#include "registros.h"
 
 int iniciar_servidor(char *puerto)
 {
