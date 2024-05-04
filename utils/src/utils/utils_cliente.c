@@ -6,8 +6,8 @@ void* serializar_paquete(t_paquete* paquete, int bytes)
 	void * magic = malloc(bytes);
 	int desplazamiento = 0;
 
-	memcpy(magic + desplazamiento, &(paquete->codigo_operacion), sizeof(int));
-	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &(paquete->codigo_operacion), sizeof(op_code));
+	desplazamiento+= sizeof(op_code);
 	memcpy(magic + desplazamiento, &(paquete->buffer->size), sizeof(int));
 	desplazamiento+= sizeof(int);
 	memcpy(magic + desplazamiento, paquete->buffer->stream, paquete->buffer->size);
@@ -124,29 +124,108 @@ int conectar_modulo(char* ip, char* puerto)
 
 //############################################
 //Para crear paquetes de distintas operaciones, y poder ir mandandolos con una identificacion.
-t_paquete* crear_paquete_pcb(void) {
+t_paquete* crear_paquete_pcb() {
     t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = DISPATCH;
 	crear_buffer(paquete);
     // Crear un buffer para almacenar el PCB
-    paquete->buffer->size = sizeof(PCB); // Tamaño del PCB
-    paquete->buffer->stream = malloc(sizeof(PCB)); // Reservar memoria para el PCB
+    paquete->buffer->size = 7 * sizeof(uint32_t) 
+							+ 2 * sizeof(int) 
+							+ sizeof(estado_proceso)
+							+ 4 * sizeof(uint8_t); // Tamaño del PCB
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic; // Reservar memoria para el PCB
+	free(magic);
     return paquete;
 }
 
-void agregar_pcb_a_paquete(t_paquete* paquete, PCB* pcb) {
+void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb) {
     // Copiar el PCB al stream del buffer del paquete
-    memcpy(paquete->buffer->stream, pcb, sizeof(PCB));
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+    memcpy(magic + desplazamiento, &(pcb->pid), sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &(pcb->quantum), sizeof(int));
+	desplazamiento+= sizeof(int);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->pc), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[AX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[BX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[CX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[DX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EAX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EBX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[ECX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EDX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->si), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->di), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
+
+	paquete->buffer->stream = magic;
 }
 
 void enviar_paquete_pcb(t_paquete* paquete, int socket_cliente) {
 
     // Calcular el tamaño total del paquete
-    int bytes = paquete->buffer->size + 2 * sizeof(int);
+    int bytes = paquete->buffer->size + sizeof(op_code) + sizeof(int);
     // Serializar el paquete
     void* a_enviar = serializar_paquete(paquete, bytes);
     // Enviar el paquete a través del socket
     send(socket_cliente, a_enviar, bytes, 0);
+	free(a_enviar);
     // Liberar la memoria utilizada por el paquete y su buffer
-    eliminar_paquete(paquete);
+	eliminar_paquete(paquete);
 }
+
+void enviar_pcb(int socket_cliente, t_pcb *pcb)
+{
+    // Crear un paquete para enviar los PCBs
+    t_paquete* paquete = crear_paquete_pcb();
+    //Agrega el PCB a enviar
+    agregar_pcb_a_paquete(paquete, pcb);
+    //Lo envia a traves de la conexion
+    enviar_paquete_pcb(paquete, socket_cliente);
+}
+
+// t_paquete* crear_paquete_pcb(void) {
+//     t_paquete* paquete = malloc(sizeof(t_paquete));
+//     paquete->codigo_operacion = DISPATCH;
+// 	crear_buffer(paquete);
+//     // Crear un buffer para almacenar el PCB
+//     paquete->buffer->size = sizeof(PCB); // Tamaño del PCB
+//     paquete->buffer->stream = malloc(sizeof(PCB)); // Reservar memoria para el PCB
+//     return paquete;
+// }
+
+// void agregar_pcb_a_paquete(t_paquete* paquete, PCB* pcb) {
+//     // Copiar el PCB al stream del buffer del paquete
+//     memcpy(paquete->buffer->stream, pcb, sizeof(PCB));
+// }
+
+// void enviar_paquete_pcb(t_paquete* paquete, int socket_cliente) {
+
+//     // Calcular el tamaño total del paquete
+//     int bytes = paquete->buffer->size + 2 * sizeof(int);
+//     // Serializar el paquete
+//     void* a_enviar = serializar_paquete(paquete, bytes);
+//     // Enviar el paquete a través del socket
+//     send(socket_cliente, a_enviar, bytes, 0);
+//     // Liberar la memoria utilizada por el paquete y su buffer
+//     eliminar_paquete(paquete);
+// }
