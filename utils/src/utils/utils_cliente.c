@@ -203,3 +203,30 @@ void enviar_pcb(int socket_cliente, t_pcb *pcb)
     //Lo envia a traves de la conexion
     enviar_paquete_pcb(paquete, socket_cliente);
 }
+
+// t_paquete* crear_paquete_pcb(void) {
+//     t_paquete* paquete = malloc(sizeof(t_paquete));
+//     paquete->codigo_operacion = DISPATCH;
+// 	crear_buffer(paquete);
+//     // Crear un buffer para almacenar el PCB
+//     paquete->buffer->size = sizeof(PCB); // Tamaño del PCB
+//     paquete->buffer->stream = malloc(sizeof(PCB)); // Reservar memoria para el PCB
+//     return paquete;
+// }
+
+// void agregar_pcb_a_paquete(t_paquete* paquete, PCB* pcb) {
+//     // Copiar el PCB al stream del buffer del paquete
+//     memcpy(paquete->buffer->stream, pcb, sizeof(PCB));
+// }
+
+// void enviar_paquete_pcb(t_paquete* paquete, int socket_cliente) {
+
+//     // Calcular el tamaño total del paquete
+//     int bytes = paquete->buffer->size + 2 * sizeof(int);
+//     // Serializar el paquete
+//     void* a_enviar = serializar_paquete(paquete, bytes);
+//     // Enviar el paquete a través del socket
+//     send(socket_cliente, a_enviar, bytes, 0);
+//     // Liberar la memoria utilizada por el paquete y su buffer
+//     eliminar_paquete(paquete);
+// }

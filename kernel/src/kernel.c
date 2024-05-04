@@ -176,11 +176,7 @@ void crear_pcb()
     pcb->estado = NEW;
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
-    // // Crear un buffer para almacenar el mensaje con el último PID
-    // char mensaje[100];
-    // // Usar sprintf para formatear el mensaje con el último PID
-    // sprintf(mensaje, "Se crea el proceso %d en NEW\n", ultimo_pid);
-    // log_info(logger, mensaje);
+    log_info(logger, "Se crea el proceso %d en NEW\n", ultimo_pid);
     // Despertar el mover procesos a ready
     sem_post(&sem_nuevo_pcb);
 }
