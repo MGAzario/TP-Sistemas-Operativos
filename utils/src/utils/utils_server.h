@@ -10,8 +10,9 @@
 #include<commons/collections/list.h>
 #include<string.h>
 #include<assert.h>
-#include "estados.h"
-#include "registros.h"
+// #include "estados.h"
+// #include "registros.h"
+#include "utils.h"
 #include "utils_cliente.h"
 
 #define PUERTO "4444"

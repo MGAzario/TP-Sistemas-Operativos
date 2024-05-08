@@ -5,8 +5,7 @@
 #include <utils/utils_server.h>
 #include <utils/utils_cliente.h>
 #include <semaphore.h>
-#include <utils/registros.h>
-#include <utils/estados.h>
+#include <utils/utils.h>
 #include <utils/hello.h>
 
 

@@ -10,8 +10,7 @@
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
 #include <pthread.h>
-#include <utils/registros.h>
-#include <utils/estados.h>
+#include <utils/utils.h>
 
 
 void crear_logger();
