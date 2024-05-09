@@ -26,6 +26,8 @@ int esperar_cliente(int);
 t_list *recibir_paquete(int);
 void recibir_mensaje(int);
 op_code recibir_operacion(int);
+void recibir_ok(int socket_cliente);
 t_pcb *recibir_pcb(int socket_cliente);
+t_creacion_proceso *recibir_creacion_proceso(int socket_cliente);
 
 #endif /* UTILS_SERVER_SERVER_H_ */

@@ -32,7 +32,7 @@ typedef struct {
     // Aca son todos los registros que estan en el enunciado
 } t_cpu_registers;
 
-//Definicion de un PCB
+// Definicion de un PCB
 typedef struct
 {
     int pid;
@@ -40,6 +40,20 @@ typedef struct
     t_cpu_registers *cpu_registers;
     estado_proceso estado;
 } t_pcb;
+
+// Estructura para que el kernel le solicite a la memoria crear un proceso
+typedef struct
+{
+    t_pcb *pcb;
+    char *path;
+    uint32_t tamanio_path;
+} t_creacion_proceso;
+
+typedef struct
+{
+    int pid;
+    t_list *lista_instrucciones;
+} t_instrucciones_de_proceso;
 
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;

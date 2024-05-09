@@ -8,8 +8,10 @@ t_queue *cola_ready;
 
 static int ultimo_pid = 0;
 char *ip_cpu;
+char *ip_memoria;
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
+int socket_memoria;
 int grado_multiprogramacion_activo;
 int grado_multiprogramacion_max;
 
@@ -36,7 +38,7 @@ int main(int argc, char *argv[])
     // El grado activo empieza en 0 y se ira incrementando
     grado_multiprogramacion_activo = 0;
 
-    // Creo la cola que voy a usar para guardar mis PCBs
+    // Creo las colas que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
 
@@ -45,6 +47,12 @@ int main(int argc, char *argv[])
     ip_cpu = config_get_string_value(config, "IP_CPU");
     conectar_dispatch_cpu(ip_cpu);
     conectar_interrupt_cpu(ip_cpu);
+
+    // Kernel a Memoria
+    conectar_memoria();
+
+    // Entrada salida a Kernel
+    // recibir_entradasalida();
 
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
@@ -64,12 +72,6 @@ int main(int argc, char *argv[])
     pthread_detach(hilo_planificador_corto_plazo);
 
     consola();
-
-    // Kernel a Memoria
-    // conectar_memoria();
-
-    // Entrada salida a Kernel
-    // recibir_entradasalida();
 
     liberar_conexion(socket_cpu_dispatch);
     liberar_conexion(socket_cpu_interrupt);
@@ -102,14 +104,9 @@ void crear_config()
 void conectar_memoria()
 {
     // Establecer conexión con el módulo Memoria
-    char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
+    ip_memoria = config_get_string_value(config, "IP_MEMORIA");
     char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
-    int socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
-    if (socket_memoria != -1)
-    {
-        enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
-        liberar_conexion(socket_memoria);
-    }
+    socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
 }
 
 void conectar_dispatch_cpu(char *ip_cpu)
@@ -151,7 +148,7 @@ void recibir_entradasalida()
 }
 
 // Requisito Checkpoint: Es capaz de crear un PCB y planificarlo por FIFO y RR.
-void crear_pcb()
+void crear_pcb(char *path)
 {
     t_pcb *pcb = malloc(sizeof(t_pcb));
     // Registros. Asumo que se inicializan todos en cero
@@ -174,6 +171,21 @@ void crear_pcb()
     pcb->cpu_registers = registros;
     pcb->quantum = 0;
     pcb->estado = NEW;
+
+    // Informar a la memoria
+    enviar_creacion_proceso(socket_memoria, pcb, path);
+    log_trace(logger, "Estoy esperando el OK de la memoria");
+
+    // Esperar recibir OK de la memoria
+    op_code cod_op = recibir_operacion(socket_memoria);
+    if(cod_op != CREACION_PROCESO_OK)
+    {
+        log_error(logger, "La memoria mandó otra cosa en lugar de un OK al solicitarle crear el proceso de PID %i", pcb->pid);
+        return;
+    }
+    recibir_ok(socket_memoria);
+    log_trace(logger, "Recibí OK de la memoria");
+
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
     log_info(logger, "Se crea el proceso %d en NEW\n", ultimo_pid);
@@ -228,9 +240,11 @@ void *planificador_corto_plazo()
         if(strcmp(algoritmo_planificacion, "FIFO") == 0)
         {
             planificar_fifo();
-        } else if(strcmp(algoritmo_planificacion, "RR") == 0){
+        } else if(strcmp(algoritmo_planificacion, "RR") == 0)
+        {
             planificar_round_robin();
-        } else if(strcmp(algoritmo_planificacion, "VRR") == 0){
+        } else if(strcmp(algoritmo_planificacion, "VRR") == 0)
+        {
             planificar_vrr();
         } else {
             log_error(logger, "Algoritmo de planificación desconocido");
@@ -327,7 +341,7 @@ void esperar_cpu()
             while(1){}
             break;
         default:
-            log_debug(logger, "Paquete desconocido\n");
+            log_warning(logger, "Mensaje desconocido del CPU\n");
             break;
     } 
 
@@ -344,7 +358,8 @@ void consola()
         char comando[30];
         sscanf(linea, "%s", comando);
 
-        if(strcmp(comando, "COMANDOS") == 0){
+        if(strcmp(comando, "COMANDOS") == 0)
+        {
             printf("EJECUTAR_SCRIPT [PATH]\n");
             printf("INICIAR_PROCESO [PATH]\n");
             printf("FINALIZAR_PROCESO [PID]\n");
@@ -353,40 +368,51 @@ void consola()
             printf("MULTIPROGRAMACION [VALOR]\n");
             printf("PROCESO_ESTADO\n");
         }
-        if(strcmp(comando, "EJECUTAR_SCRIPT") == 0){
+        else if((strcmp(comando, "EJECUTAR_SCRIPT") == 0) || (strcmp(comando, "1") == 0))
+        {
             char path[300];
             sscanf(linea, "%s %s", comando, path);
 
             printf("Falta implementar\n"); // TODO
         }
-        if(strcmp(comando, "INICIAR_PROCESO") == 0){
+        else if((strcmp(comando, "INICIAR_PROCESO") == 0) || (strcmp(comando, "2") == 0))
+        {
             char path[300];
             sscanf(linea, "%s %s", comando, path);
 
-            printf("Path: %s\n", path); // TODO: Sacar instrucciones del path
+            printf("Path: %s\n", path);
 
-            crear_pcb();
+            crear_pcb(path);
         }
-        if(strcmp(comando, "FINALIZAR_PROCESO") == 0){
+        else if((strcmp(comando, "FINALIZAR_PROCESO") == 0) || (strcmp(comando, "3") == 0))
+        {
             int pid;
             sscanf(linea, "%s %i", comando, &pid);
             
             printf("Falta implementar\n"); // TODO
         }
-        if(strcmp(comando, "DETENER_PLANIFICACION") == 0){
+        else if((strcmp(comando, "DETENER_PLANIFICACION") == 0) || (strcmp(comando, "4") == 0))
+        {
             printf("Falta implementar\n"); // TODO
         }
-        if(strcmp(comando, "INICIAR_PLANIFICACION") == 0){
+        else if((strcmp(comando, "INICIAR_PLANIFICACION") == 0) || (strcmp(comando, "5") == 0))
+        {
             printf("Falta implementar\n"); // TODO
         }
-        if(strcmp(comando, "MULTIPROGRAMACION") == 0){
+        else if((strcmp(comando, "MULTIPROGRAMACION") == 0) || (strcmp(comando, "6") == 0))
+        {
             int valor;
             sscanf(linea, "%s %i", comando, &valor);
 
             printf("Falta implementar\n"); // TODO
         }
-        if(strcmp(comando, "PROCESO_ESTADO") == 0){
+        else if((strcmp(comando, "PROCESO_ESTADO") == 0) || (strcmp(comando, "7") == 0))
+        {
             printf("Falta implementar\n"); // TODO
+        }
+        else
+        {
+            printf("Comando inválido\nEscriba COMANDOS para ver los comandos disponibles\n");
         }
 
         free(linea);

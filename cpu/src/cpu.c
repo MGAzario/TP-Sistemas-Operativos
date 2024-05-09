@@ -3,10 +3,12 @@
 t_config *config;
 t_log *logger;
 
+char *ip_memoria;
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 int socket_kernel_dispatch;
 int socket_kernel_interrupt;
+int socket_memoria;
 
 int main(int argc, char *argv[])
 {
@@ -19,7 +21,7 @@ int main(int argc, char *argv[])
     iniciar_servidores();
     
     // Establecer conexión con el módulo Memoria
-    // conectar_memoria();
+    conectar_memoria();
 
     // Recibir mensajes del dispatch del Kernel
 
@@ -66,14 +68,9 @@ void iniciar_servidores() {
 
 void conectar_memoria()
 {
-    char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
+    ip_memoria = config_get_string_value(config, "IP_MEMORIA");
     char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
-    int socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
-    if (socket_memoria != -1)
-    {
-        enviar_mensaje("Mensaje a la Memoria desde el Kernel", socket_memoria);
-        liberar_conexion(socket_memoria);
-    }
+    socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
 }
 
 // Función para manejar la conexión entrante

@@ -6,7 +6,8 @@
 t_config *config;
 t_log* logger;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     decir_hola("una Interfaz de Entrada/Salida");
     
     crear_logger();
@@ -21,7 +22,7 @@ int main(int argc, char* argv[]) {
 }
 
 void crear_logger(){
-    logger = log_create("./entradasalida.log","LOG_IO",true,LOG_LEVEL_INFO);
+    logger = log_create("./entradasalida.log","LOG_IO",true,LOG_LEVEL_TRACE);
     if(logger == NULL){
 		perror("Ocurrió un error al leer el archivo de Log de Entrada/Salida");
 		abort();

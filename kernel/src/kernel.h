@@ -19,7 +19,7 @@ void conectar_memoria();
 void conectar_dispatch_cpu(char *ip_cpu);
 void conectar_interrupt_cpu(char *ip_cpu);
 void recibir_entradasalida();
-void crear_pcb();
+void crear_pcb(char *path);
 void *planificador_corto_plazo();
 void *planificador_largo_plazo();
 void planificar_fifo();
