@@ -26,6 +26,7 @@ void planificar_fifo();
 void planificar_round_robin();
 void planificar_vrr();
 void esperar_cpu();
+void eliminar_proceso(t_pcb *pcb);
 void consola();
 
 

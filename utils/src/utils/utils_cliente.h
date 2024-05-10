@@ -26,6 +26,7 @@ typedef enum
 	CREACION_PROCESO_OK,
 	SOLICITUD_INSTRUCCION,
 	INSTRUCCION,
+	INSTRUCCION_EXIT,
 	MENSAJE_ENTRADA_SALIDA,
 	DESCONEXION
 } op_code;
@@ -62,5 +63,6 @@ void enviar_pcb(int socket_cliente, t_pcb *pcb);
 void enviar_creacion_proceso(int socket_cliente, t_pcb *pcb, char *path);
 void enviar_solicitud_instruccion(int socket_cliente, t_pcb *pcb);
 void enviar_instruccion(int socket_cliente, char *instruccion);
+void enviar_exit(int socket_cliente, t_pcb *pcb);
 
 #endif /* UTILS_CLIENTE_H_ */

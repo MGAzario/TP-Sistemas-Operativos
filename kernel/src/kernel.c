@@ -328,7 +328,7 @@ void esperar_cpu()
 
     switch (cod_op)
     {
-        case DISPATCH: // solo para probar, después hay que ver todos los op_code que hagan falta
+        case DISPATCH: // este case es solo una prueba
             log_debug(logger, "Recibí una respuesta del CPU!");
             if (1)
             {
@@ -340,14 +340,26 @@ void esperar_cpu()
                 free(pcb_prueba->cpu_registers);
                 free(pcb_prueba);
             }
-            while(1){}
+            // while(1){}
+            esperar_cpu();
             break;
+        case INSTRUCCION_EXIT:
+            log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
+            t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
+            eliminar_proceso(pcb);
         default:
             log_warning(logger, "Mensaje desconocido del CPU\n");
             break;
     } 
 
 
+}
+
+void eliminar_proceso(t_pcb *pcb)
+{
+    // TODO: Informarle a la Memoria la eliminación del proceso, para que pueda liberar sus estructuras
+    free(pcb);
+    sem_post(&sem_proceso_ready);
 }
 
 void consola()
@@ -381,8 +393,6 @@ void consola()
         {
             char path[300];
             sscanf(linea, "%s %s", comando, path);
-
-            printf("Path: %s\n", path);
 
             crear_pcb(path);
         }

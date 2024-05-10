@@ -154,7 +154,6 @@ void decode(t_pcb *pcb, char *instruccion)
         // free(pcb->cpu_registers);
         // free(pcb);
 
-        continuar_ciclo = 0;
         log_debug(logger, "Terminó la prueba");
     }
     else if (strcmp("SET", operacion) == 0)
@@ -202,9 +201,13 @@ void decode(t_pcb *pcb, char *instruccion)
 
         execute_io_gen_sleep(pcb, interfaz, unidades_de_trabajo);
     }
+    else if (strcmp("EXIT", operacion) == 0)
+    {
+        execute_exit(pcb);
+    }
     else
     {
-        log_error(logger, "Instrucción desconocida: %s", operacion);
+        log_error(logger, "Instrucción desconocida: %s", instruccion);
         sleep(1);
     }
     

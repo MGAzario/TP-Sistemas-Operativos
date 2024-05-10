@@ -1,11 +1,6 @@
 #ifndef KERNEL_MEMORIA_H
 #define KERNEL_MEMORIA_H
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <utils/utils_server.h>
-#include <utils/utils_cliente.h>
-#include <utils/hello.h>
 #include "memoria.h"
 
 

@@ -10,6 +10,18 @@
 #include <utils/hello.h>
 #include "instrucciones.h"
 
+extern t_config *config;
+extern t_log *logger;
+
+extern char *ip_memoria;
+extern int socket_cpu_dispatch;
+extern int socket_cpu_interrupt;
+extern int socket_kernel_dispatch;
+extern int socket_kernel_interrupt;
+extern int socket_memoria;
+
+extern int continuar_ciclo;
+
 
 void crear_logger();
 void crear_config();
