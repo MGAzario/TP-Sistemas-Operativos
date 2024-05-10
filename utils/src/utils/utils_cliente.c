@@ -124,9 +124,9 @@ int conectar_modulo(char* ip, char* puerto)
 
 //############################################
 //Para crear paquetes de distintas operaciones, y poder ir mandandolos con una identificacion.
-t_paquete* crear_paquete_pcb() {
+t_paquete* crear_paquete_pcb(op_code cod_op) {
     t_paquete* paquete = malloc(sizeof(t_paquete));
-    paquete->codigo_operacion = DISPATCH;
+    paquete->codigo_operacion = cod_op;
 	crear_buffer(paquete);
     // Crear un buffer para almacenar el PCB
     paquete->buffer->size = 7 * sizeof(uint32_t) 
@@ -148,6 +148,18 @@ t_paquete* crear_paquete_creacion_proceso(uint32_t tamanio_path) {
 							+ sizeof(estado_proceso)
 							+ 4 * sizeof(uint8_t)
 							+ tamanio_path;
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_instruccion(uint32_t tamanio_instruccion) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = INSTRUCCION;
+	crear_buffer(paquete);
+    paquete->buffer->size = sizeof(uint32_t) 
+							+ tamanio_instruccion;
 	void *magic = malloc(paquete->buffer->size);
     paquete->buffer->stream = magic;
 	free(magic);
@@ -240,6 +252,17 @@ void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* pa
 	paquete->buffer->stream = magic;
 }
 
+void agregar_instruccion_a_paquete(t_paquete* paquete, char* instruccion, uint32_t tamanio_instruccion) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+	memcpy(magic + desplazamiento, &tamanio_instruccion, sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, instruccion, tamanio_instruccion);
+
+	paquete->buffer->stream = magic;
+}
+
 void enviar_paquete(t_paquete* paquete, int socket_cliente) 
 {
     // Calcular el tamaño total del paquete
@@ -273,7 +296,7 @@ void enviar_ok(int socket_cliente, op_code cod_op)
 void enviar_pcb(int socket_cliente, t_pcb *pcb)
 {
     // Crear un paquete para enviar los PCBs
-    t_paquete* paquete = crear_paquete_pcb();
+    t_paquete* paquete = crear_paquete_pcb(DISPATCH);
     //Agrega el PCB a enviar
     agregar_pcb_a_paquete(paquete, pcb);
     //Lo envia a traves de la conexion
@@ -290,7 +313,26 @@ void enviar_creacion_proceso(int socket_cliente, t_pcb *pcb, char *path)
 	enviar_paquete(paquete, socket_cliente);
 }
 
-// Funciones para simplificar que no se sabe si funcionan o no:
+void enviar_solicitud_instruccion(int socket_cliente, t_pcb *pcb)
+{
+	t_paquete* paquete = crear_paquete_pcb(SOLICITUD_INSTRUCCION);
+
+	agregar_pcb_a_paquete(paquete, pcb);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_instruccion(int socket_cliente, char *instruccion)
+{
+	uint32_t tamanio_instruccion = string_length(instruccion) + 1;
+	t_paquete* paquete = crear_paquete_instruccion(tamanio_instruccion);
+
+	agregar_instruccion_a_paquete(paquete, instruccion, tamanio_instruccion);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+// Funciones para simplificar que no se sabe si funcionan o no (también están atrasadas en algunos cambios):
 
 // t_paquete* crear_paquete_pcb(void) {
 //     t_paquete* paquete = malloc(sizeof(t_paquete));

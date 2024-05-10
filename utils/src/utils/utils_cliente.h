@@ -24,9 +24,11 @@ typedef enum
 	CPU_SOLICITAR_INSTRUCCION,
 	CREACION_PROCESO,
 	CREACION_PROCESO_OK,
+	SOLICITUD_INSTRUCCION,
+	INSTRUCCION,
 	MENSAJE_ENTRADA_SALIDA,
 	DESCONEXION
-}op_code;
+} op_code;
 
 typedef struct
 {
@@ -48,13 +50,17 @@ void enviar_paquete_alternativo(t_paquete *paquete, int socket_cliente);
 void liberar_conexion(int socket_cliente);
 void eliminar_paquete(t_paquete* paquete);
 int conectar_modulo(char* ip, char* puerto);
-t_paquete* crear_paquete_pcb();
-t_paquete* crear_paquete_creacion_proceso(uint32_t tamanio_path);
+t_paquete *crear_paquete_pcb(op_code cod_op);
+t_paquete *crear_paquete_creacion_proceso(uint32_t tamanio_path);
+t_paquete* crear_paquete_instruccion(uint32_t tamanio_instruccion);
 void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb);
 void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* path, uint32_t tamanio_path);
+void agregar_instruccion_a_paquete(t_paquete* paquete, char* instruccion, uint32_t tamanio_instruccion);
 void enviar_paquete(t_paquete* paquete, int socket_cliente);
 void enviar_ok(int socket_cliente, op_code cod_op);
 void enviar_pcb(int socket_cliente, t_pcb *pcb);
 void enviar_creacion_proceso(int socket_cliente, t_pcb *pcb, char *path);
+void enviar_solicitud_instruccion(int socket_cliente, t_pcb *pcb);
+void enviar_instruccion(int socket_cliente, char *instruccion);
 
 #endif /* UTILS_CLIENTE_H_ */

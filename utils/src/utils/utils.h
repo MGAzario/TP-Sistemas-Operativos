@@ -55,6 +55,12 @@ typedef struct
     t_list *lista_instrucciones;
 } t_instrucciones_de_proceso;
 
+typedef struct
+{
+    char *instruccion;
+    uint32_t tamanio_instruccion;
+} t_instruccion;
+
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
 

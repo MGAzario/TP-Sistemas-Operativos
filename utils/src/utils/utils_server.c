@@ -206,3 +206,20 @@ t_creacion_proceso *recibir_creacion_proceso(int socket_cliente)
 	free(buffer);
 	return creacion_proceso;
 }
+
+t_instruccion *recibir_instruccion(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_instruccion *instruccion = malloc(sizeof(t_instruccion));
+	
+	memcpy(&(instruccion->tamanio_instruccion), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	instruccion->instruccion = malloc(instruccion->tamanio_instruccion);
+	memcpy(instruccion->instruccion, buffer, instruccion->tamanio_instruccion);
+
+	buffer = buffer - sizeof(uint32_t);
+	free(buffer);
+	return instruccion;
+}

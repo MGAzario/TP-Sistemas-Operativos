@@ -19,16 +19,18 @@ void *recibir_kernel()
                 char *primera_linea = list_get(instrucciones->lista_instrucciones, 0);
                 log_trace(logger, "Primera linea: %s", primera_linea);
                 char *segunda_linea = list_get(instrucciones->lista_instrucciones, 1);
-                log_trace(logger, "Primera linea: %s", segunda_linea);
+                log_trace(logger, "Segunda linea: %s", segunda_linea);
                 char *tercera_linea = list_get(instrucciones->lista_instrucciones, 2);
-                log_trace(logger, "Primera linea: %s", tercera_linea);
+                log_trace(logger, "Tercera linea: %s", tercera_linea);
                 char *cuarta_linea = list_get(instrucciones->lista_instrucciones, 3);
-                log_trace(logger, "Primera linea: %s", cuarta_linea);
+                log_trace(logger, "Cuarta linea: %s", cuarta_linea);
+                char *quinta_linea = list_get(instrucciones->lista_instrucciones, 4);
+                log_trace(logger, "Quinta linea: %s", quinta_linea);
                 // Prueba fin
 
                 list_add(lista_instrucciones_por_proceso, instrucciones);
-                list_destroy_and_destroy_elements(instrucciones->lista_instrucciones, destruir_instruccion);
-                free(instrucciones);
+                // list_destroy_and_destroy_elements(instrucciones->lista_instrucciones, destruir_instruccion);
+                // free(instrucciones);
 
                 enviar_ok(socket_kernel, CREACION_PROCESO_OK);
                 // TODO: Crear tabla de páginas (vacía)
@@ -38,7 +40,7 @@ void *recibir_kernel()
                 while(1);
                 break;
             default:
-                log_warning(logger, "Mensaje desconocido del Kernel\n");
+                log_warning(logger, "Mensaje desconocido del Kernel");
                 break;
         }
     }

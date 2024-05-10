@@ -10,6 +10,8 @@ int socket_kernel_dispatch;
 int socket_kernel_interrupt;
 int socket_memoria;
 
+int continuar_ciclo;
+
 int main(int argc, char *argv[])
 {
     // Las creaciones se pasan a funciones para limpiar el main.
@@ -24,7 +26,7 @@ int main(int argc, char *argv[])
     conectar_memoria();
 
     // Recibir mensajes del dispatch del Kernel
-
+    continuar_ciclo = 1;
     recibir_procesos_kernel(socket_kernel_dispatch);
 
     liberar_conexion(socket_cpu_dispatch);
@@ -76,40 +78,140 @@ void conectar_memoria()
 // Función para manejar la conexión entrante
 void recibir_procesos_kernel(int socket_cliente)
 {
-    // Todo este while es solo para probar recibir un pcb y devolverlo modificado.
-    // Hay que cambiar esto por una implementación del ciclo de instrucción.
-    int el_kernel_sigue_conectado = 1;
-    while(el_kernel_sigue_conectado)
+    while(1)
     {
-        op_code cod_op = recibir_operacion(socket_cliente);
-        if (cod_op != DESCONEXION)
-        {
-            t_pcb *pcb_prueba = recibir_pcb(socket_cliente);
-
-            log_info(logger, "código de operación: %i", cod_op);
-            log_info(logger, "PID: %i", pcb_prueba->pid);
-            log_info(logger, "program counter: %i", pcb_prueba->cpu_registers->pc);
-            log_info(logger, "quantum: %i", pcb_prueba->quantum);
-            log_info(logger, "estado: %i", pcb_prueba->estado);
-            log_info(logger, "SI: %i", pcb_prueba->cpu_registers->si);
-            log_info(logger, "DI: %i", pcb_prueba->cpu_registers->di);
-            log_info(logger, "AX: %i", pcb_prueba->cpu_registers->normales[AX]);
-            log_info(logger, "BX: %i", pcb_prueba->cpu_registers->normales[BX]);
-            log_info(logger, "CX: %i", pcb_prueba->cpu_registers->normales[CX]);
-            log_info(logger, "DX: %i", pcb_prueba->cpu_registers->normales[DX]);
-            log_info(logger, "EAX: %i", pcb_prueba->cpu_registers->extendidos[EAX]);
-            log_info(logger, "EBX: %i", pcb_prueba->cpu_registers->extendidos[EBX]);
-            log_info(logger, "ECX: %i", pcb_prueba->cpu_registers->extendidos[ECX]);
-            log_info(logger, "EDX: %i", pcb_prueba->cpu_registers->extendidos[EDX]);
-
-            pcb_prueba->cpu_registers->normales[AX] = 124;
-
-            enviar_pcb(socket_cliente, pcb_prueba);
-
-            free(pcb_prueba->cpu_registers);
-            free(pcb_prueba);
-        } else {
-            el_kernel_sigue_conectado = 0;
-        }
+    // Recibe un proceso del kernel para ser ejecutado
+    op_code cod_op = recibir_operacion(socket_cliente);
+    if(cod_op != DISPATCH)
+    {
+        log_error(logger, "El CPU esperaba recibir una operación DISPATCH del Kernel pero recibió otra operación");
     }
+    t_pcb *pcb = recibir_pcb(socket_cliente);
+
+    // Ejecuta el proceso (se pone en marcha el ciclo de instrucción)
+    while(continuar_ciclo)
+    {
+        ciclo_de_instruccion(pcb);
+    }
+    continuar_ciclo = 1;
+
+    free(pcb);
+    }
+}
+
+void ciclo_de_instruccion(t_pcb *pcb)
+{
+    char *instruccion = fetch(pcb);
+    decode(pcb, instruccion);
+    check_interrupt();
+}
+
+char *fetch(t_pcb *pcb)
+{
+    log_info(logger, "PID: %i - FETCH - Program Counter: %i", pcb->pid, pcb->cpu_registers->pc);
+
+    enviar_solicitud_instruccion(socket_memoria, pcb);
+
+    op_code cod_op = recibir_operacion(socket_memoria);
+    if(cod_op != INSTRUCCION)
+    {
+        log_error(logger, "El CPU esperaba recibir una operación INSTRUCCION de la Memoria pero recibió otra operación");
+    }
+    t_instruccion *instruccion_recibida = recibir_instruccion(socket_memoria);
+    char *instruccion = instruccion_recibida->instruccion;
+
+    free(instruccion_recibida);
+
+    return instruccion;
+}
+
+void decode(t_pcb *pcb, char *instruccion)
+{
+    char operacion[20];
+    sscanf(instruccion, "%s", operacion);
+
+    if(strcmp("PRUEBA", operacion) == 0)
+    {
+        log_debug(logger, "PID: %i", pcb->pid);
+        log_debug(logger, "program counter: %i", pcb->cpu_registers->pc);
+        log_debug(logger, "quantum: %i", pcb->quantum);
+        log_debug(logger, "estado: %i", pcb->estado);
+        log_debug(logger, "SI: %i", pcb->cpu_registers->si);
+        log_debug(logger, "DI: %i", pcb->cpu_registers->di);
+        log_debug(logger, "AX: %i", pcb->cpu_registers->normales[AX]);
+        log_debug(logger, "BX: %i", pcb->cpu_registers->normales[BX]);
+        log_debug(logger, "CX: %i", pcb->cpu_registers->normales[CX]);
+        log_debug(logger, "DX: %i", pcb->cpu_registers->normales[DX]);
+        log_debug(logger, "EAX: %i", pcb->cpu_registers->extendidos[EAX]);
+        log_debug(logger, "EBX: %i", pcb->cpu_registers->extendidos[EBX]);
+        log_debug(logger, "ECX: %i", pcb->cpu_registers->extendidos[ECX]);
+        log_debug(logger, "EDX: %i", pcb->cpu_registers->extendidos[EDX]);
+
+        pcb->cpu_registers->normales[AX] = 124;
+
+        enviar_pcb(socket_kernel_dispatch, pcb);
+
+        // free(pcb->cpu_registers);
+        // free(pcb);
+
+        continuar_ciclo = 0;
+        log_debug(logger, "Terminó la prueba");
+    }
+    else if (strcmp("SET", operacion) == 0)
+    {
+        char registro[10];
+        uint32_t valor;
+
+        sscanf(instruccion, "%s %s %u", operacion, registro, &valor);
+
+        execute_set(pcb, registro, valor);
+    }
+    else if (strcmp("SUM", operacion) == 0)
+    {
+        char registro_destino[10];
+        char registro_origen[10];
+
+        sscanf(instruccion, "%s %s %s", operacion, registro_destino, registro_origen);
+
+        execute_sum(pcb, registro_destino, registro_origen);
+    }
+    else if (strcmp("SUB", operacion) == 0)
+    {
+        char registro_destino[10];
+        char registro_origen[10];
+
+        sscanf(instruccion, "%s %s %s", operacion, registro_destino, registro_origen);
+
+        execute_sub(pcb, registro_destino, registro_origen);
+    }
+    else if (strcmp("JNZ", operacion) == 0)
+    {
+        char registro[10];
+        uint32_t nuevo_program_counter;
+
+        sscanf(instruccion, "%s %s %u", operacion, registro, &nuevo_program_counter);
+
+        execute_jnz(pcb, registro, nuevo_program_counter);
+    }
+    else if (strcmp("IO_GEN_SLEEP", operacion) == 0)
+    {
+        char interfaz[50];
+        uint32_t unidades_de_trabajo;
+
+        sscanf(instruccion, "%s %s %u", operacion, interfaz, &unidades_de_trabajo);
+
+        execute_io_gen_sleep(pcb, interfaz, unidades_de_trabajo);
+    }
+    else
+    {
+        log_error(logger, "Instrucción desconocida: %s", operacion);
+        sleep(1);
+    }
+    
+    pcb->cpu_registers->pc++;
+}
+
+void check_interrupt()
+{
+    // TODO
 }

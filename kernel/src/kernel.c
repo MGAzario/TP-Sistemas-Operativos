@@ -6,7 +6,7 @@ t_log *logger;
 t_queue *cola_new;
 t_queue *cola_ready;
 
-static int ultimo_pid = 0;
+int ultimo_pid;
 char *ip_cpu;
 char *ip_memoria;
 int socket_cpu_dispatch;
@@ -70,6 +70,8 @@ int main(int argc, char *argv[])
     }
     //Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
     pthread_detach(hilo_planificador_corto_plazo);
+
+    ultimo_pid = 0;
 
     consola();
 
@@ -164,9 +166,9 @@ void crear_pcb(char *path)
     registros->extendidos[EDX] = 0;
     registros->si = 0;
     registros->di= 0;
-    // Incrementar el PID y asignarlo al nuevo PCB
-    ultimo_pid++;
+    // Asignar el PID e incrementarlo
     pcb->pid = ultimo_pid;
+    ultimo_pid++;
     // Termino de completar el PCB
     pcb->cpu_registers = registros;
     pcb->quantum = 0;
@@ -188,7 +190,7 @@ void crear_pcb(char *path)
 
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
-    log_info(logger, "Se crea el proceso %d en NEW\n", ultimo_pid);
+    log_info(logger, "Se crea el proceso %d en NEW", ultimo_pid);
     // Despertar el mover procesos a ready
     sem_post(&sem_nuevo_pcb);
 }
@@ -326,7 +328,7 @@ void esperar_cpu()
 
     switch (cod_op)
     {
-        case DISPATCH: // op_code genérico solo para probar, después hay que ver todos los op_code que hagan falta
+        case DISPATCH: // solo para probar, después hay que ver todos los op_code que hagan falta
             log_debug(logger, "Recibí una respuesta del CPU!");
             if (1)
             {

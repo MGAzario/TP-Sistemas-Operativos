@@ -11,6 +11,7 @@ int socket_cpu;
 int socket_entradasalida;
 
 pthread_t hilo_kernel;
+pthread_t hilo_cpu;
 
 t_list *lista_instrucciones_por_proceso;
 
@@ -37,16 +38,23 @@ int main(int argc, char* argv[])
 
     iniciar_servidor_memoria();
 
-    //Creo un hilo para el planificador de corto plazo
+    // Creo un hilo para recibir mensajes del Kernel
     if (pthread_create(&hilo_kernel, NULL, recibir_kernel, NULL) != 0){
-        log_error(logger, "Error al inicializar el Hilo Planificador de Corto Plazo");
+        log_error(logger, "Error al inicializar el Hilo del Kernel");
         exit(EXIT_FAILURE);
     }
     pthread_detach(hilo_kernel);
 
+    // Creo un hilo para recibir mensajes del CPU
+    if (pthread_create(&hilo_cpu, NULL, recibir_cpu, NULL) != 0){
+        log_error(logger, "Error al inicializar el Hilo del CPU");
+        exit(EXIT_FAILURE);
+    }
+    pthread_detach(hilo_cpu);
+
     while(1)
     {
-
+        // TODO: Recibir mensajes del módulo E/S
     }
 
     // Cerrar sockets
@@ -84,26 +92,6 @@ void iniciar_servidor_memoria() {
     socket_kernel = esperar_cliente(socket_memoria);
     // socket_entradasalida = esperar_cliente(socket_memoria);
 }
-
-// void recibir_cpu(int socket_memoria){
-//     int socket_cpu = esperar_cliente(socket_memoria);
-//     if (socket_cpu == -1) {
-//         log_info(logger,"Error al aceptar la conexión del kernel.\n");
-//         liberar_conexion(socket_memoria);
-//     }
-//     recibir_mensaje(socket_cpu);
-//     liberar_conexion(socket_cpu);
-// }
-
-// void recibir_entradasalida(int socket_memoria){
-//     int socket_entradasalida = esperar_cliente(socket_memoria);
-//     if (socket_entradasalida == -1) {
-//         log_info(logger,"Error al aceptar la conexión del kernel.\n");
-//         liberar_conexion(socket_memoria);
-//     }
-//     recibir_mensaje(socket_entradasalida);
-//     liberar_conexion(socket_entradasalida);
-// }
 
 /*Esta funcion gestiona los accesos a memoria. 
 El tema de la concurrencia a la memoria es una duda que todavia tengo. ¿Que pasa si 2 modulos distintos quieren entrar al mismo tiempo?*/

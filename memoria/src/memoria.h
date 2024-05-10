@@ -8,6 +8,7 @@
 #include <utils/hello.h>
 #include <pthread.h>
 #include "kernel_memoria.h"
+#include "cpu_memoria.h"
 
 extern t_config *config;
 extern t_log *logger;
@@ -20,6 +21,7 @@ extern int socket_cpu;
 extern int socket_entradasalida;
 
 extern pthread_t hilo_kernel;
+extern pthread_t hilo_cpu;
 
 extern t_list *lista_instrucciones_por_proceso;
 
