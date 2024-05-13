@@ -20,6 +20,7 @@ void conectar_dispatch_cpu(char *ip_cpu);
 void conectar_interrupt_cpu(char *ip_cpu);
 void recibir_entradasalida();
 void crear_pcb(char *path);
+void encontrar_y_eliminar_proceso(int pid_a_eliminar);
 void *planificador_corto_plazo();
 void *planificador_largo_plazo();
 void planificar_fifo();

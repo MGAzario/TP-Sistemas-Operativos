@@ -22,6 +22,10 @@ typedef enum {
     EXIT
 } estado_proceso;
 
+typedef enum {
+    FINALIZAR_PROCESO
+} motivo_interrupcion;
+
 // Definición de los registros de la CPU
 typedef struct {
     uint32_t pc;   // Program Counter, 4 bytes
@@ -60,6 +64,12 @@ typedef struct
     char *instruccion;
     uint32_t tamanio_instruccion;
 } t_instruccion;
+
+typedef struct
+{
+    t_pcb *pcb;
+    motivo_interrupcion motivo;
+} t_interrupcion;
 
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;

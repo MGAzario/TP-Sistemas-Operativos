@@ -11,6 +11,10 @@ int socket_kernel_interrupt;
 int socket_memoria;
 
 int continuar_ciclo;
+int pid_de_interrupcion;
+motivo_interrupcion motivo_de_interrupcion;
+
+pthread_t hilo_interrupciones;
 
 int main(int argc, char *argv[])
 {
@@ -25,11 +29,22 @@ int main(int argc, char *argv[])
     // Establecer conexión con el módulo Memoria
     conectar_memoria();
 
-    // Recibir mensajes del dispatch del Kernel
+    // Se inicializan variables globales
     continuar_ciclo = 1;
+    pid_de_interrupcion = -1;
+
+    // Creo un hilo para recibir interrupciones
+    if (pthread_create(&hilo_interrupciones, NULL, recibir_interrupciones, NULL) != 0){
+        log_error(logger, "Error al inicializar el Hilo de Interrupciones");
+        exit(EXIT_FAILURE);
+    }
+    pthread_detach(hilo_interrupciones);
+
+    // Recibir mensajes del dispatch del Kernel
     recibir_procesos_kernel(socket_kernel_dispatch);
 
     liberar_conexion(socket_cpu_dispatch);
+    liberar_conexion(socket_kernel_dispatch);
 
     log_info(logger, "Terminó");
 
@@ -95,7 +110,34 @@ void recibir_procesos_kernel(int socket_cliente)
     }
     continuar_ciclo = 1;
 
+    free(pcb->cpu_registers);
     free(pcb);
+    }
+}
+
+void *recibir_interrupciones()
+{
+    while(1)
+    {
+        op_code cod_op = recibir_operacion(socket_kernel_interrupt);
+        if(cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó el Kernel del socket INTERRUPT");
+            while(1);
+        }
+        if(cod_op != INTERRUPCION)
+        {
+            log_error(logger, "El CPU recibió en el socket de interrupciones algo que no es una interrupción");
+        }
+        t_interrupcion *interrupcion = recibir_interrupcion(socket_kernel_interrupt);
+        log_debug(logger, "El Kernel envió una interrupción");
+
+        pid_de_interrupcion = interrupcion->pcb->pid;
+        motivo_de_interrupcion = interrupcion->motivo;
+
+        free(interrupcion->pcb->cpu_registers);
+        free(interrupcion->pcb);
+        free(interrupcion);
     }
 }
 
@@ -103,7 +145,7 @@ void ciclo_de_instruccion(t_pcb *pcb)
 {
     char *instruccion = fetch(pcb);
     decode(pcb, instruccion);
-    check_interrupt();
+    check_interrupt(pcb);
 }
 
 char *fetch(t_pcb *pcb)
@@ -148,8 +190,6 @@ void decode(t_pcb *pcb, char *instruccion)
         log_debug(logger, "EDX: %i", pcb->cpu_registers->extendidos[EDX]);
 
         pcb->cpu_registers->normales[AX] = 124;
-
-        enviar_pcb(socket_kernel_dispatch, pcb);
 
         // free(pcb->cpu_registers);
         // free(pcb);
@@ -214,7 +254,21 @@ void decode(t_pcb *pcb, char *instruccion)
     pcb->cpu_registers->pc++;
 }
 
-void check_interrupt()
+void check_interrupt(t_pcb *pcb)
 {
-    // TODO
+    if(pid_de_interrupcion == pcb->pid)
+    {
+        log_trace(logger, "El check interrupt detectó una interrupción para el pid %i. Se desalojará y enviará al Kernel", pcb->pid);
+
+        enviar_interrupcion(socket_kernel_dispatch, pcb, motivo_de_interrupcion);
+
+        log_trace(logger, "Se envío la interrupción");
+
+        pid_de_interrupcion = -1;
+        continuar_ciclo = 0;
+    }
+    else if(pid_de_interrupcion != -1)
+    {
+        log_trace(logger, "El check interrupt detectó una interrupción, pero para otro pid (%i), así que la ignora", pcb->pid);
+    }
 }

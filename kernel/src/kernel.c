@@ -15,6 +15,8 @@ int socket_memoria;
 int grado_multiprogramacion_activo;
 int grado_multiprogramacion_max;
 
+t_pcb *pcb_ejecutandose;
+
 char *algoritmo_planificacion;
 
 sem_t sem_nuevo_pcb;
@@ -56,19 +58,19 @@ int main(int argc, char *argv[])
 
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
-    //Creo un hilo para el planificador de largo plazo
+    // Creo un hilo para el planificador de largo plazo
     if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo, NULL) != 0){
         log_error(logger, "Error al inicializar el Hilo Planificador de Largo Plazo");
         exit(EXIT_FAILURE);
     }
-    //Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
+    // Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
     pthread_detach(hilo_planificador_largo_plazo);
-    //Creo un hilo para el planificador de corto plazo
+    // Creo un hilo para el planificador de corto plazo
     if (pthread_create(&hilo_planificador_corto_plazo, NULL, planificador_corto_plazo, NULL) != 0){
         log_error(logger, "Error al inicializar el Hilo Planificador de Corto Plazo");
         exit(EXIT_FAILURE);
     }
-    //Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
+    // Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
     pthread_detach(hilo_planificador_corto_plazo);
 
     ultimo_pid = 0;
@@ -191,8 +193,45 @@ void crear_pcb(char *path)
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
     log_info(logger, "Se crea el proceso %d en NEW", ultimo_pid);
+    log_debug(logger, "Hay %i procesos en NEW", queue_size(cola_new));
     // Despertar el mover procesos a ready
     sem_post(&sem_nuevo_pcb);
+}
+
+void encontrar_y_eliminar_proceso(int pid_a_eliminar)
+{
+    // Buscamos en EXEC
+    if(pcb_ejecutandose->pid == pid_a_eliminar)
+    {
+        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FINALIZAR_PROCESO);
+        return;
+    }
+
+    // Buscamos en la cola de NEW
+    for(int i = 0; i < list_size(cola_new->elements); i++)
+    {
+        t_pcb *pcb = (t_pcb *)list_get(cola_new->elements, i);
+        if(pcb->pid == pid_a_eliminar)
+        {
+            list_remove(cola_new->elements, i);
+            eliminar_proceso(pcb);
+            return;
+        }
+    }
+
+    // Buscamos en la cola de READY
+    for(int i = 0; i < list_size(cola_ready->elements); i++)
+    {
+        t_pcb *pcb = (t_pcb *)list_get(cola_ready->elements, i);
+        if(pcb->pid == pid_a_eliminar)
+        {
+            list_remove(cola_ready->elements, i);
+            eliminar_proceso(pcb);
+            return;
+        }
+    }
+
+    // TODO: Buscar también en la cola (o colas) de bloqueados
 }
 
 /*En caso de que el grado de multiprogramación lo permita, los procesos creados podrán pasar de la cola de NEW a la cola de READY,
@@ -220,6 +259,7 @@ void *planificador_largo_plazo()
             // Agregar el proceso a la cola de READY
             queue_push(cola_ready, proceso_nuevo);
             sem_post(&sem_proceso_ready);
+            log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
             //Aumentamos el grado de multiprogramacion activo
             grado_multiprogramacion_activo++;
 
@@ -261,14 +301,22 @@ void planificar_fifo()
     if (!queue_is_empty(cola_ready))
     {
         // FIFO toma el primer proceso de la cola
-        t_pcb *proceso_ejecucion = queue_pop(cola_ready);
+        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
 
-        log_debug(logger, "CX: %i", proceso_ejecucion->cpu_registers->normales[CX]);
+        log_trace(logger, "CX: %i", proceso_a_ejecutar->cpu_registers->normales[CX]);
 
         // Estado pasa a ejecucion
-        // proceso_ejecucion->estado = EXEC;
+        proceso_a_ejecutar->estado = EXEC;
+
+        // Guardamos registro en el Kernel de qué proceso está ejecutándose
+        pcb_ejecutandose = proceso_a_ejecutar;
+        
         // Le envío el pcb al CPU a traves del dispatch
-        enviar_pcb(socket_cpu_dispatch, proceso_ejecucion);
+        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+
+        // Guardamos registro en el Kernel de qué proceso está ejecutándose
+        pcb_ejecutandose = proceso_a_ejecutar;
+
         // Espero a que el CPU me devuelva el proceso
         esperar_cpu();
     }
@@ -285,29 +333,29 @@ void planificar_round_robin()
     //     {
     //         int tiempo_usado = 0;
     //         // Obtener el proceso listo para ejecutarse de la cola
-    //         t_pcb *proceso_ejecucion = queue_peek(cola_ready);
+    //         t_pcb *proceso_a_ejecutar = queue_peek(cola_ready);
     //         queue_pop(cola_ready);
 
     //         // Cambiar el estado del proceso a EXEC
-    //         proceso_ejecucion->estado = EXEC;
+    //         proceso_a_ejecutar->estado = EXEC;
 
     //         // TODO Enviar el proceso a la CPU
-    //         conectar_dispatch_cpu(proceso_ejecucion);
+    //         conectar_dispatch_cpu(proceso_a_ejecutar);
     //         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
     //         // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-    //         while (proceso_ejecucion->quantum > 0)
+    //         while (proceso_a_ejecutar->quantum > 0)
     //         {
     //             if (tiempo_usado < quantum_kernel)
     //             {
-    //                 proceso_ejecucion->quantum--;
+    //                 proceso_a_ejecutar->quantum--;
     //                 tiempo_usado++;
     //             }
     //             // Aca el proceso cortaria porque se le agoto su quantum
     //             else if (tiempo_usado == quantum_kernel)
     //             {
     //                 // TODO, desalojar de CPU con interrupcion.
-    //                 proceso_ejecucion->estado = READY;
-    //                 queue_push(cola_ready, proceso_ejecucion);
+    //                 proceso_a_ejecutar->estado = READY;
+    //                 queue_push(cola_ready, proceso_a_ejecutar);
     //                 break;
     //             }
     //         }
@@ -341,14 +389,26 @@ void esperar_cpu()
                 free(pcb_prueba);
             }
             // while(1){}
-            esperar_cpu();
+            // esperar_cpu();
             break;
         case INSTRUCCION_EXIT:
             log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
             t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
             eliminar_proceso(pcb);
+            break;
+        case INTERRUPCION:
+            log_debug(logger, "Al CPU el llegó una interrupción, así que envía el pcb junto con el motivo de la interrupción");
+            t_interrupcion *interrupcion = recibir_interrupcion(socket_cpu_dispatch);
+
+            // después se puede cambiar este if por un switch cuando haya varios motivos de interrupción
+            if(interrupcion->motivo == FINALIZAR_PROCESO)
+            {
+                log_debug(logger, "Este motivo es FINALIZAR_PROCESO, entonces se elimina el proceso");
+                eliminar_proceso(interrupcion->pcb);
+            }
+            break;
         default:
-            log_warning(logger, "Mensaje desconocido del CPU\n");
+            log_warning(logger, "Mensaje desconocido del CPU");
             break;
     } 
 
@@ -358,8 +418,12 @@ void esperar_cpu()
 void eliminar_proceso(t_pcb *pcb)
 {
     // TODO: Informarle a la Memoria la eliminación del proceso, para que pueda liberar sus estructuras
+
+    free(pcb->cpu_registers);
     free(pcb);
-    sem_post(&sem_proceso_ready);
+
+    // Se habilita un espacio en el grado de multiprogramación
+    grado_multiprogramacion_activo--;
 }
 
 void consola()
@@ -401,7 +465,7 @@ void consola()
             int pid;
             sscanf(linea, "%s %i", comando, &pid);
             
-            printf("Falta implementar\n"); // TODO
+            encontrar_y_eliminar_proceso(pid);
         }
         else if((strcmp(comando, "DETENER_PLANIFICACION") == 0) || (strcmp(comando, "4") == 0))
         {

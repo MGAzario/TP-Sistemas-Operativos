@@ -165,6 +165,20 @@ t_paquete* crear_paquete_instruccion(uint32_t tamanio_instruccion) {
 	free(magic);
     return paquete;
 }
+t_paquete* crear_paquete_interrupcion() {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = INTERRUPCION;
+	crear_buffer(paquete);
+    paquete->buffer->size = 7 * sizeof(uint32_t) 
+							+ 2 * sizeof(int) 
+							+ sizeof(estado_proceso)
+							+ 4 * sizeof(uint8_t)
+							+ sizeof(motivo_interrupcion);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
 
 void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb) {
     // Copiar el PCB al stream del buffer del paquete
@@ -263,6 +277,49 @@ void agregar_instruccion_a_paquete(t_paquete* paquete, char* instruccion, uint32
 	paquete->buffer->stream = magic;
 }
 
+void agregar_interrupcion_a_paquete(t_paquete* paquete, t_pcb* pcb, motivo_interrupcion motivo) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+    memcpy(magic + desplazamiento, &(pcb->pid), sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &(pcb->quantum), sizeof(int));
+	desplazamiento+= sizeof(int);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->pc), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[AX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[BX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[CX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[DX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EAX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EBX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[ECX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EDX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->si), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->di), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
+	desplazamiento+= sizeof(estado_proceso);
+
+	memcpy(magic + desplazamiento, &motivo, sizeof(motivo_interrupcion));
+
+	paquete->buffer->stream = magic;
+}
+
 void enviar_paquete(t_paquete* paquete, int socket_cliente) 
 {
     // Calcular el tamaño total del paquete
@@ -339,6 +396,15 @@ void enviar_exit(int socket_cliente, t_pcb *pcb)
     agregar_pcb_a_paquete(paquete, pcb);
 
     enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_interrupcion(int socket_cliente, t_pcb *pcb, motivo_interrupcion motivo)
+{
+	t_paquete* paquete = crear_paquete_interrupcion();
+
+	agregar_interrupcion_a_paquete(paquete, pcb, motivo);
+
+	enviar_paquete(paquete, socket_cliente);
 }
 
 // Funciones para simplificar que no se sabe si funcionan o no (también están atrasadas en algunos cambios):
