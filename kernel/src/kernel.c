@@ -261,6 +261,7 @@ void *planificador_largo_plazo()
             sem_post(&sem_proceso_ready);
             log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
             //Aumentamos el grado de multiprogramacion activo
+            //TODO poner MUTEX 
             grado_multiprogramacion_activo++;
 
             // Reducir la cantidad de procesos en la cola de NEW
@@ -362,7 +363,26 @@ void planificar_round_robin()
     //     }
     // }
 }
+//Aca seria cola en vez de lista.
+/*
+void roundRobin(t_list* lista, int* quantum)
+{
+	pthread_t quantumThread;
 
+	pthread_create(&quantumThread, NULL, (void*) quantumCount, (void*) quantum);
+	sem_wait(&semRR);
+    //desalojo de CPU
+    //mutex en la cola de interrupt
+	void* element = listPop(lista);
+	list_add(lista,element);
+}
+
+void quantumCount(int* quantum)
+{
+	usleep(*quantum * 1000);
+	sem_post(&semRR);
+}
+*/
 void planificar_vrr()
 {
     // TODO
@@ -423,6 +443,7 @@ void eliminar_proceso(t_pcb *pcb)
     free(pcb);
 
     // Se habilita un espacio en el grado de multiprogramación
+    //TODO poner MUTEX
     grado_multiprogramacion_activo--;
 }
 

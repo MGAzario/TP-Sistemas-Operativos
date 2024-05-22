@@ -3,6 +3,9 @@
 void execute_set(t_pcb *pcb, char *registro, uint32_t valor)
 {
     log_error(logger, "Falta implementar SET"); // TODO
+    if (strcmp("AX", registro) == 0){
+        pcb->cpu_registers->normales[AX] = valor
+    }
 }
 
 void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
