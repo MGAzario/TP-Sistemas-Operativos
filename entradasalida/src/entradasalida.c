@@ -63,3 +63,47 @@ void conectar_memoria(){
     recibir_mensaje(socket_memoria);
     liberar_conexion(socket_memoria);
 }
+
+void interfazGenerica(char* nombre)
+{
+    /*Se obtienen los valores de configuración IP_KERNEL, PUERTO_KERNEL y TIEMPO_UNIDAD_TRABAJO desde un archivo de configuración, 
+    almacenándolos en las variables ip_kernel, puerto_kernel y tiempoUnidadTrabajo, respectivamente.*/
+
+    char *ip_kernel = config_get_string_value(config, "IP_KERNEL");
+    char *puerto_kernel = config_get_string_value(config, "PUERTO_KERNEL");
+    int tiempoUnidadTrabajo = config_get_int_value(config, "TIEMPO_UNIDAD_TRABAJO");
+
+    //Se establece una conexión con el kernel utilizando la IP y el puerto obtenidos anteriormente.
+
+    int conexion = crearConexion(ip_kernel, puerto_kernel);
+
+    /*Se envía el contenido de nombre al kernel a través de la conexión establecida. 
+    La línea free(nombre); está comentada, pero indica que nombre debería liberarse cuando se utilicen parámetros dinámicamente asignados.*/
+
+    enviarMensaje(nombre, conexion);
+    //free(nombre);                 DESCOMENTAR CUANDO SE UTILICEN PARAMETROS
+    
+    /*Se entra en un bucle infinito donde se reciben mensajes del kernel.
+    Cada mensaje recibido se almacena en la variable respuesta.
+    respuesta se divide en componentes utilizando string_split con la coma como delimitador, almacenándose en el array decodificada.*/
+
+    while(true)
+    {
+        /*Se verifica si el primer componente del mensaje (decodificada[0]) es igual a "IO_GEN_SLEEP".
+        Si es así, se convierte el segundo componente (decodificada[1]) a un entero (multiplicador).
+        Se duerme el tiempo correspondiente, calculado como multiplicador * 1000 * tiempoUnidadTrabajo microsegundos.
+        Tras despertar, se envía un mensaje "FIN" al kernel.
+        Finalmente, se libera la memoria asignada a respuesta.*/
+
+        char* respuesta = recibirMensaje(conexion, logger);
+        char** decodificada = string_split(respuesta, ',');
+
+        if(strcmp(decodificada[0], "IO_GEN_SLEEP") == 0)
+        {
+            int multiplicador = atoi(decodificada[1]);
+            usleep(multiplicador * 1000 * tiempoUnidadTrabajo);
+            enviarMensaje("FIN", conexion);
+        }
+        free(respuesta);
+    }
+}
