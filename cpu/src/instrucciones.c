@@ -1,5 +1,6 @@
 #include "instrucciones.h"
 
+
 void execute_set(t_pcb *pcb, char *registro, uint32_t valor)
 {
     if (strcmp("AX", registro) == 0){
@@ -167,6 +168,10 @@ void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)
 
 void execute_io_gen_sleep(t_pcb *pcb, char *interfaz, uint32_t unidades_de_trabajo)
 {
+    /*IO_GEN_SLEEP (Interfaz, Unidades de trabajo): Esta instrucción solicita al Kernel que se envíe a una interfaz de I/O a que realice un 
+    sleep por una cantidad de unidades de trabajo.*/
+   
+
     log_error(logger, "Falta implementar IO_GEN_SLEEP"); // TODO
 }
 

@@ -1,10 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <utils/utils_cliente.h>
+#include <utils/utils_server.h>
 #include <utils/hello.h>
 
 t_config *config;
 t_log* logger;
+char *ip_kernel;
+char *puerto_kernel;
+int socket_kernel;
+
 
 int main(int argc, char* argv[])
 {
@@ -40,15 +45,13 @@ void create_config(){
 
 void conectar_kernel(){
     // Establecer conexión con el módulo Kernel
-    char *ip_kernel = config_get_string_value(config, "IP_KERNEL");
-    char *puerto_kernel = config_get_string_value(config, "PUERTO_KERNEL");
-    int socket_kernel = conectar_modulo(ip_kernel, puerto_kernel);
+    ip_kernel = config_get_string_value(config, "IP_KERNEL");
+    puerto_kernel = config_get_string_value(config, "PUERTO_KERNEL");
+    socket_kernel = conectar_modulo(ip_kernel, puerto_kernel);
     if (socket_kernel != -1) {
         enviar_mensaje("Mensaje al kernel desde el Kernel", socket_kernel);
         liberar_conexion(socket_kernel);
     }
-    recibir_mensaje(socket_kernel);
-    liberar_conexion(socket_kernel);
 }
 
 void conectar_memoria(){
@@ -64,29 +67,17 @@ void conectar_memoria(){
     liberar_conexion(socket_memoria);
 }
 
-void interfazGenerica(char* nombre)
+void crear_interfaz_generica(char* nombre)
 {
-    /*Se obtienen los valores de configuración IP_KERNEL, PUERTO_KERNEL y TIEMPO_UNIDAD_TRABAJO desde un archivo de configuración, 
-    almacenándolos en las variables ip_kernel, puerto_kernel y tiempoUnidadTrabajo, respectivamente.*/
+    /*Las interfaces genéricas van a ser las más simples, 
+    y lo único que van a hacer es que ante una petición van a esperar una cantidad de unidades de trabajo, 
+    cuyo valor va a venir dado en la petición desde el Kernel.*/
+    //La peticion se activa cuando se genera una peticion IO_SLEEP
+    //El tiempo de unidad de trabajo se obtiene de las configuraciones
+    int tiempo_unidad_trabajo = config_get_int_value(config, "TIEMPO_UNIDAD_TRABAJO");
 
-    char *ip_kernel = config_get_string_value(config, "IP_KERNEL");
-    char *puerto_kernel = config_get_string_value(config, "PUERTO_KERNEL");
-    int tiempoUnidadTrabajo = config_get_int_value(config, "TIEMPO_UNIDAD_TRABAJO");
-
-    //Se establece una conexión con el kernel utilizando la IP y el puerto obtenidos anteriormente.
-
-    int conexion = crearConexion(ip_kernel, puerto_kernel);
-
-    /*Se envía el contenido de nombre al kernel a través de la conexión establecida. 
-    La línea free(nombre); está comentada, pero indica que nombre debería liberarse cuando se utilicen parámetros dinámicamente asignados.*/
-
-    enviarMensaje(nombre, conexion);
-    //free(nombre);                 DESCOMENTAR CUANDO SE UTILICEN PARAMETROS
     
-    /*Se entra en un bucle infinito donde se reciben mensajes del kernel.
-    Cada mensaje recibido se almacena en la variable respuesta.
-    respuesta se divide en componentes utilizando string_split con la coma como delimitador, almacenándose en el array decodificada.*/
-
+    //Tiene que estar siempre esperando un mensaje
     while(true)
     {
         /*Se verifica si el primer componente del mensaje (decodificada[0]) es igual a "IO_GEN_SLEEP".
@@ -94,16 +85,20 @@ void interfazGenerica(char* nombre)
         Se duerme el tiempo correspondiente, calculado como multiplicador * 1000 * tiempoUnidadTrabajo microsegundos.
         Tras despertar, se envía un mensaje "FIN" al kernel.
         Finalmente, se libera la memoria asignada a respuesta.*/
+        conectar_kernel();
 
-        char* respuesta = recibirMensaje(conexion, logger);
-        char** decodificada = string_split(respuesta, ',');
+        t_list peticion_kernel = list_create();
+        peticion_kernel = recibir_paquete(socket_kernel);
+        char* mensaje = list_take(peticion_kernel,1);
 
-        if(strcmp(decodificada[0], "IO_GEN_SLEEP") == 0)
+        if(strcmp(mensaje, "IO_GEN_SLEEP") == 0)
         {
-            int multiplicador = atoi(decodificada[1]);
-            usleep(multiplicador * 1000 * tiempoUnidadTrabajo);
-            enviarMensaje("FIN", conexion);
+            int multiplicador = atoi(list_take(peticion_kernel,2));
+            usleep(multiplicador * 1000 * tiempo_unidad_trabajo);
+            enviar_mensaje("FIN", conexion);
         }
         free(respuesta);
+
+        liberar_conexion(socket_kernel);
     }
 }
