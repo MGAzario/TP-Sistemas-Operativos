@@ -23,7 +23,8 @@ typedef enum {
 } estado_proceso;
 
 typedef enum {
-    FINALIZAR_PROCESO
+    FINALIZAR_PROCESO,
+    FIN_DE_QUANTUM
 } motivo_interrupcion;
 
 // Definición de los registros de la CPU

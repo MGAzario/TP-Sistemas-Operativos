@@ -95,23 +95,23 @@ void recibir_procesos_kernel(int socket_cliente)
 {
     while(1)
     {
-    // Recibe un proceso del kernel para ser ejecutado
-    op_code cod_op = recibir_operacion(socket_cliente);
-    if(cod_op != DISPATCH)
-    {
-        log_error(logger, "El CPU esperaba recibir una operación DISPATCH del Kernel pero recibió otra operación");
-    }
-    t_pcb *pcb = recibir_pcb(socket_cliente);
+        // Recibe un proceso del kernel para ser ejecutado
+        op_code cod_op = recibir_operacion(socket_cliente);
+        if(cod_op != DISPATCH)
+        {
+            log_error(logger, "El CPU esperaba recibir una operación DISPATCH del Kernel pero recibió otra operación");
+        }
+        t_pcb *pcb = recibir_pcb(socket_cliente);
 
-    // Ejecuta el proceso (se pone en marcha el ciclo de instrucción)
-    while(continuar_ciclo)
-    {
-        ciclo_de_instruccion(pcb);
-    }
-    continuar_ciclo = 1;
+        // Ejecuta el proceso (se pone en marcha el ciclo de instrucción)
+        while(continuar_ciclo)
+        {
+            ciclo_de_instruccion(pcb);
+        }
+        continuar_ciclo = 1;
 
-    free(pcb->cpu_registers);
-    free(pcb);
+        free(pcb->cpu_registers);
+        free(pcb);
     }
 }
 

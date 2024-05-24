@@ -21,6 +21,7 @@ char *algoritmo_planificacion;
 
 sem_t sem_nuevo_pcb;
 sem_t sem_proceso_ready;
+sem_t sem_round_robin;
 
 pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
@@ -29,6 +30,7 @@ int main(int argc, char *argv[])
 {
     sem_init(&sem_nuevo_pcb, 0, 0);
     sem_init(&sem_proceso_ready, 0, 0);
+    sem_init(&sem_round_robin, 0, 1);
 
     crear_logger();
     crear_config();
@@ -308,9 +310,6 @@ void planificar_fifo()
 
         // Estado pasa a ejecucion
         proceso_a_ejecutar->estado = EXEC;
-
-        // Guardamos registro en el Kernel de qué proceso está ejecutándose
-        pcb_ejecutandose = proceso_a_ejecutar;
         
         // Le envío el pcb al CPU a traves del dispatch
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
@@ -324,65 +323,51 @@ void planificar_fifo()
 }
 
 // Función para planificar los procesos usando Round Robin
+
 void planificar_round_robin()
 {
-    // int quantum_kernel = config_get_string_value(config, "QUANTUM");
-    // // Ejecutar hasta que la cola de procesos en READY esté vacía
-    // while (1)
-    // {
-    //     if (!queue_is_empty(cola_ready))
-    //     {
-    //         int tiempo_usado = 0;
-    //         // Obtener el proceso listo para ejecutarse de la cola
-    //         t_pcb *proceso_a_ejecutar = queue_peek(cola_ready);
-    //         queue_pop(cola_ready);
+	pthread_t quantum_thread;
+    int quantum = config_get_string_value(config, "QUANTUM");
 
-    //         // Cambiar el estado del proceso a EXEC
-    //         proceso_a_ejecutar->estado = EXEC;
-
-    //         // TODO Enviar el proceso a la CPU
-    //         conectar_dispatch_cpu(proceso_a_ejecutar);
-    //         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
-    //         // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-    //         while (proceso_a_ejecutar->quantum > 0)
-    //         {
-    //             if (tiempo_usado < quantum_kernel)
-    //             {
-    //                 proceso_a_ejecutar->quantum--;
-    //                 tiempo_usado++;
-    //             }
-    //             // Aca el proceso cortaria porque se le agoto su quantum
-    //             else if (tiempo_usado == quantum_kernel)
-    //             {
-    //                 // TODO, desalojar de CPU con interrupcion.
-    //                 proceso_a_ejecutar->estado = READY;
-    //                 queue_push(cola_ready, proceso_a_ejecutar);
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
-}
-//Aca seria cola en vez de lista.
-/*
-void roundRobin(t_list* lista, int* quantum)
-{
-	pthread_t quantumThread;
-
-	pthread_create(&quantumThread, NULL, (void*) quantumCount, (void*) quantum);
-	sem_wait(&semRR);
+	
+	sem_wait(&sem_round_robin);
     //desalojo de CPU
+    // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+
+    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    if (!queue_is_empty(cola_ready))
+    {
+        // Obtener el proceso listo para ejecutarse de la cola
+        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+        
+        //wait(sem_mutex_interrupt)
+        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+        esperar_cpu();
+        //sem_post(sem_mutex_interrupt)
+
+        // Cambiar el estado del proceso a EXEC
+        proceso_a_ejecutar->estado = EXEC;
+
+        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+
+        pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
+
+        pcb_ejecutandose = proceso_a_ejecutar;
+
+        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
+
+    }
     //mutex en la cola de interrupt
-	void* element = listPop(lista);
-	list_add(lista,element);
 }
 
-void quantumCount(int* quantum)
+void quantum_count(int* quantum)
 {
 	usleep(*quantum * 1000);
-	sem_post(&semRR);
+	sem_post(&sem_round_robin);
 }
-*/
+
 void planificar_vrr()
 {
     // TODO
@@ -425,6 +410,20 @@ void esperar_cpu()
             {
                 log_debug(logger, "Este motivo es FINALIZAR_PROCESO, entonces se elimina el proceso");
                 eliminar_proceso(interrupcion->pcb);
+            }
+            if(interrupcion->motivo == FIN_DE_QUANTUM)
+            {
+                if(strcmp(algoritmo_planificacion,"RR"))
+                {
+                    log_debug(logger, "Este motivo es FIN_DE_QUANTUM con RR, entonces se agrega al final de la cola el proceso");
+                    interrupcion->pcb->estado = READY;
+                    queue_push(cola_ready,interrupcion->pcb);
+                    sem_post(&sem_proceso_ready);
+                }
+                else
+                {
+                    // TODO: VRR
+                }
             }
             break;
         default:

@@ -29,6 +29,7 @@ void planificar_vrr();
 void esperar_cpu();
 void eliminar_proceso(t_pcb *pcb);
 void consola();
-
+void planificar_round_robin();
+void quantum_count(int* quantum);
 
 #endif /*KERNEL_H*/
