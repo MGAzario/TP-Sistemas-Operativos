@@ -3,8 +3,10 @@
 // Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
 t_config *config;
 t_log *logger;
+t_list *interfaces_activas;
 t_queue *cola_new;
 t_queue *cola_ready;
+t_queue *cola_bloqueados;
 
 int ultimo_pid;
 char *ip_cpu;
@@ -12,6 +14,7 @@ char *ip_memoria;
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 int socket_memoria;
+int socket_entradasalida;
 int grado_multiprogramacion_activo;
 int grado_multiprogramacion_max;
 
@@ -45,6 +48,7 @@ int main(int argc, char *argv[])
     // Creo las colas que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
+    cola_bloqueados = queue_create();
 
     // Usan la misma IP, se las paso por parametro.
     // Conexiones con CPU: Dispatch e Interrupt
@@ -131,11 +135,18 @@ void conectar_interrupt_cpu(char *ip_cpu)
 
 void recibir_entradasalida()
 {
+    //Esto va a ser un hilo
     char *puerto_kernel = config_get_string_value(config, "PUERTO_ESCUCHA");
     int socket_kernel = iniciar_servidor(puerto_kernel);
-
+    //while (1)
     // Espero a un cliente (entradasalida). El mensaje entiendo que se programa despues
     int socket_entradasalida = esperar_cliente(socket_kernel);
+    //Desde entrada salida mandaria, NOMBRE DE INTERFAZ y tipo, o una estructura t_interfaz
+    /*
+    socket_interfaz = socket_entrada_salida
+    nombre = nombre_interfaz Que llega desde entrada salida
+    Tipo = tipo que llega desde entrada salida.
+    */
 
     // Si falla, no se pudo aceptar
     if (socket_entradasalida == -1)
@@ -426,6 +437,30 @@ void esperar_cpu()
                 }
             }
             break;
+        case IO_GEN_SLEEP:
+            log_debug(logger, "CPU pidio una instruccion bloqueante con entrada salida, se bloquea el proceso");
+            t_pcb *pcb_bloqueado = recibir_pcb(socket_cpu_dispatch);
+            pcb_bloqueado->estado = BLOCKED;
+            queue_push(cola_bloqueados,pcb_bloqueado);
+            //Hay que mandarle a la interfaz generica el sleep que llega de CPU
+            //Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
+            t_list* mensaje_sleep = recibir_paquete(socket_cpu_dispatch);
+            //Tomo el primer valor de la lista que es el nombre
+            char * nombre_interfaz = list_take(mensaje_sleep,1);
+            //Tomo el segundo valor de la lista que son las unidades de trabajo
+            u_int32_t unidades_de_trabajo = list_take(mensaje_sleep,2);
+            //Creo un paquete para enviarselo a entrada salida
+            t_paquete *mensaje_entrada_salida = crear_paquete();
+            mensaje_entrada_salida->codigo_operacion->IO_GEN_SLEEP;
+            //Cargo la info en el paquete
+            agregar_a_paquete(mensaje_entrada_salida,nombre_interfaz,sizeof(char));
+            agregar_a_paquete(mensaje_entrada_salida,unidades_de_trabajo,sizeof(u_int32_t));
+            //Enviamos el paquete a Entrada Salida
+            enviar_paquete(mensaje_entrada_salida,socket_entradasalida);
+            eliminar_paquete(mensaje_entrada_salida);
+
+
+
         default:
             log_warning(logger, "Mensaje desconocido del CPU");
             break;
