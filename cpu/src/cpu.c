@@ -234,17 +234,13 @@ void decode(t_pcb *pcb, char *instruccion)
     }
     else if (strcmp("IO_GEN_SLEEP", operacion) == 0)
     {
-        char interfaz[50];
+        char nombre_interfaz[50];
         uint32_t unidades_de_trabajo;
 
-        sscanf(instruccion, "%s %s %u", operacion, interfaz, &unidades_de_trabajo);
+        sscanf(instruccion, "%s %s %u", operacion, nombre_interfaz, &unidades_de_trabajo);
 
-        //execute_io_gen_sleep(pcb, interfaz, unidades_de_trabajo);
-        t_paquete mensaje_sleep = crear_paquete();
-        mensaje_sleep->cod_op = IO_GEN_SLEEP;
-        enviar_paquete(mensaje_sleep,socket_kernel_dispatch);
-        eliminar_paquete(mensaje_sleep);
-        liberar_conexion(socket_kernel_dispatch);
+        execute_io_gen_sleep(pcb, nombre_interfaz, unidades_de_trabajo);
+        
     }
     else if (strcmp("EXIT", operacion) == 0)
     {

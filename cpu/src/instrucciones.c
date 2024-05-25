@@ -166,11 +166,17 @@ void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)
 }
 
 
-void execute_io_gen_sleep(t_pcb *pcb, char *interfaz, uint32_t unidades_de_trabajo)
+void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo)
 {
     /*IO_GEN_SLEEP (Interfaz, Unidades de trabajo): Esta instrucción solicita al Kernel que se envíe a una interfaz de I/O a que realice un 
     sleep por una cantidad de unidades de trabajo.*/
-   
+    t_paquete mensaje_sleep = crear_paquete();
+    mensaje_sleep->cod_op = IO_GEN_SLEEP;
+    agregar_a_paquete(mensaje_sleep, nombre_interfaz, sizeof(nombre_interfaz));
+    agregar_a_paquete(mensaje_sleep,unidades_de_trabajo,sizeof(uint32_t));
+    enviar_paquete(mensaje_sleep,socket_kernel_dispatch);
+    eliminar_paquete(mensaje_sleep);
+    liberar_conexion(socket_kernel_dispatch);
 
     log_error(logger, "Falta implementar IO_GEN_SLEEP"); // TODO
 }
