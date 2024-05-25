@@ -1,15 +1,10 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <utils/utils_cliente.h>
-#include <utils/utils_server.h>
-#include <utils/hello.h>
+#include"entradasalida.h"
 
 t_config *config;
 t_log* logger;
 char *ip_kernel;
 char *puerto_kernel;
 int socket_kernel;
-
 
 int main(int argc, char* argv[])
 {
@@ -87,13 +82,13 @@ void crear_interfaz_generica(char* nombre)
         Finalmente, se libera la memoria asignada a respuesta.*/
         conectar_kernel();
 
-        t_list peticion_kernel = list_create();
+        t_list *peticion_kernel = list_create();
         peticion_kernel = recibir_paquete(socket_kernel);
-        char* mensaje = list_take(peticion_kernel,1);
+        char* mensaje = list_get(peticion_kernel,1);
 
         if(strcmp(mensaje, "IO_GEN_SLEEP") == 0)
         {
-            int multiplicador = atoi(list_take(peticion_kernel,2));
+            int multiplicador = atoi(list_get(peticion_kernel,2));
             usleep(multiplicador * 1000 * tiempo_unidad_trabajo);
             enviar_mensaje("FIN", conexion);
         }

@@ -327,7 +327,7 @@ void planificar_fifo()
 void planificar_round_robin()
 {
 	pthread_t quantum_thread;
-    int quantum = config_get_string_value(config, "QUANTUM");
+    int quantum = config_get_int_value(config, "QUANTUM");
 
 	
 	sem_wait(&sem_round_robin);
