@@ -172,7 +172,11 @@ void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_d
     sleep por una cantidad de unidades de trabajo.*/
     t_paquete mensaje_sleep = crear_paquete();
     mensaje_sleep->cod_op = IO_GEN_SLEEP;
+    //Este primer paso el guarda el PCB del proceso que se va a bloquear por Kernel
+    agregar_pcb_a_paquete(mensaje_sleep,pcb);
+    //Este paso guardaria en el mensaje que interfaz tengo que hacerle el sleep
     agregar_a_paquete(mensaje_sleep, nombre_interfaz, sizeof(nombre_interfaz));
+    //Unidades por las cuales voy a hacer el sleep
     agregar_a_paquete(mensaje_sleep,unidades_de_trabajo,sizeof(uint32_t));
     enviar_paquete(mensaje_sleep,socket_kernel_dispatch);
     eliminar_paquete(mensaje_sleep);

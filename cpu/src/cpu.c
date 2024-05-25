@@ -240,6 +240,7 @@ void decode(t_pcb *pcb, char *instruccion)
         sscanf(instruccion, "%s %s %u", operacion, nombre_interfaz, &unidades_de_trabajo);
 
         execute_io_gen_sleep(pcb, nombre_interfaz, unidades_de_trabajo);
+        continuar_ciclo = 0;
         
     }
     else if (strcmp("EXIT", operacion) == 0)
