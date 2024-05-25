@@ -153,6 +153,51 @@ void ejecutarEXIT(t_list* instruccion, t_reg* reg){
 	sem_post(&semInterrupt); //entiendo que es asi, no estoy seguro porque no se si la interrupcion que sigue es la que corresponde
 }
 
+// ---------------------------------------------    Kernel server    ---------------------------------------------
+
+void* server(void*)
+{
+	int socketKernel = iniciarServidor(puertoKernel, logger);
+	int i = 0;
+
+	pthread_t ioThread;
+	while(true)
+	{
+		// TODO: RAZONAR SI ES NECESARIO AGREGAR UN SEMAFORO CON MAX_CLIENTES PARA QUE EL WHILE TRUE NO SEA UNA ESPERA ACTIVA
+		if(i = checkSem() >= 0)
+		{
+			clientes[i].socket = esperarCliente(socketKernel, logger);
+			pthread_create(&ioThread, NULL, (void*)gestionarIO, (void*)i);			//MUTEX¿?
+		}
+	}
+    
+    liberarConexion(socketKernel);
+
+    return 0;
+}
+
+int checkSem(void)
+{
+	int i;
+	int valor = 0;
+	for(i = 0; ((i<MAX_CLIENTES) && (valor==0)); i++)
+	{
+		sem_getvalue(&(clientes[i].semCli),&valor);
+	}
+	if(valor == 0)
+		i = -1;
+	return i;
+}
+
+void gestionarIO(void* num)
+{	
+	int i = (int) num;
+	clientes[i].nombre = recibirMensaje(clientes[i].socket, logger);
+	sem_wait(&(clientes[i].semCli));
+	free(clientes[i].nombre);
+    liberarConexion(clientes[i].socket);
+}
+
 // ---------------------------------------------    Interfaz genérica    ---------------------------------------------
 
 include <entradasalida.h>
