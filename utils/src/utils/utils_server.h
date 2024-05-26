@@ -31,5 +31,7 @@ t_pcb *recibir_pcb(int socket_cliente);
 t_creacion_proceso *recibir_creacion_proceso(int socket_cliente);
 t_instruccion *recibir_instruccion(int socket_cliente);
 t_interrupcion *recibir_interrupcion(int socket_cliente);
+t_sleep *recibir_sleep(int socket_cliente);
+t_nombre_y_tipo_io *recibir_nombre_y_tipo(int socket_cliente);
 
 #endif /* UTILS_SERVER_SERVER_H_ */

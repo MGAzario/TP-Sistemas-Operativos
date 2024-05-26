@@ -275,3 +275,81 @@ t_interrupcion *recibir_interrupcion(int socket_cliente)
 	free(buffer);
 	return interrupcion;
 }
+
+t_sleep *recibir_sleep(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_sleep *sleep = malloc(sizeof(t_sleep));
+	t_pcb *pcb = malloc(sizeof(t_pcb));
+	t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
+	pcb->cpu_registers = registros;
+	sleep->pcb = pcb;
+
+	memcpy(&(sleep->pcb->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(sleep->pcb->quantum), buffer, sizeof(int));
+	buffer += sizeof(int);
+
+	memcpy(&(sleep->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(sleep->pcb->cpu_registers->normales[AX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(sleep->pcb->cpu_registers->normales[BX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(sleep->pcb->cpu_registers->normales[CX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(sleep->pcb->cpu_registers->normales[DX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+
+	memcpy(&(sleep->pcb->cpu_registers->extendidos[EAX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(sleep->pcb->cpu_registers->extendidos[EBX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(sleep->pcb->cpu_registers->extendidos[ECX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(sleep->pcb->cpu_registers->extendidos[EDX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(sleep->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(sleep->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(sleep->pcb->estado), buffer, sizeof(estado_proceso));
+	buffer += sizeof(estado_proceso);
+	
+	memcpy(&(sleep->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	sleep->nombre_interfaz = malloc(sleep->tamanio_nombre_interfaz);
+	memcpy(sleep->nombre_interfaz, buffer, sleep->tamanio_nombre_interfaz);
+	buffer += sleep->tamanio_nombre_interfaz;
+
+	memcpy(&(sleep->unidades_de_trabajo), buffer, sizeof(uint32_t));
+
+	buffer = buffer - 2 * sizeof(int) - 8 * sizeof(uint32_t) - 4 * sizeof(uint8_t) - sizeof(estado_proceso) - sleep->tamanio_nombre_interfaz;
+	free(buffer);
+	return sleep;
+}
+
+t_nombre_y_tipo_io *recibir_nombre_y_tipo(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_nombre_y_tipo_io *nombre_y_tipo = malloc(sizeof(t_nombre_y_tipo_io));
+
+	memcpy(&(nombre_y_tipo->tamanio_nombre), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	nombre_y_tipo->nombre = malloc(nombre_y_tipo->tamanio_nombre);
+	memcpy(nombre_y_tipo->nombre, buffer, nombre_y_tipo->tamanio_nombre);
+	buffer += nombre_y_tipo->tamanio_nombre;
+
+	memcpy(&(nombre_y_tipo->tipo), buffer, sizeof(tipo_interfaz));
+
+	buffer = buffer - sizeof(uint32_t) - nombre_y_tipo->tamanio_nombre;
+	free(buffer);
+	return nombre_y_tipo;
+}

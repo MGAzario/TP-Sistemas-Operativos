@@ -3,10 +3,10 @@
 // Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
 t_config *config;
 t_log *logger;
-t_list *interfaces_activas;
+t_list *lista_interfaces;
 t_queue *cola_new;
 t_queue *cola_ready;
-t_queue *cola_bloqueados;
+t_list *lista_bloqueados;
 
 int ultimo_pid;
 char *ip_cpu;
@@ -14,7 +14,8 @@ char *ip_memoria;
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 int socket_memoria;
-int socket_entradasalida;
+int socket_kernel;
+int numero_de_entradasalida;
 int grado_multiprogramacion_activo;
 int grado_multiprogramacion_max;
 
@@ -28,6 +29,9 @@ sem_t sem_round_robin;
 
 pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
+
+pthread_t hilo_recibir_entradasalida;
+pthread_t hilo_entradasalida[100];
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +52,7 @@ int main(int argc, char *argv[])
     // Creo las colas que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
-    cola_bloqueados = queue_create();
+    lista_bloqueados = list_create();
 
     // Usan la misma IP, se las paso por parametro.
     // Conexiones con CPU: Dispatch e Interrupt
@@ -60,7 +64,17 @@ int main(int argc, char *argv[])
     conectar_memoria();
 
     // Entrada salida a Kernel
-    // recibir_entradasalida();
+    char *puerto_kernel = config_get_string_value(config, "PUERTO_ESCUCHA");
+    socket_kernel = iniciar_servidor(puerto_kernel);
+
+    numero_de_entradasalida = 0;
+    lista_interfaces = list_create();
+
+    // Creo un hilo para el planificador de largo plazo
+    if (pthread_create(&hilo_recibir_entradasalida, NULL, recibir_entradasalida, NULL) != 0){
+        log_error(logger, "Error al inicializar el Hilo de Entradas y Salidas");
+        exit(EXIT_FAILURE);
+    }
 
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
@@ -133,35 +147,75 @@ void conectar_interrupt_cpu(char *ip_cpu)
     socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
 }
 
-void recibir_entradasalida()
+void *recibir_entradasalida()
 {
-    //Esto va a ser un hilo
-    char *puerto_kernel = config_get_string_value(config, "PUERTO_ESCUCHA");
-    int socket_kernel = iniciar_servidor(puerto_kernel);
-    //while (1)
-    // Espero a un cliente (entradasalida). El mensaje entiendo que se programa despues
-    int socket_entradasalida = esperar_cliente(socket_kernel);
-    //Desde entrada salida mandaria, NOMBRE DE INTERFAZ y tipo, o una estructura t_interfaz
-    /*
-    socket_interfaz = socket_entrada_salida
-    nombre = nombre_interfaz Que llega desde entrada salida
-    Tipo = tipo que llega desde entrada salida.
-    */
-
-    // Si falla, no se pudo aceptar
-    if (socket_entradasalida == -1)
+    while(1)
     {
-        log_info(logger, "Error al aceptar la conexión del kernel asl socket de dispatch.\n");
-        liberar_conexion(socket_kernel);
+    // Espero a un cliente (entradasalida).
+    int socket_entradasalida = esperar_cliente(socket_kernel);
+    log_trace(logger, "Se conectó una interfaz con socket %i", socket_entradasalida);
+
+    op_code cod_op = recibir_operacion(socket_entradasalida);
+    if (cod_op != NOMBRE_Y_TIPO_IO)
+    {
+        log_error(logger, "El Kernel esperaba recibir el nombre y tipo de la interfaz pero recibió otra cosa");
     }
-    // Esto deberia recibir el mensaje que manda la entrada salida
-    recibir_mensaje(socket_entradasalida);
+    t_nombre_y_tipo_io *nombre_y_tipo = recibir_nombre_y_tipo(socket_entradasalida);
 
-    // Cerrar conexión con el cliente
-    liberar_conexion(socket_entradasalida);
 
-    // Cerrar socket servidor
+    //TODO: Comprobar tipo de interfaz
+
+
+    //Si es una interfaz genérica:
+
+    //Guardamos nombre y socket de la interfaz
+    t_interfaz *interfaz = malloc(sizeof(t_interfaz));
+    interfaz->socket = socket_entradasalida;
+    interfaz->nombre = nombre_y_tipo->nombre;
+    interfaz->tipo = nombre_y_tipo->tipo;
+    interfaz->ocupada = false;
+
+    log_trace(logger, "La interfaz tiene nombre %s", interfaz->nombre);
+
+    list_add(lista_interfaces, interfaz);
+
+    //Creamos el hilo
+    pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz_generica, interfaz);
+    numero_de_entradasalida++;
+
+    free(nombre_y_tipo);
+    }
+
+    // Cerrar conexiónes con el cliente
     liberar_conexion(socket_kernel);
+}
+
+void *interfaz_generica(void *interfaz_sleep) {
+    while(1)
+    {
+        t_interfaz *interfaz = interfaz_sleep;
+
+        op_code cod_op = recibir_operacion(interfaz->socket);
+        if (cod_op != FIN_SLEEP)
+        {
+            log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        }
+        t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+
+        // Buscamos el proceso en BLOCKED y lo mandamos a READY
+        for(int i = 0; i < list_size(lista_bloqueados); i++)
+        {
+            t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+            if(pcb->pid == pcb_a_desbloquear->pid)
+            {
+                list_remove(lista_bloqueados, i);
+                pcb->estado = READY;
+                queue_push(cola_ready, pcb);
+                sem_post(&sem_proceso_ready);
+                interfaz->ocupada = false;
+            }
+        }
+    }
 }
 
 // Requisito Checkpoint: Es capaz de crear un PCB y planificarlo por FIFO y RR.
@@ -407,6 +461,58 @@ void esperar_cpu()
             // while(1){}
             // esperar_cpu();
             break;
+        case IO_GEN_SLEEP:
+            log_debug(logger, "El CPU pidió un sleep");
+            t_sleep *sleep = recibir_sleep(socket_cpu_dispatch);
+
+            //Hay que mandarle a la interfaz generica el sleep que llega de CPU
+            //Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
+
+            t_interfaz *interfaz_sleep = NULL;
+            // Buscamos la interfaz por su nombre
+            for(int i = 0; i < list_size(lista_interfaces); i++)
+            {
+                t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
+                if(strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
+                {
+                    interfaz_sleep = list_get(lista_interfaces, i);
+                }
+            }
+
+            // Si la interfaz no existe mandamos el proceso a EXIT
+            if(interfaz_sleep == NULL)
+            {   
+                log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+                eliminar_proceso(sleep->pcb);
+            }
+
+            // Si la interfaz no es del tipo "Interfaz Genérica" mandamos el proceso a EXIT
+            if(interfaz_sleep->tipo != GENERICA)
+            {
+                log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+                eliminar_proceso(sleep->pcb);
+            }
+
+            sleep->pcb->estado = BLOCKED;
+            list_add(lista_bloqueados, sleep->pcb);
+
+            // Verficamos si la interfaz está ocupada
+            if(interfaz_sleep->ocupada == false)
+            {
+            enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
+            }
+            else
+            {
+                log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+            }
+
+            interfaz_sleep->ocupada = true;
+
+            // free(sleep->pcb->cpu_registers);
+            // free(sleep->pcb);
+            // free(sleep);
+
+            break;
         case INSTRUCCION_EXIT:
             log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
             t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
@@ -437,30 +543,6 @@ void esperar_cpu()
                 }
             }
             break;
-        case IO_GEN_SLEEP:
-            log_debug(logger, "CPU pidio una instruccion bloqueante con entrada salida, se bloquea el proceso");
-            t_pcb *pcb_bloqueado = recibir_pcb(socket_cpu_dispatch);
-            pcb_bloqueado->estado = BLOCKED;
-            queue_push(cola_bloqueados,pcb_bloqueado);
-            //Hay que mandarle a la interfaz generica el sleep que llega de CPU
-            //Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
-            t_list* mensaje_sleep = recibir_paquete(socket_cpu_dispatch);
-            //Tomo el primer valor de la lista que es el nombre
-            char * nombre_interfaz = list_take(mensaje_sleep,1);
-            //Tomo el segundo valor de la lista que son las unidades de trabajo
-            u_int32_t unidades_de_trabajo = list_take(mensaje_sleep,2);
-            //Creo un paquete para enviarselo a entrada salida
-            t_paquete *mensaje_entrada_salida = crear_paquete();
-            mensaje_entrada_salida->codigo_operacion->IO_GEN_SLEEP;
-            //Cargo la info en el paquete
-            agregar_a_paquete(mensaje_entrada_salida,nombre_interfaz,sizeof(char));
-            agregar_a_paquete(mensaje_entrada_salida,unidades_de_trabajo,sizeof(u_int32_t));
-            //Enviamos el paquete a Entrada Salida
-            enviar_paquete(mensaje_entrada_salida,socket_entradasalida);
-            eliminar_paquete(mensaje_entrada_salida);
-
-
-
         default:
             log_warning(logger, "Mensaje desconocido del CPU");
             break;

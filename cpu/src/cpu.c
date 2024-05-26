@@ -96,6 +96,7 @@ void recibir_procesos_kernel(int socket_cliente)
     while(1)
     {
         // Recibe un proceso del kernel para ser ejecutado
+        log_debug(logger, "Esperando proceso del kernel");
         op_code cod_op = recibir_operacion(socket_cliente);
         if(cod_op != DISPATCH)
         {
@@ -108,6 +109,7 @@ void recibir_procesos_kernel(int socket_cliente)
         {
             ciclo_de_instruccion(pcb);
         }
+        log_trace(logger, "Saliendo del ciclo de intrucción");
         continuar_ciclo = 1;
 
         free(pcb->cpu_registers);
@@ -195,6 +197,7 @@ void decode(t_pcb *pcb, char *instruccion)
         // free(pcb);
 
         log_debug(logger, "Terminó la prueba");
+        pcb->cpu_registers->pc++;
     }
     else if (strcmp("SET", operacion) == 0)
     {
@@ -239,12 +242,12 @@ void decode(t_pcb *pcb, char *instruccion)
 
         sscanf(instruccion, "%s %s %u", operacion, nombre_interfaz, &unidades_de_trabajo);
 
+        pcb->cpu_registers->pc++;
         execute_io_gen_sleep(pcb, nombre_interfaz, unidades_de_trabajo);
-        continuar_ciclo = 0;
-        
     }
     else if (strcmp("EXIT", operacion) == 0)
     {
+        pcb->cpu_registers->pc++;
         execute_exit(pcb);
     }
     else
@@ -253,7 +256,8 @@ void decode(t_pcb *pcb, char *instruccion)
         sleep(1);
     }
     
-    pcb->cpu_registers->pc++;
+    log_trace(logger, "Aumentando el program counter");
+    // pcb->cpu_registers->pc++;
 }
 
 void check_interrupt(t_pcb *pcb)

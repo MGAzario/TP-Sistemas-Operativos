@@ -27,6 +27,10 @@ typedef enum {
     FIN_DE_QUANTUM
 } motivo_interrupcion;
 
+typedef enum {
+    GENERICA
+} tipo_interfaz;
+
 // Definición de los registros de la CPU
 typedef struct {
     uint32_t pc;   // Program Counter, 4 bytes
@@ -72,6 +76,28 @@ typedef struct
     motivo_interrupcion motivo;
 } t_interrupcion;
 
+typedef struct
+{
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    uint32_t unidades_de_trabajo;
+} t_sleep;
+
+typedef struct
+{
+    int socket;
+    char *nombre;
+    tipo_interfaz tipo;
+    bool ocupada;
+} t_interfaz;
+
+typedef struct
+{
+    char *nombre;
+    uint32_t tamanio_nombre;
+    tipo_interfaz tipo;
+} t_nombre_y_tipo_io;
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
 

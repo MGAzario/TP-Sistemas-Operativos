@@ -6,6 +6,7 @@
 #include <utils/utils_cliente.h>
 #include <utils/utils_server.h>
 #include <utils/hello.h>
+#include <utils/utils.h>
 
 
 void crear_logger();
