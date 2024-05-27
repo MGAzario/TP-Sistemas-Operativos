@@ -28,7 +28,10 @@ typedef enum {
 } motivo_interrupcion;
 
 typedef enum {
-    GENERICA
+    GENERICA,
+    STDIN,
+    STDOUT,
+    DialFS
 } tipo_interfaz;
 
 // Definición de los registros de la CPU

@@ -76,7 +76,8 @@ int main(int argc, char *argv[])
     lista_interfaces = list_create();
 
     // Creo un hilo para el planificador de largo plazo
-    if (pthread_create(&hilo_recibir_entradasalida, NULL, recibir_entradasalida, NULL) != 0){
+    if (pthread_create(&hilo_recibir_entradasalida, NULL, recibir_entradasalida, NULL) != 0)
+    {
         log_error(logger, "Error al inicializar el Hilo de Entradas y Salidas");
         exit(EXIT_FAILURE);
     }
@@ -84,14 +85,16 @@ int main(int argc, char *argv[])
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
     // Creo un hilo para el planificador de largo plazo
-    if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo, NULL) != 0){
+    if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo, NULL) != 0)
+    {
         log_error(logger, "Error al inicializar el Hilo Planificador de Largo Plazo");
         exit(EXIT_FAILURE);
     }
     // Este hilo debe ser independiente dado que el planificador nunca se debe apagar.
     pthread_detach(hilo_planificador_largo_plazo);
     // Creo un hilo para el planificador de corto plazo
-    if (pthread_create(&hilo_planificador_corto_plazo, NULL, planificador_corto_plazo, NULL) != 0){
+    if (pthread_create(&hilo_planificador_corto_plazo, NULL, planificador_corto_plazo, NULL) != 0)
+    {
         log_error(logger, "Error al inicializar el Hilo Planificador de Corto Plazo");
         exit(EXIT_FAILURE);
     }
@@ -179,7 +182,7 @@ void *recibir_entradasalida()
         log_trace(logger, "La interfaz tiene nombre %s", interfaz->nombre);
 
         // Creamos el hilo
-        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz_generica, interfaz);
+        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, manejo_interfaces, interfaz);
         numero_de_entradasalida++;
 
         free(nombre_y_tipo);
@@ -187,6 +190,28 @@ void *recibir_entradasalida()
 
     // Cerrar conexiónes con el cliente
     liberar_conexion(socket_kernel);
+}
+
+void *manejo_interfaces(t_interfaz *interfaz)
+{
+    while (1)
+    {
+        switch (interfaz->tipo)
+        {
+        case GENERICA:
+            fin_sleep(interfaz);
+            break;
+        case STDIN:
+            log_error(logger, "Falta implementar");
+            break;
+        case STDOUT:
+            log_error(logger, "Falta implementar");
+            break;
+        case DialFS:
+            log_error(logger, "Falta implementar");
+            break:
+        }
+    }
 }
 
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
@@ -198,32 +223,25 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
     list_add(lista_interfaces, interfaz);
 }
 
-void *interfaz_generica(void *interfaz_sleep) {
-    while(1)
+void fin_sleep(t_interfaz *interfaz)
+{
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op != FIN_SLEEP)
     {
-        t_interfaz *interfaz = interfaz_sleep;
-
-        op_code cod_op = recibir_operacion(interfaz->socket);
-        if (cod_op != FIN_SLEEP)
-        {
-            log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
-        }
-        t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
-
-        // Buscamos el proceso en BLOCKED y lo mandamos a READY
-        for(int i = 0; i < list_size(lista_bloqueados); i++)
-        {
-            t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
-            if(pcb->pid == pcb_a_desbloquear->pid)
-            {
-                list_remove(lista_bloqueados, i);
-                pcb->estado = READY;
-                queue_push(cola_ready, pcb);
-                sem_post(&sem_proceso_ready);
-                interfaz->ocupada = false;
-            }
-        }
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
     }
+    //La interfaz ya no esta mas bloqueada
+    interfaz->ocupada = false;
+    t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+    // Borro el proceso de la lista de bloqueados
+    list_remove_element(lista_bloqueados, pcb_a_desbloquear);
+    //Paso su estado a ready
+    pcb_a_desbloquear->estado = READY;
+    //Lo meto en la cola
+    queue_push(cola_ready, pcb_a_desbloquear);
+    //Activo el planificador
+    sem_post(&sem_proceso_ready);
+    
 }
 
 /*-----------------------------PROCESOS Y CPU--------------------------------------------------------------------*/
@@ -244,7 +262,7 @@ void crear_pcb(char *path)
     registros->extendidos[ECX] = 0;
     registros->extendidos[EDX] = 0;
     registros->si = 0;
-    registros->di= 0;
+    registros->di = 0;
     // Asignar el PID e incrementarlo
     pcb->pid = ultimo_pid;
     ultimo_pid++;
@@ -259,7 +277,7 @@ void crear_pcb(char *path)
 
     // Esperar recibir OK de la memoria
     op_code cod_op = recibir_operacion(socket_memoria);
-    if(cod_op != CREACION_PROCESO_OK)
+    if (cod_op != CREACION_PROCESO_OK)
     {
         log_error(logger, "La memoria mandó otra cosa en lugar de un OK al solicitarle crear el proceso de PID %i", pcb->pid);
         return;
@@ -278,17 +296,17 @@ void crear_pcb(char *path)
 void encontrar_y_eliminar_proceso(int pid_a_eliminar)
 {
     // Buscamos en EXEC
-    if(pcb_ejecutandose->pid == pid_a_eliminar)
+    if (pcb_ejecutandose->pid == pid_a_eliminar)
     {
         enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FINALIZAR_PROCESO);
         return;
     }
 
     // Buscamos en la cola de NEW
-    for(int i = 0; i < list_size(cola_new->elements); i++)
+    for (int i = 0; i < list_size(cola_new->elements); i++)
     {
         t_pcb *pcb = (t_pcb *)list_get(cola_new->elements, i);
-        if(pcb->pid == pid_a_eliminar)
+        if (pcb->pid == pid_a_eliminar)
         {
             list_remove(cola_new->elements, i);
             eliminar_proceso(pcb);
@@ -297,10 +315,10 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
     }
 
     // Buscamos en la cola de READY
-    for(int i = 0; i < list_size(cola_ready->elements); i++)
+    for (int i = 0; i < list_size(cola_ready->elements); i++)
     {
         t_pcb *pcb = (t_pcb *)list_get(cola_ready->elements, i);
-        if(pcb->pid == pid_a_eliminar)
+        if (pcb->pid == pid_a_eliminar)
         {
             list_remove(cola_ready->elements, i);
             eliminar_proceso(pcb);
@@ -324,7 +342,7 @@ void *planificador_largo_plazo()
 
         // Verificar si el grado de multiprogramación lo permite
         // Mover procesos de la cola de NEW a la cola de READY
-        if(grado_multiprogramacion_activo < grado_multiprogramacion_max)
+        if (grado_multiprogramacion_activo < grado_multiprogramacion_max)
         {
             log_trace(logger, "El grado de multiprogramación permite que un proceso entre a ready");
             // Tomar el primer proceso de la cola de NEW
@@ -337,8 +355,8 @@ void *planificador_largo_plazo()
             queue_push(cola_ready, proceso_nuevo);
             sem_post(&sem_proceso_ready);
             log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
-            //Aumentamos el grado de multiprogramacion activo
-            //TODO poner MUTEX 
+            // Aumentamos el grado de multiprogramacion activo
+            // TODO poner MUTEX
             grado_multiprogramacion_activo++;
 
             // Reducir la cantidad de procesos en la cola de NEW
@@ -350,23 +368,27 @@ void *planificador_largo_plazo()
 // Planificador corto plazo
 void *planificador_corto_plazo()
 {
-    while(1)
+    while (1)
     {
         // Esperar a que se cree un nuevo PCB
         log_trace(logger, "PCP: Esperando que llegue un proceso a ready");
         sem_wait(&sem_proceso_ready);
         log_trace(logger, "PCP: Un proceso entró a ready");
 
-        if(strcmp(algoritmo_planificacion, "FIFO") == 0)
+        if (strcmp(algoritmo_planificacion, "FIFO") == 0)
         {
             planificar_fifo();
-        } else if(strcmp(algoritmo_planificacion, "RR") == 0)
+        }
+        else if (strcmp(algoritmo_planificacion, "RR") == 0)
         {
             planificar_round_robin();
-        } else if(strcmp(algoritmo_planificacion, "VRR") == 0)
+        }
+        else if (strcmp(algoritmo_planificacion, "VRR") == 0)
         {
             planificar_vrr();
-        } else {
+        }
+        else
+        {
             log_error(logger, "Algoritmo de planificación desconocido");
             exit(EXIT_FAILURE);
         }
@@ -385,7 +407,7 @@ void planificar_fifo()
 
         // Estado pasa a ejecucion
         proceso_a_ejecutar->estado = EXEC;
-        
+
         // Le envío el pcb al CPU a traves del dispatch
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
@@ -401,46 +423,44 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-	pthread_t quantum_thread;
+    pthread_t quantum_thread;
     int quantum = config_get_int_value(config, "QUANTUM");
 
-	
-	sem_wait(&sem_round_robin);
-    //desalojo de CPU
-    // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+    sem_wait(&sem_round_robin);
+    // desalojo de CPU
+    //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
 
     // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
     if (!queue_is_empty(cola_ready))
     {
         // Obtener el proceso listo para ejecutarse de la cola
         t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
-        
-        //wait(sem_mutex_interrupt)
+
+        // wait(sem_mutex_interrupt)
         enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
         esperar_cpu();
-        //sem_post(sem_mutex_interrupt)
+        // sem_post(sem_mutex_interrupt)
 
         // Cambiar el estado del proceso a EXEC
         proceso_a_ejecutar->estado = EXEC;
 
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
-        pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
+        pthread_create(&quantum_thread, NULL, (void *)quantum_count, (void *)quantum);
 
         pcb_ejecutandose = proceso_a_ejecutar;
 
         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
         // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
         // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
-
     }
-    //mutex en la cola de interrupt
+    // mutex en la cola de interrupt
 }
 
-void quantum_count(int* quantum)
+void quantum_count(int *quantum)
 {
-	usleep(*quantum * 1000);
-	sem_post(&sem_round_robin);
+    usleep(*quantum * 1000);
+    sem_post(&sem_round_robin);
 }
 
 void planificar_vrr()
@@ -456,109 +476,107 @@ void esperar_cpu()
 
     switch (cod_op)
     {
-        case DISPATCH: // este case es solo una prueba
-            log_debug(logger, "Recibí una respuesta del CPU!");
-            if (1)
+    case DISPATCH: // este case es solo una prueba
+        log_debug(logger, "Recibí una respuesta del CPU!");
+        if (1)
+        {
+            t_pcb *pcb_prueba = recibir_pcb(socket_cpu_dispatch);
+
+            log_info(logger, "AX: %i", pcb_prueba->cpu_registers->normales[AX]);
+            log_info(logger, "BX: %i", pcb_prueba->cpu_registers->normales[BX]);
+
+            free(pcb_prueba->cpu_registers);
+            free(pcb_prueba);
+        }
+        // while(1){}
+        // esperar_cpu();
+        break;
+    case IO_GEN_SLEEP:
+        log_debug(logger, "El CPU pidió un sleep");
+        t_sleep *sleep = recibir_sleep(socket_cpu_dispatch);
+
+        // Hay que mandarle a la interfaz generica el sleep que llega de CPU
+        // Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
+
+        t_interfaz *interfaz_sleep = NULL;
+        // Buscamos la interfaz por su nombre
+        for (int i = 0; i < list_size(lista_interfaces); i++)
+        {
+            t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
+            if (strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
             {
-                t_pcb *pcb_prueba = recibir_pcb(socket_cpu_dispatch);
-
-                log_info(logger, "AX: %i", pcb_prueba->cpu_registers->normales[AX]);
-                log_info(logger, "BX: %i", pcb_prueba->cpu_registers->normales[BX]);
-
-                free(pcb_prueba->cpu_registers);
-                free(pcb_prueba);
+                interfaz_sleep = list_get(lista_interfaces, i);
             }
-            // while(1){}
-            // esperar_cpu();
-            break;
-        case IO_GEN_SLEEP:
-            log_debug(logger, "El CPU pidió un sleep");
-            t_sleep *sleep = recibir_sleep(socket_cpu_dispatch);
+        }
 
-            //Hay que mandarle a la interfaz generica el sleep que llega de CPU
-            //Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
+        // Si la interfaz no existe mandamos el proceso a EXIT
+        if (interfaz_sleep == NULL)
+        {
+            log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+            eliminar_proceso(sleep->pcb);
+        }
 
-            t_interfaz *interfaz_sleep = NULL;
-            // Buscamos la interfaz por su nombre
-            for(int i = 0; i < list_size(lista_interfaces); i++)
-            {
-                t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
-                if(strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
-                {
-                    interfaz_sleep = list_get(lista_interfaces, i);
-                }
-            }
+        // Si la interfaz no es del tipo "Interfaz Genérica" mandamos el proceso a EXIT
+        if (interfaz_sleep->tipo != GENERICA)
+        {
+            log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+            eliminar_proceso(sleep->pcb);
+        }
 
-            // Si la interfaz no existe mandamos el proceso a EXIT
-            if(interfaz_sleep == NULL)
-            {   
-                log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
-                eliminar_proceso(sleep->pcb);
-            }
+        sleep->pcb->estado = BLOCKED;
+        list_add(lista_bloqueados, sleep->pcb);
 
-            // Si la interfaz no es del tipo "Interfaz Genérica" mandamos el proceso a EXIT
-            if(interfaz_sleep->tipo != GENERICA)
-            {
-                log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
-                eliminar_proceso(sleep->pcb);
-            }
-
-            sleep->pcb->estado = BLOCKED;
-            list_add(lista_bloqueados, sleep->pcb);
-
-            // Verficamos si la interfaz está ocupada
-            if(interfaz_sleep->ocupada == false)
-            {
+        // Verficamos si la interfaz está ocupada
+        if (interfaz_sleep->ocupada == false)
+        {
             enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
+        }
+        else
+        {
+            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        }
+
+        interfaz_sleep->ocupada = true;
+
+        // free(sleep->pcb->cpu_registers);
+        // free(sleep->pcb);
+        // free(sleep);
+
+        break;
+    case INSTRUCCION_EXIT:
+        log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
+        t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
+        eliminar_proceso(pcb);
+        break;
+    case INTERRUPCION:
+        log_debug(logger, "Al CPU el llegó una interrupción, así que envía el pcb junto con el motivo de la interrupción");
+        t_interrupcion *interrupcion = recibir_interrupcion(socket_cpu_dispatch);
+
+        // después se puede cambiar este if por un switch cuando haya varios motivos de interrupción
+        if (interrupcion->motivo == FINALIZAR_PROCESO)
+        {
+            log_debug(logger, "Este motivo es FINALIZAR_PROCESO, entonces se elimina el proceso");
+            eliminar_proceso(interrupcion->pcb);
+        }
+        if (interrupcion->motivo == FIN_DE_QUANTUM)
+        {
+            if (strcmp(algoritmo_planificacion, "RR"))
+            {
+                log_debug(logger, "Este motivo es FIN_DE_QUANTUM con RR, entonces se agrega al final de la cola el proceso");
+                interrupcion->pcb->estado = READY;
+                queue_push(cola_ready, interrupcion->pcb);
+                sem_post(&sem_proceso_ready);
             }
             else
             {
-                log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+                // TODO: VRR
             }
-
-            interfaz_sleep->ocupada = true;
-
-            // free(sleep->pcb->cpu_registers);
-            // free(sleep->pcb);
-            // free(sleep);
-
-            break;
-        case INSTRUCCION_EXIT:
-            log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
-            t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
-            eliminar_proceso(pcb);
-            break;
-        case INTERRUPCION:
-            log_debug(logger, "Al CPU el llegó una interrupción, así que envía el pcb junto con el motivo de la interrupción");
-            t_interrupcion *interrupcion = recibir_interrupcion(socket_cpu_dispatch);
-
-            // después se puede cambiar este if por un switch cuando haya varios motivos de interrupción
-            if(interrupcion->motivo == FINALIZAR_PROCESO)
-            {
-                log_debug(logger, "Este motivo es FINALIZAR_PROCESO, entonces se elimina el proceso");
-                eliminar_proceso(interrupcion->pcb);
-            }
-            if(interrupcion->motivo == FIN_DE_QUANTUM)
-            {
-                if(strcmp(algoritmo_planificacion,"RR"))
-                {
-                    log_debug(logger, "Este motivo es FIN_DE_QUANTUM con RR, entonces se agrega al final de la cola el proceso");
-                    interrupcion->pcb->estado = READY;
-                    queue_push(cola_ready,interrupcion->pcb);
-                    sem_post(&sem_proceso_ready);
-                }
-                else
-                {
-                    // TODO: VRR
-                }
-            }
-            break;
-        default:
-            log_warning(logger, "Mensaje desconocido del CPU");
-            break;
-    } 
-
-
+        }
+        break;
+    default:
+        log_warning(logger, "Mensaje desconocido del CPU");
+        break;
+    }
 }
 
 void eliminar_proceso(t_pcb *pcb)
@@ -569,7 +587,7 @@ void eliminar_proceso(t_pcb *pcb)
     free(pcb);
 
     // Se habilita un espacio en el grado de multiprogramación
-    //TODO poner MUTEX
+    // TODO poner MUTEX
     grado_multiprogramacion_activo--;
 }
 
@@ -577,14 +595,14 @@ void eliminar_proceso(t_pcb *pcb)
 void consola()
 {
     char *linea;
-    while(1)
+    while (1)
     {
         linea = readline("> ");
 
         char comando[30];
         sscanf(linea, "%s", comando);
 
-        if(strcmp(comando, "COMANDOS") == 0)
+        if (strcmp(comando, "COMANDOS") == 0)
         {
             printf("EJECUTAR_SCRIPT [PATH]\n");
             printf("INICIAR_PROCESO [PATH]\n");
@@ -594,43 +612,43 @@ void consola()
             printf("MULTIPROGRAMACION [VALOR]\n");
             printf("PROCESO_ESTADO\n");
         }
-        else if((strcmp(comando, "EJECUTAR_SCRIPT") == 0) || (strcmp(comando, "1") == 0))
+        else if ((strcmp(comando, "EJECUTAR_SCRIPT") == 0) || (strcmp(comando, "1") == 0))
         {
             char path[300];
             sscanf(linea, "%s %s", comando, path);
 
             printf("Falta implementar\n"); // TODO
         }
-        else if((strcmp(comando, "INICIAR_PROCESO") == 0) || (strcmp(comando, "2") == 0))
+        else if ((strcmp(comando, "INICIAR_PROCESO") == 0) || (strcmp(comando, "2") == 0))
         {
             char path[300];
             sscanf(linea, "%s %s", comando, path);
 
             crear_pcb(path);
         }
-        else if((strcmp(comando, "FINALIZAR_PROCESO") == 0) || (strcmp(comando, "3") == 0))
+        else if ((strcmp(comando, "FINALIZAR_PROCESO") == 0) || (strcmp(comando, "3") == 0))
         {
             int pid;
             sscanf(linea, "%s %i", comando, &pid);
-            
+
             encontrar_y_eliminar_proceso(pid);
         }
-        else if((strcmp(comando, "DETENER_PLANIFICACION") == 0) || (strcmp(comando, "4") == 0))
+        else if ((strcmp(comando, "DETENER_PLANIFICACION") == 0) || (strcmp(comando, "4") == 0))
         {
             printf("Falta implementar\n"); // TODO
         }
-        else if((strcmp(comando, "INICIAR_PLANIFICACION") == 0) || (strcmp(comando, "5") == 0))
+        else if ((strcmp(comando, "INICIAR_PLANIFICACION") == 0) || (strcmp(comando, "5") == 0))
         {
             printf("Falta implementar\n"); // TODO
         }
-        else if((strcmp(comando, "MULTIPROGRAMACION") == 0) || (strcmp(comando, "6") == 0))
+        else if ((strcmp(comando, "MULTIPROGRAMACION") == 0) || (strcmp(comando, "6") == 0))
         {
             int valor;
             sscanf(linea, "%s %i", comando, &valor);
 
             printf("Falta implementar\n"); // TODO
         }
-        else if((strcmp(comando, "PROCESO_ESTADO") == 0) || (strcmp(comando, "7") == 0))
+        else if ((strcmp(comando, "PROCESO_ESTADO") == 0) || (strcmp(comando, "7") == 0))
         {
             printf("Falta implementar\n"); // TODO
         }
