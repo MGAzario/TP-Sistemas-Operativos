@@ -1,12 +1,15 @@
 #include "kernel.h"
 
-// Estas variables las cargo como globales porque las uso en varias funciones, no se si a nivel codigo es lo correcto.
+/*-----------------------------ESTRUCTURAS GLOBALES--------------------------------------------------------------------*/
+
 t_config *config;
 t_log *logger;
 t_list *lista_interfaces;
 t_queue *cola_new;
 t_queue *cola_ready;
 t_list *lista_bloqueados;
+
+/*-----------------------------VARIABLES GLOBALES--------------------------------------------------------------------*/
 
 int ultimo_pid;
 char *ip_cpu;
@@ -23,10 +26,12 @@ t_pcb *pcb_ejecutandose;
 
 char *algoritmo_planificacion;
 
+/*-----------------------------SEMAFOROS--------------------------------------------------------------------*/
 sem_t sem_nuevo_pcb;
 sem_t sem_proceso_ready;
 sem_t sem_round_robin;
 
+/*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
 
@@ -147,47 +152,50 @@ void conectar_interrupt_cpu(char *ip_cpu)
     socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
 }
 
+/*-----------------------------ENTRADA SALIDA--------------------------------------------------------------------*/
 void *recibir_entradasalida()
 {
-    while(1)
+    while (1)
     {
-    // Espero a un cliente (entradasalida).
-    int socket_entradasalida = esperar_cliente(socket_kernel);
-    log_trace(logger, "Se conectó una interfaz con socket %i", socket_entradasalida);
+        // Espero a un cliente (entradasalida).
+        int socket_entradasalida = esperar_cliente(socket_kernel);
+        log_trace(logger, "Se conectó una interfaz con socket %i", socket_entradasalida);
 
-    op_code cod_op = recibir_operacion(socket_entradasalida);
-    if (cod_op != NOMBRE_Y_TIPO_IO)
-    {
-        log_error(logger, "El Kernel esperaba recibir el nombre y tipo de la interfaz pero recibió otra cosa");
-    }
-    t_nombre_y_tipo_io *nombre_y_tipo = recibir_nombre_y_tipo(socket_entradasalida);
+        op_code cod_op = recibir_operacion(socket_entradasalida);
+        if (cod_op != NOMBRE_Y_TIPO_IO)
+        {
+            log_error(logger, "El Kernel esperaba recibir el nombre y tipo de la interfaz pero recibió otra cosa");
+        }
+        t_nombre_y_tipo_io *nombre_y_tipo = recibir_nombre_y_tipo(socket_entradasalida);
 
+        // TODO: Comprobar tipo de interfaz
 
-    //TODO: Comprobar tipo de interfaz
+        // Si es una interfaz genérica:
 
+        // Guardamos nombre y socket de la interfaz
+        t_interfaz *interfaz = malloc(sizeof(t_interfaz));
+        cargar_interfaz_recibida(interfaz, socket_entradasalida, nombre_y_tipo->nombre, nombre_y_tipo->tipo);
 
-    //Si es una interfaz genérica:
+        log_trace(logger, "La interfaz tiene nombre %s", interfaz->nombre);
 
-    //Guardamos nombre y socket de la interfaz
-    t_interfaz *interfaz = malloc(sizeof(t_interfaz));
-    interfaz->socket = socket_entradasalida;
-    interfaz->nombre = nombre_y_tipo->nombre;
-    interfaz->tipo = nombre_y_tipo->tipo;
-    interfaz->ocupada = false;
+        // Creamos el hilo
+        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz_generica, interfaz);
+        numero_de_entradasalida++;
 
-    log_trace(logger, "La interfaz tiene nombre %s", interfaz->nombre);
-
-    list_add(lista_interfaces, interfaz);
-
-    //Creamos el hilo
-    pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz_generica, interfaz);
-    numero_de_entradasalida++;
-
-    free(nombre_y_tipo);
+        free(nombre_y_tipo);
     }
 
     // Cerrar conexiónes con el cliente
     liberar_conexion(socket_kernel);
+}
+
+void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
+{
+    interfaz->socket = socket_entradasalida;
+    interfaz->nombre = nombre_y_tipo->nombre;
+    interfaz->tipo = nombre_y_tipo->tipo;
+    interfaz->ocupada = false;
+    list_add(lista_interfaces, interfaz);
 }
 
 void *interfaz_generica(void *interfaz_sleep) {
@@ -217,6 +225,8 @@ void *interfaz_generica(void *interfaz_sleep) {
         }
     }
 }
+
+/*-----------------------------PROCESOS Y CPU--------------------------------------------------------------------*/
 
 // Requisito Checkpoint: Es capaz de crear un PCB y planificarlo por FIFO y RR.
 void crear_pcb(char *path)
@@ -563,6 +573,7 @@ void eliminar_proceso(t_pcb *pcb)
     grado_multiprogramacion_activo--;
 }
 
+/*-----------------------------CONSOLA--------------------------------------------------------------------*/
 void consola()
 {
     char *linea;
