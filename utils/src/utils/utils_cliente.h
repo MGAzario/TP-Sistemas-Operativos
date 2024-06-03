@@ -24,6 +24,8 @@ typedef enum
 	CPU_SOLICITAR_INSTRUCCION,
 	CREACION_PROCESO,
 	CREACION_PROCESO_OK,
+	FINALIZACION_PROCESO,
+	FINALIZACION_PROCESO_OK,
 	SOLICITUD_INSTRUCCION,
 	INSTRUCCION,
 	INSTRUCCION_EXIT,
@@ -31,7 +33,10 @@ typedef enum
 	DESCONEXION,
 	NOMBRE_Y_TIPO_IO,
 	IO_GEN_SLEEP,
-	FIN_SLEEP
+	FIN_SLEEP,
+	RESIZE,
+	RESIZE_EXITOSO,
+	OUT_OF_MEMORY
 } op_code;
 
 typedef struct
@@ -60,16 +65,19 @@ t_paquete* crear_paquete_instruccion(uint32_t tamanio_instruccion);
 t_paquete* crear_paquete_interrupcion();
 t_paquete* crear_paquete_sleep(uint32_t tamanio_nombre_interfaz);
 t_paquete* crear_paquete_nombre_y_tipo(uint32_t tamanio_nombre);
+t_paquete* crear_paquete_resize();
 void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb);
 void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* path, uint32_t tamanio_path);
 void agregar_instruccion_a_paquete(t_paquete* paquete, char* instruccion, uint32_t tamanio_instruccion);
 void agregar_interrupcion_a_paquete(t_paquete* paquete, t_pcb* pcb, motivo_interrupcion motivo);
 void agregar_sleep_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t unidades_de_trabajo);
 void agregar_nombre_y_tipo_a_paquete(t_paquete* paquete, char *nombre, uint32_t tamanio_nombre, tipo_interfaz tipo);
+void agregar_resize_a_paquete(t_paquete* paquete, t_pcb* pcb, int tamanio);
 void enviar_paquete(t_paquete* paquete, int socket_cliente);
-void enviar_ok(int socket_cliente, op_code cod_op);
+void enviar_mensaje_simple(int socket_cliente, op_code cod_op);
 void enviar_pcb(int socket_cliente, t_pcb *pcb);
 void enviar_creacion_proceso(int socket_cliente, t_pcb *pcb, char *path);
+void enviar_finalizacion_proceso(int socket_cliente, t_pcb *pcb);
 void enviar_solicitud_instruccion(int socket_cliente, t_pcb *pcb);
 void enviar_instruccion(int socket_cliente, char *instruccion);
 void enviar_exit(int socket_cliente, t_pcb *pcb);
@@ -77,5 +85,7 @@ void enviar_interrupcion(int socket_cliente, t_pcb *pcb, motivo_interrupcion mot
 void enviar_sleep(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo);
 void enviar_nombre_y_tipo(int socket_cliente, char *nombre, tipo_interfaz tipo);
 void enviar_fin_sleep(int socket_cliente, t_pcb *pcb);
+void enviar_resize(int socket_cliente, t_pcb *pcb, int tamanio);
+void enviar_out_of_memory(int socket_cliente, t_pcb *pcb);
 
 #endif /* UTILS_CLIENTE_H_ */

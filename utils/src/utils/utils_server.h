@@ -33,5 +33,6 @@ t_instruccion *recibir_instruccion(int socket_cliente);
 t_interrupcion *recibir_interrupcion(int socket_cliente);
 t_sleep *recibir_sleep(int socket_cliente);
 t_nombre_y_tipo_io *recibir_nombre_y_tipo(int socket_cliente);
+t_resize *recibir_resize(int socket_cliente);
 
 #endif /* UTILS_SERVER_SERVER_H_ */

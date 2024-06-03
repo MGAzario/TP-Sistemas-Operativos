@@ -235,6 +235,15 @@ void decode(t_pcb *pcb, char *instruccion)
 
         execute_jnz(pcb, registro, nuevo_program_counter);
     }
+    else if (strcmp("RESIZE", operacion) == 0)
+    {
+        int nuevo_tamanio_del_proceso;
+
+        sscanf(instruccion, "%s %i", operacion, &nuevo_tamanio_del_proceso);
+
+        pcb->cpu_registers->pc++;
+        execute_resize(pcb, nuevo_tamanio_del_proceso);
+    }
     else if (strcmp("IO_GEN_SLEEP", operacion) == 0)
     {
         char nombre_interfaz[50];

@@ -192,13 +192,14 @@ void *recibir_entradasalida()
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
 {
     interfaz->socket = socket_entradasalida;
-    interfaz->nombre = nombre_y_tipo->nombre;
-    interfaz->tipo = nombre_y_tipo->tipo;
+    interfaz->nombre = nombre;
+    interfaz->tipo = tipo;
     interfaz->ocupada = false;
     list_add(lista_interfaces, interfaz);
 }
 
-void *interfaz_generica(void *interfaz_sleep) {
+void *interfaz_generica(void *interfaz_sleep)
+{
     while(1)
     {
         t_interfaz *interfaz = interfaz_sleep;
@@ -265,7 +266,7 @@ void crear_pcb(char *path)
         return;
     }
     recibir_ok(socket_memoria);
-    log_trace(logger, "Recibí OK de la memoria");
+    log_trace(logger, "Recibí OK de la memoria luego de pedirle crear un proceso");
 
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
@@ -381,8 +382,6 @@ void planificar_fifo()
         // FIFO toma el primer proceso de la cola
         t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
 
-        log_trace(logger, "CX: %i", proceso_a_ejecutar->cpu_registers->normales[CX]);
-
         // Estado pasa a ejecucion
         proceso_a_ejecutar->estado = EXEC;
         
@@ -401,40 +400,40 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-	pthread_t quantum_thread;
-    int quantum = config_get_int_value(config, "QUANTUM");
+	// pthread_t quantum_thread;
+    // int quantum = config_get_int_value(config, "QUANTUM");
 
 	
-	sem_wait(&sem_round_robin);
-    //desalojo de CPU
-    // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+	// sem_wait(&sem_round_robin);
+    // //desalojo de CPU
+    // // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
 
-    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
-    if (!queue_is_empty(cola_ready))
-    {
-        // Obtener el proceso listo para ejecutarse de la cola
-        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+    // // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    // if (!queue_is_empty(cola_ready))
+    // {
+    //     // Obtener el proceso listo para ejecutarse de la cola
+    //     t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
         
-        //wait(sem_mutex_interrupt)
-        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-        esperar_cpu();
-        //sem_post(sem_mutex_interrupt)
+    //     //wait(sem_mutex_interrupt)
+    //     enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    //     esperar_cpu();
+    //     //sem_post(sem_mutex_interrupt)
 
-        // Cambiar el estado del proceso a EXEC
-        proceso_a_ejecutar->estado = EXEC;
+    //     // Cambiar el estado del proceso a EXEC
+    //     proceso_a_ejecutar->estado = EXEC;
 
-        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    //     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
-        pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
+    //     pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
 
-        pcb_ejecutandose = proceso_a_ejecutar;
+    //     pcb_ejecutandose = proceso_a_ejecutar;
 
-        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
-        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
+    //     // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+    //     // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+    //     // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
 
-    }
-    //mutex en la cola de interrupt
+    // }
+    // //mutex en la cola de interrupt
 }
 
 void quantum_count(int* quantum)
@@ -470,6 +469,12 @@ void esperar_cpu()
             }
             // while(1){}
             // esperar_cpu();
+            break;
+        case OUT_OF_MEMORY:
+            log_debug(logger, "El CPU informa que, luego de pedirle un RESIZE ampliativo a la Memoria, esta le respondió que no tiene más espacio");
+            t_pcb *pcb_out_of_memory = recibir_pcb(socket_cpu_dispatch);
+            log_info(logger, "Finaliza el proceso %i - Motivo: OUT_OF_MEMORY", pcb_out_of_memory->pid);
+            eliminar_proceso(pcb_out_of_memory);
             break;
         case IO_GEN_SLEEP:
             log_debug(logger, "El CPU pidió un sleep");
@@ -525,8 +530,9 @@ void esperar_cpu()
             break;
         case INSTRUCCION_EXIT:
             log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
-            t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
-            eliminar_proceso(pcb);
+            t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
+            log_info(logger, "Finaliza el proceso %i - Motivo: EXIT", pcb_exit->pid);
+            eliminar_proceso(pcb_exit);
             break;
         case INTERRUPCION:
             log_debug(logger, "Al CPU el llegó una interrupción, así que envía el pcb junto con el motivo de la interrupción");
@@ -563,7 +569,15 @@ void esperar_cpu()
 
 void eliminar_proceso(t_pcb *pcb)
 {
-    // TODO: Informarle a la Memoria la eliminación del proceso, para que pueda liberar sus estructuras
+    enviar_finalizacion_proceso(socket_memoria, pcb);
+    
+    op_code cod_op = recibir_operacion(socket_memoria);
+    if(cod_op != FINALIZACION_PROCESO_OK)
+    {
+        log_error(logger, "El Kernel esperaba recibir un OK de la memoria (luego de pedirle finalizar un proceso) pero recibió otra cosa");
+    }
+    recibir_ok(socket_memoria);
+    log_trace(logger, "Recibí OK de la memoria luego de pedirle finalizar un proceso");
 
     free(pcb->cpu_registers);
     free(pcb);

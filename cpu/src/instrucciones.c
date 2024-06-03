@@ -165,6 +165,30 @@ void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)
     }
 }
 
+void execute_resize(t_pcb *pcb, int nuevo_tamanio_del_proceso)
+{
+    log_info(logger, "PID: %i - Ejecutando: RESIZE - %i", pcb->pid, nuevo_tamanio_del_proceso);
+    enviar_resize(socket_memoria, pcb, nuevo_tamanio_del_proceso);
+    op_code cod_op = recibir_operacion(socket_memoria);
+    if(cod_op == RESIZE_EXITOSO)
+    {
+        recibir_ok(socket_memoria);
+        log_debug(logger, "La memoria informa que se ajustó el tamaño del proceso exitosamente");
+    }
+    else if (cod_op == OUT_OF_MEMORY)
+    {
+        recibir_ok(socket_memoria);
+        log_debug(logger, "La memoria informa que se quedó sin memoria suficiente para ajustar el tamaño del proceso");
+        enviar_out_of_memory(socket_kernel_dispatch, pcb);
+        continuar_ciclo = 0;
+    }
+    else
+    {
+        recibir_ok(socket_memoria);
+        log_error(logger, "Respuesta desconocida de la memoria luego de pedirle un RESIZE");
+    }
+}
+
 
 void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo)
 {

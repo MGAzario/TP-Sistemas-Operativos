@@ -61,6 +61,12 @@ typedef struct
 typedef struct
 {
     int pid;
+    t_list *lista_marcos;
+} t_tabla_de_paginas;
+
+typedef struct
+{
+    int pid;
     t_list *lista_instrucciones;
 } t_instrucciones_de_proceso;
 
@@ -98,6 +104,13 @@ typedef struct
     uint32_t tamanio_nombre;
     tipo_interfaz tipo;
 } t_nombre_y_tipo_io;
+
+typedef struct
+{
+    t_pcb *pcb;
+    int tamanio;
+} t_resize;
+
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
 

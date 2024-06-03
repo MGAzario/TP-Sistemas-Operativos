@@ -81,6 +81,11 @@ void crear_interfaz_generica(char *nombre)
         op_code cod_op = recibir_operacion(socket_kernel);
         log_trace(logger, "Llegó un pedido del Kernel");
 
+        if(cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó el Kernel");
+            while(1);
+        }
         if (cod_op != IO_GEN_SLEEP)
         {
             log_error(logger, "La interfaz esperaba recibir una operación IO_GEN_SLEEP del Kernel pero recibió otra operación");

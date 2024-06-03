@@ -42,6 +42,8 @@ int crear_conexion(char *ip, char* puerto)
 
 	freeaddrinfo(servinfo);
 
+	log_trace(logger, "Conectado con %s:%s", ip, puerto);
+
 	return socket_cliente;
 }
 
@@ -202,6 +204,20 @@ t_paquete* crear_paquete_nombre_y_tipo(uint32_t tamanio_nombre) {
     paquete->buffer->size =  sizeof(uint32_t) 
 							+ tamanio_nombre
 							+ sizeof(tipo_interfaz);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_resize() {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = RESIZE;
+	crear_buffer(paquete);
+    paquete->buffer->size = 7 * sizeof(uint32_t) 
+							+ 3 * sizeof(int) 
+							+ sizeof(estado_proceso)
+							+ 4 * sizeof(uint8_t);
 	void *magic = malloc(paquete->buffer->size);
     paquete->buffer->stream = magic;
 	free(magic);
@@ -410,6 +426,49 @@ void agregar_nombre_y_tipo_a_paquete(t_paquete* paquete, char *nombre, uint32_t 
 	paquete->buffer->stream = magic;
 }
 
+void agregar_resize_a_paquete(t_paquete* paquete, t_pcb* pcb, int tamanio) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+    memcpy(magic + desplazamiento, &(pcb->pid), sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &(pcb->quantum), sizeof(int));
+	desplazamiento+= sizeof(int);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->pc), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[AX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[BX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[CX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[DX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EAX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EBX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[ECX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EDX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->si), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->di), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
+	desplazamiento+= sizeof(estado_proceso);
+
+	memcpy(magic + desplazamiento, &tamanio, sizeof(int));
+
+	paquete->buffer->stream = magic;
+}
+
 void enviar_paquete(t_paquete* paquete, int socket_cliente) 
 {
     // Calcular el tamaño total del paquete
@@ -423,7 +482,7 @@ void enviar_paquete(t_paquete* paquete, int socket_cliente)
 	eliminar_paquete(paquete);
 }
 
-void enviar_ok(int socket_cliente, op_code cod_op)
+void enviar_mensaje_simple(int socket_cliente, op_code cod_op)
 {
 	t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = cod_op;
@@ -524,6 +583,33 @@ void enviar_fin_sleep(int socket_cliente, t_pcb *pcb)
 	agregar_pcb_a_paquete(paquete, pcb);
 
 	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_resize(int socket_cliente, t_pcb *pcb, int tamanio)
+{
+	t_paquete* paquete = crear_paquete_resize();
+
+	agregar_resize_a_paquete(paquete, pcb, tamanio);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_out_of_memory(int socket_cliente, t_pcb *pcb)
+{
+    t_paquete* paquete = crear_paquete_pcb(OUT_OF_MEMORY);
+
+    agregar_pcb_a_paquete(paquete, pcb);
+
+    enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_finalizacion_proceso(int socket_cliente, t_pcb *pcb)
+{
+    t_paquete* paquete = crear_paquete_pcb(FINALIZACION_PROCESO);
+
+    agregar_pcb_a_paquete(paquete, pcb);
+
+    enviar_paquete(paquete, socket_cliente);
 }
 
 // Funciones para simplificar que no se sabe si funcionan o no (también están atrasadas en algunos cambios):

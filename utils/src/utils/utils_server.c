@@ -28,7 +28,7 @@ int iniciar_servidor(char *puerto)
 	listen(socket_servidor, SOMAXCONN);
 
 	freeaddrinfo(servinfo);
-	log_info(logger, "Listo para escuchar a mi cliente\n");
+	log_trace(logger, "Listo para escuchar a mi cliente");
 
 	return socket_servidor;
 }
@@ -37,7 +37,7 @@ int esperar_cliente(int socket_servidor)
 {
 	// Aceptamos un nuevo cliente
 	int socket_cliente = accept(socket_servidor, NULL, NULL);
-	log_info(logger, "Se conecto un cliente!\n");
+	log_trace(logger, "Se conecto un cliente!");
 
 	return socket_cliente;
 }
@@ -352,4 +352,56 @@ t_nombre_y_tipo_io *recibir_nombre_y_tipo(int socket_cliente)
 	buffer = buffer - sizeof(uint32_t) - nombre_y_tipo->tamanio_nombre;
 	free(buffer);
 	return nombre_y_tipo;
+}
+
+t_resize *recibir_resize(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_resize *resize = malloc(sizeof(t_resize));
+	t_pcb *pcb = malloc(sizeof(t_pcb));
+	t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
+	pcb->cpu_registers = registros;
+	resize->pcb = pcb;
+
+	memcpy(&(resize->pcb->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(resize->pcb->quantum), buffer, sizeof(int));
+	buffer += sizeof(int);
+
+	memcpy(&(resize->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(resize->pcb->cpu_registers->normales[AX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(resize->pcb->cpu_registers->normales[BX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(resize->pcb->cpu_registers->normales[CX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(resize->pcb->cpu_registers->normales[DX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+
+	memcpy(&(resize->pcb->cpu_registers->extendidos[EAX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(resize->pcb->cpu_registers->extendidos[EBX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(resize->pcb->cpu_registers->extendidos[ECX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(resize->pcb->cpu_registers->extendidos[EDX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(resize->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(resize->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(resize->pcb->estado), buffer, sizeof(estado_proceso));
+	buffer += sizeof(estado_proceso);
+	
+	memcpy(&(resize->tamanio), buffer, sizeof(int));
+
+	buffer = buffer - 2 * sizeof(int) - 7 * sizeof(uint32_t) - 4 * sizeof(uint8_t) - sizeof(estado_proceso);
+	free(buffer);
+	return resize;
 }

@@ -19,6 +19,7 @@ void conectar_memoria();
 void conectar_dispatch_cpu(char *ip_cpu);
 void conectar_interrupt_cpu(char *ip_cpu);
 void *recibir_entradasalida();
+void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo);
 void *interfaz_generica(void *interfaz_sleep);
 void crear_pcb(char *path);
 void encontrar_y_eliminar_proceso(int pid_a_eliminar);
