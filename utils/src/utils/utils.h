@@ -27,6 +27,12 @@ typedef enum {
     FIN_DE_QUANTUM
 } motivo_interrupcion;
 
+
+typedef enum {
+    WAIT,
+    SIGNAL
+} motivo_bloqueo;
+
 typedef enum {
     GENERICA
 } tipo_interfaz;
