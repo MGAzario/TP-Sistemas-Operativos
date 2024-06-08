@@ -526,6 +526,14 @@ void enviar_fin_sleep(int socket_cliente, t_pcb *pcb)
 	enviar_paquete(paquete, socket_cliente);
 }
 
+void enviar_fin_io_read(int socket_cliente, t_pcb *pcb)
+{
+	t_paquete* paquete = crear_paquete_pcb(FIN_IO_READ);
+
+	agregar_pcb_a_paquete(paquete, pcb);
+
+	enviar_paquete(paquete, socket_cliente);
+}
 // Funciones para simplificar que no se sabe si funcionan o no (también están atrasadas en algunos cambios):
 
 // t_paquete* crear_paquete_pcb(void) {

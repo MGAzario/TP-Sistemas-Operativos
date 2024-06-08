@@ -13,7 +13,9 @@ void crear_logger();
 void create_config();
 void conectar_kernel();
 void conectar_memoria();
-void crear_interfaz_generica(char* nombre);
+void crear_interfaz_generica();
+void crear_interfaz_stdin();
+void crear_interfaz_stdout();
 
 
 

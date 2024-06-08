@@ -79,6 +79,7 @@ typedef struct
     motivo_interrupcion motivo;
 } t_interrupcion;
 
+//Estructuras para interfaces
 typedef struct
 {
     t_pcb *pcb;
@@ -86,6 +87,13 @@ typedef struct
     uint32_t tamanio_nombre_interfaz;
     uint32_t unidades_de_trabajo;
 } t_sleep;
+
+typedef struct {
+    t_pcb* pcb;                 // Puntero al PCB del proceso que realiza la operación
+    uint32_t direccion_fisica;  // Dirección física en la memoria
+    uint32_t tamanio;           // Tamaño del texto
+} t_io_std;
+
 
 typedef struct
 {

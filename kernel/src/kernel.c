@@ -171,9 +171,7 @@ void *recibir_entradasalida()
         }
         t_nombre_y_tipo_io *nombre_y_tipo = recibir_nombre_y_tipo(socket_entradasalida);
 
-        // TODO: Comprobar tipo de interfaz
-
-        // Si es una interfaz genérica:
+        
 
         // Guardamos nombre y socket de la interfaz
         t_interfaz *interfaz = malloc(sizeof(t_interfaz));
@@ -181,7 +179,7 @@ void *recibir_entradasalida()
 
         log_trace(logger, "La interfaz tiene nombre %s", interfaz->nombre);
 
-        // Creamos el hilo
+        // Creamos el hilo. Manejo de interfaces va a chequear el tipo de interfaz
         pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, manejo_interfaces, interfaz);
         numero_de_entradasalida++;
 
@@ -203,6 +201,7 @@ void *manejo_interfaces(t_interfaz *interfaz)
             break;
         case STDIN:
             log_error(logger, "Falta implementar");
+            fin_io_read(interfaz);
             break;
         case STDOUT:
             log_error(logger, "Falta implementar");
@@ -229,19 +228,40 @@ void fin_sleep(t_interfaz *interfaz)
     if (cod_op != FIN_SLEEP)
     {
         log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        return;
     }
-    //La interfaz ya no esta mas bloqueada
-    interfaz->ocupada = false;
-    t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
-    // Borro el proceso de la lista de bloqueados
-    list_remove_element(lista_bloqueados, pcb_a_desbloquear);
-    //Paso su estado a ready
-    pcb_a_desbloquear->estado = READY;
-    //Lo meto en la cola
-    queue_push(cola_ready, pcb_a_desbloquear);
-    //Activo el planificador
-    sem_post(&sem_proceso_ready);
+   desbloquear_proceso_io(interfaz);
+}
+
+void fin_io_read(t_interfaz *interfaz) {
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op != FIN_IO_READ) {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_READ pero recibió otra cosa");
+        return;  // Abortamos la función si no recibimos el código esperado
+    }
+    desbloquear_proceso_io(interfaz);
+
     
+}
+//Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
+void desbloquear_proceso_io(t_interfaz *interfaz)
+{
+    // La interfaz ya no está más ocupada
+    interfaz->ocupada = false;
+    // Recibir el PCB que se desbloqueará
+    t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+
+    // Eliminar el proceso de la lista de bloqueados
+    list_remove_element(lista_bloqueados, pcb_a_desbloquear);
+
+    // Cambiar el estado del PCB a READY
+    pcb_a_desbloquear->estado = READY;
+
+    // Colocar el PCB en la cola de ready
+    queue_push(cola_ready, pcb_a_desbloquear);
+
+    // Activar el planificador
+    sem_post(&sem_proceso_ready);
 }
 
 /*-----------------------------PROCESOS Y CPU--------------------------------------------------------------------*/
