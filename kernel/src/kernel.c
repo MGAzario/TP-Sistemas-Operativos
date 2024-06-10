@@ -7,6 +7,7 @@ t_log *logger;
 t_list *lista_interfaces;
 t_queue *cola_new;
 t_queue *cola_ready;
+
 t_list *lista_bloqueados;
 
 /*-----------------------------VARIABLES GLOBALES--------------------------------------------------------------------*/
@@ -30,6 +31,7 @@ char *algoritmo_planificacion;
 sem_t sem_nuevo_pcb;
 sem_t sem_proceso_ready;
 sem_t sem_round_robin;
+sem_t sem_v_round_robin;
 
 /*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
@@ -43,6 +45,8 @@ int main(int argc, char *argv[])
     sem_init(&sem_nuevo_pcb, 0, 0);
     sem_init(&sem_proceso_ready, 0, 0);
     sem_init(&sem_round_robin, 0, 1);
+    sem_init(&sem_v_round_robin, 0, 1);
+
 
     crear_logger();
     crear_config();
@@ -448,15 +452,48 @@ void planificar_round_robin()
     // //mutex en la cola de interrupt
 }
 
+
+
+void planificar_vrr()
+{
+    pthread_t quantum_thread;
+    int quantum = config_get_int_value(config, "QUANTUM");
+    int quantum_p; //TODO VER CUANDO TENDRIA Q PRIMA
+    t_queue *cola_prio;
+
+    sem_wait(&sem_v_round_robin);
+
+    if (!queue_is_empty(cola_ready))
+    {
+        // Obtener el proceso listo para ejecutarse de la cola
+        if(!queue_is_empty(cola_prio)){
+            t_pcb *proceso_a_ejecutar = queue_pop(cola_prio);
+        }
+        else{
+            t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+        }
+        
+        //wait(sem_mutex_interrupt)
+        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+        esperar_cpu();
+        //sem_post(sem_mutex_interrupt)
+
+        // Cambiar el estado del proceso a EXEC
+        proceso_a_ejecutar->estado = EXEC;
+
+        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+
+        pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
+
+        pcb_ejecutandose = proceso_a_ejecutar;
+    }
+
+}
+
 void quantum_count(int* quantum)
 {
 	usleep(*quantum * 1000);
 	sem_post(&sem_round_robin);
-}
-
-void planificar_vrr()
-{
-    // TODO
 }
 
 void esperar_cpu()
@@ -526,7 +563,7 @@ void esperar_cpu()
             // Verficamos si la interfaz está ocupada
             if(interfaz_sleep->ocupada == false)
             {
-            enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
+                enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
             }
             else
             {
@@ -567,9 +604,14 @@ void esperar_cpu()
                 }
                 else
                 {
-                    // TODO: VRR
+                    log_debug(logger, "Este motivo es FIN_DE_QUANTUM con VRR, entonces se agrega al final de la cola el proceso");
+                    interrupcion->pcb->estado = READY;
+                    queue_push(cola_ready,interrupcion->pcb);
+                    sem_post(&sem_proceso_ready);
                 }
             }
+            if(interrupcion->motivo == WAIT){} // TODO PROCESAR WAIT Y SIGNAL DE CPU
+            if(interrupcion->motivo == SIGNAL){}
             break;
         default:
             log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
