@@ -27,7 +27,6 @@ typedef enum {
     FIN_DE_QUANTUM
 } motivo_interrupcion;
 
-
 typedef enum {
     WAIT,
     SIGNAL

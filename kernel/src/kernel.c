@@ -456,37 +456,37 @@ void planificar_round_robin()
 
 void planificar_vrr()
 {
-    pthread_t quantum_thread;
-    int quantum = config_get_int_value(config, "QUANTUM");
-    int quantum_p; //TODO VER CUANDO TENDRIA Q PRIMA
-    t_queue *cola_prio;
+    // pthread_t quantum_thread;
+    // int quantum = config_get_int_value(config, "QUANTUM");
+    // int quantum_p; //TODO VER CUANDO TENDRIA Q PRIMA
+    // t_queue *cola_prio;
 
-    sem_wait(&sem_v_round_robin);
+    // sem_wait(&sem_v_round_robin);
 
-    if (!queue_is_empty(cola_ready))
-    {
-        // Obtener el proceso listo para ejecutarse de la cola
-        if(!queue_is_empty(cola_prio)){
-            t_pcb *proceso_a_ejecutar = queue_pop(cola_prio);
-        }
-        else{
-            t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
-        }
+    // if (!queue_is_empty(cola_ready))
+    // {
+    //     // Obtener el proceso listo para ejecutarse de la cola
+    //     if(!queue_is_empty(cola_prio)){
+    //         t_pcb *proceso_a_ejecutar = queue_pop(cola_prio);
+    //     }
+    //     else{
+    //         t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+    //     }
         
-        //wait(sem_mutex_interrupt)
-        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-        esperar_cpu();
-        //sem_post(sem_mutex_interrupt)
+    //     //wait(sem_mutex_interrupt)
+    //     enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    //     esperar_cpu();
+    //     //sem_post(sem_mutex_interrupt)
 
-        // Cambiar el estado del proceso a EXEC
-        proceso_a_ejecutar->estado = EXEC;
+    //     // Cambiar el estado del proceso a EXEC
+    //     proceso_a_ejecutar->estado = EXEC;
 
-        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    //     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
-        pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
+    //     pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
 
-        pcb_ejecutandose = proceso_a_ejecutar;
-    }
+    //     pcb_ejecutandose = proceso_a_ejecutar;
+    // }
 
 }
 
@@ -610,8 +610,9 @@ void esperar_cpu()
                     sem_post(&sem_proceso_ready);
                 }
             }
-            if(interrupcion->motivo == WAIT){} // TODO PROCESAR WAIT Y SIGNAL DE CPU
-            if(interrupcion->motivo == SIGNAL){}
+            // TODO PROCESAR WAIT Y SIGNAL DE CPU
+            // if(interrupcion->motivo == WAIT){}
+            // if(interrupcion->motivo == SIGNAL){}
             break;
         default:
             log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
