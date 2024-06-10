@@ -5,6 +5,9 @@ t_log *logger;
 char *ip_kernel;
 char *puerto_kernel;
 int socket_kernel;
+char *ip_memoria;
+char *puerto_memoria;
+int socket_memoria;
 
 int main(int argc, char *argv[])
 {
@@ -14,7 +17,12 @@ int main(int argc, char *argv[])
     decir_hola("una Interfaz de Entrada/Salida");
 
     conectar_kernel();
-    // conectar_memoria();
+    conectar_memoria();
+    // Prueba inicio
+    enviar_mensaje_simple(socket_memoria, MENSAJE);
+    sleep(2);
+    enviar_mensaje_simple(socket_memoria, MENSAJE);
+    // Prueba fin
     crear_interfaz_generica("PruebaIO");
 
     log_info(logger, "Terminó\n");
@@ -53,9 +61,9 @@ void conectar_kernel()
 void conectar_memoria()
 {
     // Establecer conexión con el módulo Memoria
-    // char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
-    // char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
-    // int socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
+    ip_memoria = config_get_string_value(config, "IP_MEMORIA");
+    puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
+    socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
 }
 
 void crear_interfaz_generica(char *nombre)

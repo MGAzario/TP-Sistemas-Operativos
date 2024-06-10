@@ -3,6 +3,7 @@
 
 void execute_set(t_pcb *pcb, char *registro, uint32_t valor)
 {
+    log_info(logger, "PID: %i - Ejecutando: SET - %s %u", pcb->pid, registro, valor);
     if (strcmp("AX", registro) == 0){
         pcb->cpu_registers->normales[0] = (uint8_t)valor;
     } else if (strcmp("BX", registro) == 0){
@@ -24,6 +25,63 @@ void execute_set(t_pcb *pcb, char *registro, uint32_t valor)
     }
 }
 
+void execute_mov_in(t_pcb *pcb, char *registro_datos, t_list *direcciones)
+{
+    uint32_t valor;
+    void *puntero_valor = &valor;
+    int desplazamiento_puntero = 0;
+
+    for (int i = 0; i < list_size(direcciones); i++)
+    {
+        t_direccion_y_tamanio *direccion_y_tamanio = list_get(direcciones, i);
+        enviar_leer_memoria(socket_memoria, pcb->pid, direccion_y_tamanio->direccion, direccion_y_tamanio->tamanio);
+        op_code cod_op = recibir_operacion(socket_memoria);
+        if(cod_op != MEMORIA_LEIDA)
+        {
+            log_error(logger, "El CPU esperaba recibir una operación MEMORIA_LEIDA de la Memoria pero recibió otra operación");
+        }
+        t_lectura *leido = recibir_lectura(socket_memoria);
+        memcpy(puntero_valor + desplazamiento_puntero, leido->lectura, leido->tamanio_lectura);
+        desplazamiento_puntero += leido->tamanio_lectura;
+        free(leido->lectura);
+        free(leido);
+    }
+
+    list_destroy_and_destroy_elements(direcciones, destruir_direccion);
+
+    escribir_registro(pcb, registro_datos, valor);
+}
+
+void execute_mov_out(t_pcb *pcb, t_list *direcciones, char *registro_datos)
+{
+    uint32_t valor = leer_registro(pcb, registro_datos);
+    void *puntero_valor = &valor;
+    int desplazamiento_puntero = 0;
+
+    for (int i = 0; i < list_size(direcciones); i++)
+    {
+        t_direccion_y_tamanio *direccion_y_tamanio = list_get(direcciones, i);
+        void *valor_a_escribir = malloc(direccion_y_tamanio->tamanio);
+        memcpy(valor_a_escribir, puntero_valor + desplazamiento_puntero, direccion_y_tamanio->tamanio);
+        desplazamiento_puntero += direccion_y_tamanio->tamanio;
+        enviar_escribir_memoria(socket_memoria, pcb->pid, direccion_y_tamanio->direccion, direccion_y_tamanio->tamanio, valor_a_escribir);
+        free(valor_a_escribir);
+        op_code cod_op = recibir_operacion(socket_memoria);
+        if(cod_op != MEMORIA_ESCRITA)
+        {
+            log_error(logger, "El CPU esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
+        }
+        recibir_ok(socket_memoria);
+    }
+
+    list_destroy_and_destroy_elements(direcciones, destruir_direccion);
+}
+
+void destruir_direccion(void *elem)
+{
+    t_direccion_y_tamanio *direccion_y_tamanio = (t_direccion_y_tamanio *)elem;
+    free(direccion_y_tamanio);
+}
 
 void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
@@ -78,8 +136,6 @@ void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
     }
 }
 
-
-
 void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
     uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
@@ -132,7 +188,6 @@ void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
         log_error(logger, "Registros desconocidos en SUB: %s, %s", registro_destino, registro_origen);
     }
 }
-
 
 void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)
 {
@@ -188,7 +243,6 @@ void execute_resize(t_pcb *pcb, int nuevo_tamanio_del_proceso)
         log_error(logger, "Respuesta desconocida de la memoria luego de pedirle un RESIZE");
     }
 }
-
 
 void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo)
 {

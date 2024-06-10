@@ -405,3 +405,91 @@ t_resize *recibir_resize(int socket_cliente)
 	free(buffer);
 	return resize;
 }
+
+int recibir_numero(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_numero *mensaje_numero = malloc(sizeof(t_numero));
+	
+	memcpy(&(mensaje_numero->numero), buffer, sizeof(int));
+
+	int numero = mensaje_numero->numero;
+	
+	free(buffer);
+	free(mensaje_numero);
+	return numero;
+}
+
+t_solicitud_marco *recibir_solicitud_marco(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_solicitud_marco *solicitud_marco = malloc(sizeof(t_solicitud_marco));
+	
+	memcpy(&(solicitud_marco->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(solicitud_marco->pagina), buffer, sizeof(int));
+
+	buffer = buffer - sizeof(int);
+	free(buffer);
+	return solicitud_marco;
+}
+
+t_leer_memoria *recibir_leer_memoria(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_leer_memoria *leer_memoria = malloc(sizeof(t_leer_memoria));
+	
+	memcpy(&(leer_memoria->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(leer_memoria->direccion), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(leer_memoria->tamanio), buffer, sizeof(int));
+
+	buffer = buffer - 2 * sizeof(int);
+	free(buffer);
+	return leer_memoria;
+}
+
+t_lectura *recibir_lectura(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_lectura *leido = malloc(sizeof(t_lectura));
+	
+	memcpy(&(leido->tamanio_lectura), buffer, sizeof(int));
+	buffer += sizeof(int);
+	leido->lectura = malloc(leido->tamanio_lectura);
+	memcpy(leido->lectura, buffer, leido->tamanio_lectura);
+
+	buffer = buffer - sizeof(int);
+	free(buffer);
+	return leido;
+}
+
+t_escribir_memoria *recibir_escribir_memoria(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_escribir_memoria *escribir_memoria = malloc(sizeof(t_escribir_memoria));
+	
+	memcpy(&(escribir_memoria->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(escribir_memoria->direccion), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(escribir_memoria->tamanio), buffer, sizeof(int));
+	buffer += sizeof(int);
+	escribir_memoria->valor = malloc(escribir_memoria->tamanio);
+	memcpy(escribir_memoria->valor, buffer, escribir_memoria->tamanio);
+
+	buffer = buffer - 3 * sizeof(int);
+	free(buffer);
+	return escribir_memoria;
+}

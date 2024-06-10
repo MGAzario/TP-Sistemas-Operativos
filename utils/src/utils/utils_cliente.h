@@ -36,7 +36,15 @@ typedef enum
 	FIN_SLEEP,
 	RESIZE,
 	RESIZE_EXITOSO,
-	OUT_OF_MEMORY
+	OUT_OF_MEMORY,
+	PREGUNTA_TAMANIO_PAGINA,
+	RESPUESTA_TAMANIO_PAGINA,
+	SOLICITUD_MARCO,
+	MARCO,
+	LEER_MEMORIA,
+	MEMORIA_LEIDA,
+	ESCRIBIR_MEMORIA,
+	MEMORIA_ESCRITA
 } op_code;
 
 typedef struct
@@ -66,6 +74,11 @@ t_paquete* crear_paquete_interrupcion();
 t_paquete* crear_paquete_sleep(uint32_t tamanio_nombre_interfaz);
 t_paquete* crear_paquete_nombre_y_tipo(uint32_t tamanio_nombre);
 t_paquete* crear_paquete_resize();
+t_paquete* crear_paquete_numero(op_code cod_op);
+t_paquete* crear_paquete_solicitud_marco();
+t_paquete* crear_paquete_leer_memoria();
+t_paquete* crear_paquete_lectura(int tamanio_lectura);
+t_paquete* crear_paquete_escribir_memoria(int tamanio_valor);
 void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb);
 void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* path, uint32_t tamanio_path);
 void agregar_instruccion_a_paquete(t_paquete* paquete, char* instruccion, uint32_t tamanio_instruccion);
@@ -73,6 +86,11 @@ void agregar_interrupcion_a_paquete(t_paquete* paquete, t_pcb* pcb, motivo_inter
 void agregar_sleep_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t unidades_de_trabajo);
 void agregar_nombre_y_tipo_a_paquete(t_paquete* paquete, char *nombre, uint32_t tamanio_nombre, tipo_interfaz tipo);
 void agregar_resize_a_paquete(t_paquete* paquete, t_pcb* pcb, int tamanio);
+void agregar_numero_a_paquete(t_paquete* paquete, int numero);
+void agregar_solicitud_marco_a_paquete(t_paquete* paquete, int pid, int pagina);
+void agregar_leer_memoria_a_paquete(t_paquete* paquete, int pid, int direccion, int tamanio);
+void agregar_lectura_a_paquete(t_paquete* paquete, void *lectura, int tamanio_lectura);
+void agregar_escribir_memoria_a_paquete(t_paquete* paquete, int pid, int direccion, int tamanio, void *valor);
 void enviar_paquete(t_paquete* paquete, int socket_cliente);
 void enviar_mensaje_simple(int socket_cliente, op_code cod_op);
 void enviar_pcb(int socket_cliente, t_pcb *pcb);
@@ -87,5 +105,10 @@ void enviar_nombre_y_tipo(int socket_cliente, char *nombre, tipo_interfaz tipo);
 void enviar_fin_sleep(int socket_cliente, t_pcb *pcb);
 void enviar_resize(int socket_cliente, t_pcb *pcb, int tamanio);
 void enviar_out_of_memory(int socket_cliente, t_pcb *pcb);
+void enviar_numero(int socket_cliente, int numero, op_code cod_op);
+void enviar_solicitud_marco(int socket_cliente, int pid, int pagina);
+void enviar_leer_memoria(int socket_cliente, int pid, int direccion, int tamanio);
+void enviar_lectura(int socket_cliente, void *lectura, int tamanio_lectura);
+void enviar_escribir_memoria(int socket_cliente, int pid, int direccion, int tamanio, void *valor);
 
 #endif /* UTILS_CLIENTE_H_ */

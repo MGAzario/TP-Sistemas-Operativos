@@ -34,5 +34,10 @@ t_interrupcion *recibir_interrupcion(int socket_cliente);
 t_sleep *recibir_sleep(int socket_cliente);
 t_nombre_y_tipo_io *recibir_nombre_y_tipo(int socket_cliente);
 t_resize *recibir_resize(int socket_cliente);
+int recibir_numero(int socket_cliente);
+t_solicitud_marco *recibir_solicitud_marco(int socket_cliente);
+t_leer_memoria *recibir_leer_memoria(int socket_cliente);
+t_lectura *recibir_lectura(int socket_cliente);
+t_escribir_memoria *recibir_escribir_memoria(int socket_cliente);
 
 #endif /* UTILS_SERVER_SERVER_H_ */

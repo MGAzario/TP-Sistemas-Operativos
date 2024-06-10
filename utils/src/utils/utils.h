@@ -111,6 +111,45 @@ typedef struct
     int tamanio;
 } t_resize;
 
+typedef struct
+{
+    int numero;
+} t_numero;
+
+typedef struct
+{
+    int pid;
+    int pagina;
+} t_solicitud_marco;
+
+typedef struct
+{
+    int direccion;
+    int tamanio;
+} t_direccion_y_tamanio;
+
+typedef struct
+{
+    int pid;
+    int direccion;
+    int tamanio;
+} t_leer_memoria;
+
+typedef struct
+{
+    void *lectura;
+    int tamanio_lectura;
+} t_lectura;
+
+typedef struct
+{
+    int pid;
+    int direccion;
+    int tamanio;
+    void *valor;
+} t_escribir_memoria;
+
+
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
 

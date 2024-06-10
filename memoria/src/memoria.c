@@ -10,15 +10,20 @@ int socket_kernel;
 int socket_cpu;
 int socket_entradasalida;
 
-pthread_t hilo_kernel;
 pthread_t hilo_cpu;
+pthread_t hilo_kernel;
+pthread_t hilo_entradasalida[100];
+int numero_de_entradasalida;
 
 int tamanio_memoria;
 int tamanio_pagina;
 
 int marcos_memoria;
 
+int retardo;
+
 void *espacio_de_usuario;
+sem_t mutex_espacio_de_usuario;
 
 t_bitarray *marcos_libres;
 
@@ -51,18 +56,22 @@ int main(int argc, char* argv[])
     }
     pthread_detach(hilo_cpu);
 
+    // Recibo mensajes de interfaces
     while(1)
     {
-        // TODO: Recibir mensajes del módulo E/S
+        int socket_entradasalida = esperar_cliente(socket_memoria);
+        log_trace(logger, "Se conectó una interfaz con socket %i", socket_entradasalida);
+
+        int *socket = &socket_entradasalida;
+
+        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz, socket);
+        pthread_detach(hilo_entradasalida[numero_de_entradasalida]);
+        numero_de_entradasalida++;
     }
 
-    // Cerrar sockets
-    // liberar_conexion(socket_entradasalida); 
     liberar_conexion(socket_kernel); 
     liberar_conexion(socket_cpu);
     liberar_conexion(socket_memoria);
-
-    printf("Terminó\n");
 
     return 0;
 }
@@ -89,8 +98,12 @@ void inicializar_variables_globales()
     path_instrucciones = config_get_string_value(config, "PATH_INSTRUCCIONES");
     tamanio_memoria = config_get_int_value(config, "TAM_MEMORIA");
     tamanio_pagina = config_get_int_value(config, "TAM_PAGINA");
+    retardo = config_get_int_value(config, "RETARDO_RESPUESTA");
+
+    numero_de_entradasalida = 0;
 
     espacio_de_usuario = malloc(tamanio_memoria);
+    sem_init(&mutex_espacio_de_usuario, 0, 1);
 
     marcos_memoria = tamanio_memoria / tamanio_pagina;
 
@@ -123,5 +136,68 @@ void iniciar_servidor_memoria() {
     socket_memoria = iniciar_servidor(puerto_memoria);
     socket_cpu = esperar_cliente(socket_memoria);
     socket_kernel = esperar_cliente(socket_memoria);
-    // socket_entradasalida = esperar_cliente(socket_memoria);
+}
+
+void *interfaz(void *socket)
+{
+    bool sigue_conectado = true;
+    while(sigue_conectado)
+    {
+        op_code cod_op = recibir_operacion(*(int *) socket);
+
+        switch (cod_op)
+        {
+            case MENSAJE:
+                recibir_ok(*(int *) socket);
+                log_debug(logger, "Mensaje recibido exitosamente de la interfaz de socket %i", *(int *) socket);
+                break;
+            case LEER_MEMORIA:
+                log_trace(logger, "Recibí una solicitud de una interfaz para leer de Memoria");
+                usleep(retardo * 1000);
+                t_leer_memoria *leer_memoria = recibir_leer_memoria(*(int *) socket);
+                void *lectura = leer(leer_memoria->direccion, leer_memoria->tamanio);
+                log_info(logger, "PID: %i - Accion: LEER - Direccion fisica: %i - Tamaño: %i",
+                    leer_memoria->pid,
+                    leer_memoria->direccion,
+                    leer_memoria->tamanio);
+                enviar_lectura(*(int *) socket, lectura, leer_memoria->tamanio);
+                break;
+            case ESCRIBIR_MEMORIA:
+                log_trace(logger, "Recibí una solicitud de una interfaz para escribir en Memoria");
+                usleep(retardo * 1000);
+                t_escribir_memoria *escribir_memoria = recibir_escribir_memoria(*(int *) socket);
+                escribir(escribir_memoria->direccion, escribir_memoria->tamanio, escribir_memoria->valor);
+                log_info(logger, "PID: %i - Accion: ESCRIBIR - Direccion fisica: %i - Tamaño: %i",
+                    escribir_memoria->pid,
+                    escribir_memoria->direccion,
+                    escribir_memoria->tamanio);
+                enviar_mensaje_simple(*(int *) socket, MEMORIA_ESCRITA);
+                break;
+            case DESCONEXION:
+                log_warning(logger, "Se desconectó una interfaz");
+                sigue_conectado = false;
+                break;
+            default:
+                log_warning(logger, "Mensaje desconocido de una interfaz: %i", cod_op);
+                while(1);
+                break;
+        }
+    }
+    return NULL;
+}
+
+void *leer(int direccion_fisica, int tamanio)
+{
+    void *valor = malloc(tamanio);
+    sem_wait(&mutex_espacio_de_usuario);
+    memcpy(valor, espacio_de_usuario + direccion_fisica, tamanio);
+    sem_post(&mutex_espacio_de_usuario);
+    return valor;
+}
+
+void escribir(int direccion_fisica, int tamanio, void *valor)
+{
+    sem_wait(&mutex_espacio_de_usuario);
+    memcpy(espacio_de_usuario + direccion_fisica, valor, tamanio);
+    sem_post(&mutex_espacio_de_usuario);
 }

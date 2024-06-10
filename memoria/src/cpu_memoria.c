@@ -11,13 +11,50 @@ void *recibir_cpu()
         {
             case SOLICITUD_INSTRUCCION:
                 log_trace(logger, "Recibí una solicitud del CPU para entregarle la siguiente instrucción");
+                usleep(retardo * 1000);
                 t_pcb *pcb = recibir_pcb(socket_cpu);
                 char *instruccion = buscar_instruccion(pcb->pid, pcb->cpu_registers->pc);
                 sleep(1); // TODO: Reemplazar con configuración
                 enviar_instruccion(socket_cpu, instruccion);
                 break;
+            case PREGUNTA_TAMANIO_PAGINA:
+                log_trace(logger, "Recibí una solicitud del CPU. Quiere que le diga cuál es el tamaño de página");
+                usleep(retardo * 1000);
+                recibir_ok(socket_cpu);
+                enviar_numero(socket_cpu, tamanio_pagina, RESPUESTA_TAMANIO_PAGINA);
+                break;
+            case SOLICITUD_MARCO:
+                log_trace(logger, "Recibí una solicitud del CPU para comunicarle el marco de una determinada página");
+                usleep(retardo * 1000);
+                t_solicitud_marco *solicitud_marco = recibir_solicitud_marco(socket_cpu);
+                int marco = obtener_marco(solicitud_marco->pagina, solicitud_marco->pid);
+                enviar_numero(socket_cpu, marco, MARCO);
+                break;
+            case LEER_MEMORIA:
+                log_trace(logger, "Recibí una solicitud del CPU para leer de Memoria");
+                usleep(retardo * 1000);
+                t_leer_memoria *leer_memoria = recibir_leer_memoria(socket_cpu);
+                void *lectura = leer(leer_memoria->direccion, leer_memoria->tamanio);
+                log_info(logger, "PID: %i - Accion: LEER - Direccion fisica: %i - Tamaño: %i",
+                    leer_memoria->pid,
+                    leer_memoria->direccion,
+                    leer_memoria->tamanio);
+                enviar_lectura(socket_cpu, lectura, leer_memoria->tamanio);
+                break;
+            case ESCRIBIR_MEMORIA:
+                log_trace(logger, "Recibí una solicitud del CPU para escribir en Memoria");
+                usleep(retardo * 1000);
+                t_escribir_memoria *escribir_memoria = recibir_escribir_memoria(socket_cpu);
+                escribir(escribir_memoria->direccion, escribir_memoria->tamanio, escribir_memoria->valor);
+                log_info(logger, "PID: %i - Accion: ESCRIBIR - Direccion fisica: %i - Tamaño: %i",
+                    escribir_memoria->pid,
+                    escribir_memoria->direccion,
+                    escribir_memoria->tamanio);
+                enviar_mensaje_simple(socket_cpu, MEMORIA_ESCRITA);
+                break;
             case RESIZE:
                 log_trace(logger, "Recibí una solicitud del CPU para ajustar el tamaño de un proceso");
+                usleep(retardo * 1000);
                 t_resize *resize = recibir_resize(socket_cpu);
                 if(ajustar_tamanio(resize->pcb->pid, resize->tamanio))
                 {
@@ -33,7 +70,7 @@ void *recibir_cpu()
                 while(1);
                 break;
             default:
-                log_warning(logger, "Mensaje desconocido del CPU");
+                log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
                 while(1);
                 break;
         }
@@ -123,4 +160,11 @@ int buscar_marco_libre()
         }
     }
     return -1;
+}
+
+int obtener_marco(int pagina, int pid)
+{
+    int *marco = list_get(buscar_tabla_de_paginas(pid)->lista_marcos, pagina);
+    log_info(logger, "PID: %i - Pagina: %i - Marco: %i", pid, pagina, *marco);
+    return *marco;
 }

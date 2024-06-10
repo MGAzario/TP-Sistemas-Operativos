@@ -180,6 +180,7 @@ void *recibir_entradasalida()
 
         // Creamos el hilo
         pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz_generica, interfaz);
+        pthread_detach(hilo_entradasalida[numero_de_entradasalida]);
         numero_de_entradasalida++;
 
         free(nombre_y_tipo);
@@ -200,31 +201,42 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
 
 void *interfaz_generica(void *interfaz_sleep)
 {
-    while(1)
+    bool sigue_conectado = true;
+    while(sigue_conectado)
     {
         t_interfaz *interfaz = interfaz_sleep;
 
         op_code cod_op = recibir_operacion(interfaz->socket);
-        if (cod_op != FIN_SLEEP)
+        if (cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+            sigue_conectado = false;
+            // TODO: Liberar estructuras
+        }
+        else if (cod_op != FIN_SLEEP)
         {
             log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
         }
-        t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
-
-        // Buscamos el proceso en BLOCKED y lo mandamos a READY
-        for(int i = 0; i < list_size(lista_bloqueados); i++)
+        else
         {
-            t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
-            if(pcb->pid == pcb_a_desbloquear->pid)
+            t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+
+            // Buscamos el proceso en BLOCKED y lo mandamos a READY
+            for(int i = 0; i < list_size(lista_bloqueados); i++)
             {
-                list_remove(lista_bloqueados, i);
-                pcb->estado = READY;
-                queue_push(cola_ready, pcb);
-                sem_post(&sem_proceso_ready);
-                interfaz->ocupada = false;
+                t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+                if(pcb->pid == pcb_a_desbloquear->pid)
+                {
+                    list_remove(lista_bloqueados, i);
+                    pcb->estado = READY;
+                    queue_push(cola_ready, pcb);
+                    sem_post(&sem_proceso_ready);
+                    interfaz->ocupada = false;
+                }
             }
         }
     }
+    return NULL;
 }
 
 /*-----------------------------PROCESOS Y CPU--------------------------------------------------------------------*/
@@ -560,7 +572,7 @@ void esperar_cpu()
             }
             break;
         default:
-            log_warning(logger, "Mensaje desconocido del CPU");
+            log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
             break;
     } 
 
@@ -578,6 +590,12 @@ void eliminar_proceso(t_pcb *pcb)
     }
     recibir_ok(socket_memoria);
     log_trace(logger, "Recibí OK de la memoria luego de pedirle finalizar un proceso");
+
+    if(pcb_ejecutandose->pid == pcb->pid)
+    {
+        free(pcb_ejecutandose->cpu_registers);
+        free(pcb_ejecutandose);
+    }
 
     free(pcb->cpu_registers);
     free(pcb);

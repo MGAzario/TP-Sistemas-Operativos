@@ -10,6 +10,8 @@ int socket_kernel_dispatch;
 int socket_kernel_interrupt;
 int socket_memoria;
 
+int tamanio_pagina;
+
 int continuar_ciclo;
 int pid_de_interrupcion;
 motivo_interrupcion motivo_de_interrupcion;
@@ -30,6 +32,7 @@ int main(int argc, char *argv[])
     conectar_memoria();
 
     // Se inicializan variables globales
+    tamanio_pagina = -1;
     continuar_ciclo = 1;
     pid_de_interrupcion = -1;
 
@@ -148,6 +151,7 @@ void ciclo_de_instruccion(t_pcb *pcb)
     char *instruccion = fetch(pcb);
     decode(pcb, instruccion);
     check_interrupt(pcb);
+    free(instruccion);
 }
 
 char *fetch(t_pcb *pcb)
@@ -206,7 +210,34 @@ void decode(t_pcb *pcb, char *instruccion)
 
         sscanf(instruccion, "%s %s %u", operacion, registro, &valor);
 
+        pcb->cpu_registers->pc++;
         execute_set(pcb, registro, valor);
+    }
+    else if (strcmp("MOV_IN", operacion) == 0)
+    {
+        char registro_datos[10];
+        char registro_direccion[10];
+
+        sscanf(instruccion, "%s %s %s", operacion, registro_datos, registro_direccion);
+
+        t_list *direcciones_fisicas = mmu(leer_registro(pcb, registro_direccion), tamanio_registro(registro_datos), pcb->pid);
+
+        pcb->cpu_registers->pc++;
+        log_info(logger, "PID: %i - Ejecutando: MOV_IN - %s %s", pcb->pid, registro_datos, registro_direccion);
+        execute_mov_in(pcb, registro_datos, direcciones_fisicas);
+    }
+    else if (strcmp("MOV_OUT", operacion) == 0)
+    {
+        char registro_direccion[10];
+        char registro_datos[10];
+
+        sscanf(instruccion, "%s %s %s", operacion, registro_direccion, registro_datos);
+
+        t_list *direcciones_fisicas = mmu(leer_registro(pcb, registro_direccion), tamanio_registro(registro_datos), pcb->pid);
+
+        pcb->cpu_registers->pc++;
+        log_info(logger, "PID: %i - Ejecutando: MOV_OUT - %s %s", pcb->pid, registro_direccion, registro_datos);
+        execute_mov_out(pcb, direcciones_fisicas, registro_datos);
     }
     else if (strcmp("SUM", operacion) == 0)
     {
@@ -215,6 +246,7 @@ void decode(t_pcb *pcb, char *instruccion)
 
         sscanf(instruccion, "%s %s %s", operacion, registro_destino, registro_origen);
 
+        pcb->cpu_registers->pc++;
         execute_sum(pcb, registro_destino, registro_origen);
     }
     else if (strcmp("SUB", operacion) == 0)
@@ -224,6 +256,7 @@ void decode(t_pcb *pcb, char *instruccion)
 
         sscanf(instruccion, "%s %s %s", operacion, registro_destino, registro_origen);
 
+        pcb->cpu_registers->pc++;
         execute_sub(pcb, registro_destino, registro_origen);
     }
     else if (strcmp("JNZ", operacion) == 0)
@@ -233,6 +266,7 @@ void decode(t_pcb *pcb, char *instruccion)
 
         sscanf(instruccion, "%s %s %u", operacion, registro, &nuevo_program_counter);
 
+        pcb->cpu_registers->pc++;
         execute_jnz(pcb, registro, nuevo_program_counter);
     }
     else if (strcmp("RESIZE", operacion) == 0)
@@ -264,9 +298,6 @@ void decode(t_pcb *pcb, char *instruccion)
         log_error(logger, "Instrucción desconocida: %s", instruccion);
         sleep(1);
     }
-    
-    log_trace(logger, "Aumentando el program counter");
-    // pcb->cpu_registers->pc++;
 }
 
 void check_interrupt(t_pcb *pcb)
@@ -286,4 +317,209 @@ void check_interrupt(t_pcb *pcb)
     {
         log_trace(logger, "El check interrupt detectó una interrupción, pero para otro pid (%i), así que la ignora", pcb->pid);
     }
+}
+
+void preguntar_tamanio_pagina()
+{
+    if(tamanio_pagina == -1)
+    {
+        log_trace(logger, "El CPU no sabe cuál es el tamaño de página, así que le pregunta a la Memoria");
+        enviar_mensaje_simple(socket_memoria, PREGUNTA_TAMANIO_PAGINA);
+        op_code cod_op = recibir_operacion(socket_memoria);
+        if(cod_op != RESPUESTA_TAMANIO_PAGINA)
+        {
+        log_error(logger, "El CPU esperaba recibir una operación RESPUESTA_TAMANIO_PAGINA de la Memoria pero recibió otra operación");
+        }
+        tamanio_pagina = recibir_numero(socket_memoria);
+        log_trace(logger, "Ahora el CPU sabe que el tamaño de página es %i", tamanio_pagina);
+    }
+}
+
+uint32_t leer_registro(t_pcb *pcb, char *registro)
+{
+    if (strcmp(registro, "AX") == 0)
+    {
+        return pcb->cpu_registers->normales[AX];
+    }
+    else if (strcmp(registro, "BX") == 0)
+    {
+        return pcb->cpu_registers->normales[BX];
+    }
+    else if (strcmp(registro, "CX") == 0)
+    {
+        return pcb->cpu_registers->normales[CX];
+    }
+    else if (strcmp(registro, "DX") == 0)
+    {
+        return pcb->cpu_registers->normales[DX];
+    }
+    else if (strcmp(registro, "EAX") == 0)
+    {
+        return pcb->cpu_registers->extendidos[EAX];
+    }
+    else if (strcmp(registro, "EBX") == 0)
+    {
+        return pcb->cpu_registers->extendidos[EBX];
+    }
+    else if (strcmp(registro, "ECX") == 0)
+    {
+        return pcb->cpu_registers->extendidos[ECX];
+    }
+    else if (strcmp(registro, "EDX") == 0)
+    {
+        return pcb->cpu_registers->extendidos[EDX];
+    }
+    else
+    {
+        log_error(logger, "El registro %s no existe", registro);
+        return -1;
+    }
+}
+
+void escribir_registro(t_pcb *pcb, char *registro, uint32_t valor)
+{
+    if (strcmp(registro, "AX") == 0)
+    {
+        pcb->cpu_registers->normales[AX] = valor;
+    }
+    else if (strcmp(registro, "BX") == 0)
+    {
+        pcb->cpu_registers->normales[BX] = valor;
+    }
+    else if (strcmp(registro, "CX") == 0)
+    {
+        pcb->cpu_registers->normales[CX] = valor;
+    }
+    else if (strcmp(registro, "DX") == 0)
+    {
+        pcb->cpu_registers->normales[DX] = valor;
+    }
+    else if (strcmp(registro, "EAX") == 0)
+    {
+        pcb->cpu_registers->extendidos[EAX] = valor;
+    }
+    else if (strcmp(registro, "EBX") == 0)
+    {
+        pcb->cpu_registers->extendidos[EAX] = valor;
+    }
+    else if (strcmp(registro, "ECX") == 0)
+    {
+        pcb->cpu_registers->extendidos[EAX] = valor;
+    }
+    else if (strcmp(registro, "EDX") == 0)
+    {
+        pcb->cpu_registers->extendidos[EAX] = valor;
+    }
+    else
+    {
+        log_error(logger, "El registro %s no existe", registro);
+    }
+}
+
+int tamanio_registro(char *registro)
+{
+    if (strcmp(registro, "AX") == 0)
+    {
+        return 1;
+    }
+    else if (strcmp(registro, "BX") == 0)
+    {
+        return 1;
+    }
+    else if (strcmp(registro, "CX") == 0)
+    {
+        return 1;
+    }
+    else if (strcmp(registro, "DX") == 0)
+    {
+        return 1;
+    }
+    else if (strcmp(registro, "EAX") == 0)
+    {
+        return 4;
+    }
+    else if (strcmp(registro, "EBX") == 0)
+    {
+        return 4;
+    }
+    else if (strcmp(registro, "ECX") == 0)
+    {
+        return 4;
+    }
+    else if (strcmp(registro, "EDX") == 0)
+    {
+        return 4;
+    }
+    else
+    {
+        log_error(logger, "El registro %s no existe", registro);
+        return -1;
+    }
+}
+
+t_list *mmu(uint32_t direccion_logica, int tamanio_del_contenido, int pid)
+{
+    t_list *lista_direcciones_fisicas = list_create();
+
+    preguntar_tamanio_pagina();
+    int numero_pagina = floor(direccion_logica / tamanio_pagina);
+    int desplazamiento = direccion_logica - numero_pagina * tamanio_pagina;
+    log_trace(logger, "El MMU traducirá la dirección lógica %u (página %i, desplazamiento %i)", direccion_logica, numero_pagina, desplazamiento);
+
+    t_direccion_y_tamanio *direccion_y_tamanio = malloc(sizeof(t_direccion_y_tamanio));
+    direccion_y_tamanio->direccion = averiguar_marco(pid, numero_pagina) * tamanio_pagina + desplazamiento;
+
+    // Si alcanza con una sola dirección física:
+    if(tamanio_del_contenido <= tamanio_pagina - desplazamiento)
+    {
+        direccion_y_tamanio->tamanio = tamanio_del_contenido;
+        list_add(lista_direcciones_fisicas, direccion_y_tamanio);
+
+        log_trace(logger, "La dirección lógica se tradujo en una única dirección física (%i)", direccion_y_tamanio->direccion);
+        return lista_direcciones_fisicas;
+    }
+    // Si hacen falta al menos dos:
+    else
+    {
+        direccion_y_tamanio->tamanio = tamanio_pagina - desplazamiento;
+        list_add(lista_direcciones_fisicas, direccion_y_tamanio);
+
+        tamanio_del_contenido -= tamanio_pagina - desplazamiento;
+        while(tamanio_del_contenido >= tamanio_pagina)
+        {
+            numero_pagina++;
+            t_direccion_y_tamanio *direccion_y_tamanio = malloc(sizeof(t_direccion_y_tamanio));
+            direccion_y_tamanio->direccion = averiguar_marco(pid, numero_pagina) * tamanio_pagina;
+            direccion_y_tamanio->tamanio = tamanio_pagina;
+            list_add(lista_direcciones_fisicas, direccion_y_tamanio);
+            tamanio_del_contenido -= tamanio_pagina;
+        }    
+
+        if(tamanio_del_contenido > 0)
+        {
+            numero_pagina++;
+            t_direccion_y_tamanio *direccion_y_tamanio = malloc(sizeof(t_direccion_y_tamanio));
+            direccion_y_tamanio->direccion = averiguar_marco(pid, numero_pagina) * tamanio_pagina;
+            direccion_y_tamanio->tamanio = tamanio_del_contenido;
+            list_add(lista_direcciones_fisicas, direccion_y_tamanio);
+        }
+
+        log_trace(logger, "La dirección lógica debió traducirse en %i direcciones físicas", list_size(lista_direcciones_fisicas));
+        return lista_direcciones_fisicas;
+    }
+}
+
+int averiguar_marco(int pid, int pagina)
+{
+    // TODO: TLB
+
+    enviar_solicitud_marco(socket_memoria, pid, pagina);
+    op_code cod_op = recibir_operacion(socket_memoria);
+    if(cod_op != MARCO)
+    {
+    log_error(logger, "El CPU esperaba recibir una operación MARCO de la Memoria pero recibió otra operación");
+    }
+    int marco = recibir_numero(socket_memoria);
+    log_info(logger, "PID: %i - OBTENER MARCO - Página: %i - Marco: %i", pid, pagina, marco);
+    return marco;
 }
