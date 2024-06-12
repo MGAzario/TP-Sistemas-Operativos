@@ -9,6 +9,7 @@
 #include <utils/utils.h>
 #include <utils/hello.h>
 #include <pthread.h>
+#include <math.h>
 #include "instrucciones.h"
 
 extern t_config *config;
@@ -20,6 +21,8 @@ extern int socket_cpu_interrupt;
 extern int socket_kernel_dispatch;
 extern int socket_kernel_interrupt;
 extern int socket_memoria;
+
+extern int tamanio_pagina;
 
 extern int continuar_ciclo;
 extern int pid_de_interrupcion;
@@ -38,6 +41,12 @@ void ciclo_de_instruccion(t_pcb *pcb);
 char *fetch(t_pcb *pcb);
 void decode(t_pcb *pcb, char *instruccion);
 void check_interrupt(t_pcb *pcb);
+void preguntar_tamanio_pagina();
+uint32_t leer_registro(t_pcb *pcb, char *registro);
+void escribir_registro(t_pcb *pcb, char *registro, uint32_t valor);
+int tamanio_registro(char *registro);
+t_list *mmu(uint32_t direccion_logica, int tamanio_del_contenido, int pid);
+int averiguar_marco(int pid, int pagina);
 
 
 #endif /*CPU_H*/

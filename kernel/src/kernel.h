@@ -9,6 +9,7 @@
 #include <readline/readline.h>
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
+#include <commons/temporal.h>
 #include <pthread.h>
 #include <utils/utils.h>
 
@@ -19,6 +20,7 @@ void conectar_memoria();
 void conectar_dispatch_cpu(char *ip_cpu);
 void conectar_interrupt_cpu(char *ip_cpu);
 void *recibir_entradasalida();
+void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo);
 void *interfaz_generica(void *interfaz_sleep);
 void crear_pcb(char *path);
 void encontrar_y_eliminar_proceso(int pid_a_eliminar);
@@ -31,6 +33,7 @@ void esperar_cpu();
 void eliminar_proceso(t_pcb *pcb);
 void consola();
 void planificar_round_robin();
+void planificar_vrr();
 void quantum_count(int* quantum);
 
 #endif /*KERNEL_H*/

@@ -32,7 +32,13 @@ typedef enum {
     STDIN,
     STDOUT,
     DialFS
-} tipo_interfaz;
+  } tipo_interfaz;
+
+typedef enum {
+    WAIT,
+    SIGNAL
+} motivo_bloqueo;
+
 
 // Definición de los registros de la CPU
 typedef struct {
@@ -60,6 +66,12 @@ typedef struct
     char *path;
     uint32_t tamanio_path;
 } t_creacion_proceso;
+
+typedef struct
+{
+    int pid;
+    t_list *lista_marcos;
+} t_tabla_de_paginas;
 
 typedef struct
 {
@@ -109,6 +121,52 @@ typedef struct
     uint32_t tamanio_nombre;
     tipo_interfaz tipo;
 } t_nombre_y_tipo_io;
+
+typedef struct
+{
+    t_pcb *pcb;
+    int tamanio;
+} t_resize;
+
+typedef struct
+{
+    int numero;
+} t_numero;
+
+typedef struct
+{
+    int pid;
+    int pagina;
+} t_solicitud_marco;
+
+typedef struct
+{
+    int direccion;
+    int tamanio;
+} t_direccion_y_tamanio;
+
+typedef struct
+{
+    int pid;
+    int direccion;
+    int tamanio;
+} t_leer_memoria;
+
+typedef struct
+{
+    void *lectura;
+    int tamanio_lectura;
+} t_lectura;
+
+typedef struct
+{
+    int pid;
+    int direccion;
+    int tamanio;
+    void *valor;
+} t_escribir_memoria;
+
+
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
 

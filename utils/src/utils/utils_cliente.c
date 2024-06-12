@@ -42,6 +42,8 @@ int crear_conexion(char *ip, char* puerto)
 
 	freeaddrinfo(servinfo);
 
+	log_trace(logger, "Conectado con %s:%s", ip, puerto);
+
 	return socket_cliente;
 }
 
@@ -202,6 +204,77 @@ t_paquete* crear_paquete_nombre_y_tipo(uint32_t tamanio_nombre) {
     paquete->buffer->size =  sizeof(uint32_t) 
 							+ tamanio_nombre
 							+ sizeof(tipo_interfaz);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_resize() {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = RESIZE;
+	crear_buffer(paquete);
+    paquete->buffer->size = 7 * sizeof(uint32_t) 
+							+ 3 * sizeof(int) 
+							+ sizeof(estado_proceso)
+							+ 4 * sizeof(uint8_t);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_numero(op_code cod_op) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = cod_op;
+	crear_buffer(paquete);
+    paquete->buffer->size = sizeof(int);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_solicitud_marco() {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = SOLICITUD_MARCO;
+	crear_buffer(paquete);
+    paquete->buffer->size = 2 * sizeof(int);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_leer_memoria() {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = LEER_MEMORIA;
+	crear_buffer(paquete);
+    paquete->buffer->size = 3 * sizeof(int);
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_lectura(int tamanio_lectura) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = MEMORIA_LEIDA;
+	crear_buffer(paquete);
+    paquete->buffer->size = sizeof(int)
+							+ tamanio_lectura;
+	void *magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+	free(magic);
+    return paquete;
+}
+
+t_paquete* crear_paquete_escribir_memoria(int tamanio_valor) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = ESCRIBIR_MEMORIA;
+	crear_buffer(paquete);
+    paquete->buffer->size = 3 * sizeof(int)
+							+ tamanio_valor;
 	void *magic = malloc(paquete->buffer->size);
     paquete->buffer->stream = magic;
 	free(magic);
@@ -410,6 +483,108 @@ void agregar_nombre_y_tipo_a_paquete(t_paquete* paquete, char *nombre, uint32_t 
 	paquete->buffer->stream = magic;
 }
 
+void agregar_resize_a_paquete(t_paquete* paquete, t_pcb* pcb, int tamanio) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+    memcpy(magic + desplazamiento, &(pcb->pid), sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &(pcb->quantum), sizeof(int));
+	desplazamiento+= sizeof(int);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->pc), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[AX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[BX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[CX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[DX]), sizeof(uint8_t));
+	desplazamiento+= sizeof(u_int8_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EAX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EBX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[ECX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EDX]), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->si), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+	memcpy(magic + desplazamiento, &(pcb->cpu_registers->di), sizeof(uint32_t));
+	desplazamiento+= sizeof(u_int32_t);
+
+	memcpy(magic + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
+	desplazamiento+= sizeof(estado_proceso);
+
+	memcpy(magic + desplazamiento, &tamanio, sizeof(int));
+
+	paquete->buffer->stream = magic;
+}
+
+void agregar_numero_a_paquete(t_paquete* paquete, int numero) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+	memcpy(magic + desplazamiento, &numero, sizeof(int));
+
+	paquete->buffer->stream = magic;
+}
+
+void agregar_solicitud_marco_a_paquete(t_paquete* paquete, int pid, int pagina) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+	memcpy(magic + desplazamiento, &pid, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &pagina, sizeof(int));
+	
+	paquete->buffer->stream = magic;
+}
+
+void agregar_leer_memoria_a_paquete(t_paquete* paquete, int pid, int direccion, int tamanio) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+	memcpy(magic + desplazamiento, &pid, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &direccion, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &tamanio, sizeof(int));
+	
+	paquete->buffer->stream = magic;
+}
+
+void agregar_lectura_a_paquete(t_paquete* paquete, void *lectura, int tamanio_lectura) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+	memcpy(magic + desplazamiento, &tamanio_lectura, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, lectura, tamanio_lectura);
+	
+	paquete->buffer->stream = magic;
+}
+
+void agregar_escribir_memoria_a_paquete(t_paquete* paquete, int pid, int direccion, int tamanio, void *valor) {
+	void * magic = malloc(paquete->buffer->size);
+	int desplazamiento = 0;
+
+	memcpy(magic + desplazamiento, &pid, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &direccion, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, &tamanio, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, valor, tamanio);
+	
+	paquete->buffer->stream = magic;
+}
+
 void enviar_paquete(t_paquete* paquete, int socket_cliente) 
 {
     // Calcular el tamaño total del paquete
@@ -423,7 +598,7 @@ void enviar_paquete(t_paquete* paquete, int socket_cliente)
 	eliminar_paquete(paquete);
 }
 
-void enviar_ok(int socket_cliente, op_code cod_op)
+void enviar_mensaje_simple(int socket_cliente, op_code cod_op)
 {
 	t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = cod_op;
@@ -526,6 +701,7 @@ void enviar_fin_sleep(int socket_cliente, t_pcb *pcb)
 	enviar_paquete(paquete, socket_cliente);
 }
 
+
 void enviar_fin_io_read(int socket_cliente, t_pcb *pcb)
 {
 	t_paquete* paquete = crear_paquete_pcb(FIN_IO_READ);
@@ -534,6 +710,79 @@ void enviar_fin_io_read(int socket_cliente, t_pcb *pcb)
 
 	enviar_paquete(paquete, socket_cliente);
 }
+
+void enviar_resize(int socket_cliente, t_pcb *pcb, int tamanio)
+{
+	t_paquete* paquete = crear_paquete_resize();
+
+	agregar_resize_a_paquete(paquete, pcb, tamanio);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_out_of_memory(int socket_cliente, t_pcb *pcb)
+{
+    t_paquete* paquete = crear_paquete_pcb(OUT_OF_MEMORY);
+
+    agregar_pcb_a_paquete(paquete, pcb);
+
+    enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_finalizacion_proceso(int socket_cliente, t_pcb *pcb)
+{
+    t_paquete* paquete = crear_paquete_pcb(FINALIZACION_PROCESO);
+
+    agregar_pcb_a_paquete(paquete, pcb);
+
+    enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_numero(int socket_cliente, int numero, op_code cod_op)
+{
+    t_paquete* paquete = crear_paquete_numero(cod_op);
+
+    agregar_numero_a_paquete(paquete, numero);
+
+    enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_solicitud_marco(int socket_cliente, int pid, int pagina)
+{
+	t_paquete* paquete = crear_paquete_solicitud_marco();
+
+	agregar_solicitud_marco_a_paquete(paquete, pid, pagina);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_leer_memoria(int socket_cliente, int pid, int direccion, int tamanio)
+{
+	t_paquete* paquete = crear_paquete_leer_memoria();
+
+	agregar_leer_memoria_a_paquete(paquete, pid, direccion, tamanio);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_lectura(int socket_cliente, void *lectura, int tamanio_lectura)
+{
+	t_paquete* paquete = crear_paquete_lectura(tamanio_lectura);
+
+	agregar_lectura_a_paquete(paquete, lectura, tamanio_lectura);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_escribir_memoria(int socket_cliente, int pid, int direccion, int tamanio, void *valor)
+{
+	t_paquete* paquete = crear_paquete_escribir_memoria(tamanio);
+
+	agregar_escribir_memoria_a_paquete(paquete, pid, direccion, tamanio, valor);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
 // Funciones para simplificar que no se sabe si funcionan o no (también están atrasadas en algunos cambios):
 
 // t_paquete* crear_paquete_pcb(void) {

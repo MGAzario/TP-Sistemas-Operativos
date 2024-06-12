@@ -7,7 +7,11 @@ t_log *logger;
 t_list *lista_interfaces;
 t_queue *cola_new;
 t_queue *cola_ready;
+t_queue *cola_prio;
+
 t_list *lista_bloqueados;
+
+t_temporal *quantVrr;
 
 /*-----------------------------VARIABLES GLOBALES--------------------------------------------------------------------*/
 
@@ -30,6 +34,7 @@ char *algoritmo_planificacion;
 sem_t sem_nuevo_pcb;
 sem_t sem_proceso_ready;
 sem_t sem_round_robin;
+sem_t sem_v_round_robin;
 
 /*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
@@ -43,6 +48,7 @@ int main(int argc, char *argv[])
     sem_init(&sem_nuevo_pcb, 0, 0);
     sem_init(&sem_proceso_ready, 0, 0);
     sem_init(&sem_round_robin, 0, 1);
+    sem_init(&sem_v_round_robin, 0, 1);
 
     crear_logger();
     crear_config();
@@ -181,6 +187,8 @@ void *recibir_entradasalida()
 
         // Creamos el hilo. Manejo de interfaces va a chequear el tipo de interfaz
         pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, manejo_interfaces, interfaz);
+        // Creamos el hilo
+        pthread_detach(hilo_entradasalida[numero_de_entradasalida]);
         numero_de_entradasalida++;
 
         free(nombre_y_tipo);
@@ -216,11 +224,12 @@ void *manejo_interfaces(t_interfaz *interfaz)
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
 {
     interfaz->socket = socket_entradasalida;
-    interfaz->nombre = nombre_y_tipo->nombre;
-    interfaz->tipo = nombre_y_tipo->tipo;
+    interfaz->nombre = nombre;
+    interfaz->tipo = tipo;
     interfaz->ocupada = false;
     list_add(lista_interfaces, interfaz);
 }
+
 
 void fin_sleep(t_interfaz *interfaz)
 {
@@ -262,6 +271,54 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
 
     // Activar el planificador
     sem_post(&sem_proceso_ready);
+
+void *interfaz_generica(void *interfaz_sleep)
+{
+    bool sigue_conectado = true;
+    while (sigue_conectado)
+    {
+        t_interfaz *interfaz = interfaz_sleep;
+
+        op_code cod_op = recibir_operacion(interfaz->socket);
+        if (cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+            sigue_conectado = false;
+            // TODO: Liberar estructuras
+        }
+        else if (cod_op != FIN_SLEEP)
+        {
+            log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        }
+        else
+        {
+            t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+
+            // Buscamos el proceso en BLOCKED y lo mandamos a READY
+            for (int i = 0; i < list_size(lista_bloqueados); i++)
+            {
+                t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+                if (pcb->pid == pcb_a_desbloquear->pid)
+                {
+                    list_remove(lista_bloqueados, i);
+                    pcb->estado = READY;
+
+                    if (strcmp(algoritmo_planificacion, "VRR") == 0)
+                    {
+                        queue_push(queue_prio, pcb_ejecutandose);
+                    }
+                    else
+                    {
+                        queue_push(cola_ready, pcb);
+                    }
+
+                    sem_post(&sem_proceso_ready);
+                    interfaz->ocupada = false;
+                }
+            }
+        }
+    }
+    return NULL;
 }
 
 /*-----------------------------PROCESOS Y CPU--------------------------------------------------------------------*/
@@ -303,7 +360,7 @@ void crear_pcb(char *path)
         return;
     }
     recibir_ok(socket_memoria);
-    log_trace(logger, "Recibí OK de la memoria");
+    log_trace(logger, "Recibí OK de la memoria luego de pedirle crear un proceso");
 
     // El PCB se agrega a la cola de los procesos NEW
     queue_push(cola_new, pcb);
@@ -423,8 +480,6 @@ void planificar_fifo()
         // FIFO toma el primer proceso de la cola
         t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
 
-        log_trace(logger, "CX: %i", proceso_a_ejecutar->cpu_registers->normales[CX]);
-
         // Estado pasa a ejecucion
         proceso_a_ejecutar->estado = EXEC;
 
@@ -443,38 +498,39 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-    pthread_t quantum_thread;
-    int quantum = config_get_int_value(config, "QUANTUM");
+    // pthread_t quantum_thread;
+    // int quantum = config_get_int_value(config, "QUANTUM");
 
-    sem_wait(&sem_round_robin);
-    // desalojo de CPU
-    //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+    // sem_wait(&sem_round_robin);
+    // //desalojo de CPU
+    // // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
 
-    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
-    if (!queue_is_empty(cola_ready))
-    {
-        // Obtener el proceso listo para ejecutarse de la cola
-        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+    // // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    // if (!queue_is_empty(cola_ready))
+    // {
+    //     // Obtener el proceso listo para ejecutarse de la cola
+    //     t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
 
-        // wait(sem_mutex_interrupt)
-        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-        esperar_cpu();
-        // sem_post(sem_mutex_interrupt)
+    //     //wait(sem_mutex_interrupt)
+    //     enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    //     esperar_cpu();
+    //     //sem_post(sem_mutex_interrupt)
 
-        // Cambiar el estado del proceso a EXEC
-        proceso_a_ejecutar->estado = EXEC;
+    //     // Cambiar el estado del proceso a EXEC
+    //     proceso_a_ejecutar->estado = EXEC;
 
-        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    //     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
-        pthread_create(&quantum_thread, NULL, (void *)quantum_count, (void *)quantum);
+    //     pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
 
-        pcb_ejecutandose = proceso_a_ejecutar;
+    //     pcb_ejecutandose = proceso_a_ejecutar;
 
-        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
-        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
-    }
-    // mutex en la cola de interrupt
+    //     // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+    //     // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+    //     // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
+
+    // }
+    // //mutex en la cola de interrupt
 }
 
 void quantum_count(int *quantum)
@@ -485,7 +541,49 @@ void quantum_count(int *quantum)
 
 void planificar_vrr()
 {
-    // TODO
+    pthread_t quantum_vrr;
+    int quantum = config_get_int_value(config, "QUANTUM");
+
+    sem_wait(&sem_v_round_robin);
+
+    if (!queue_is_empty(cola_ready))
+    {
+        // Obtener el proceso listo para ejecutarse de la cola
+
+        if (!queue_is_empty(cola_prio))
+        {
+            t_pcb *proceso_a_ejecutar = queue_pop(cola_prio);
+        }
+        else
+        {
+            t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+        }
+    }
+
+    wait(sem_mutex_interrupt)
+        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+        esperar_cpu();
+    sem_post(sem_mutex_interrupt)
+        // Cambiar el estado del proceso a EXEC
+        proceso_a_ejecutar->estado = EXEC;
+
+    enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+
+    quantVrr = temporal_create(void);
+
+    pthread_create(&quantum_thread, NULL, (void *)quantum_count, (void *)quantum);
+
+    pcb_ejecutandose = proceso_a_ejecutar;
+
+}
+
+void quantum_count(int *quantum)
+{
+
+    usleep(*quantum * 1000); // en caso de que muera el proceso, se resetea quantvrr y se mata a quantumcount y se agrega a queue_prio
+                             //  valor del timer en el pcb, se manda sempostvrr
+    sem_post(&sem_v_round_robin);
+
 }
 
 void esperar_cpu()
@@ -511,9 +609,20 @@ void esperar_cpu()
         // while(1){}
         // esperar_cpu();
         break;
+
+    case OUT_OF_MEMORY:
+        log_debug(logger, "El CPU informa que, luego de pedirle un RESIZE ampliativo a la Memoria, esta le respondió que no tiene más espacio");
+        t_pcb *pcb_out_of_memory = recibir_pcb(socket_cpu_dispatch);
+        log_info(logger, "Finaliza el proceso %i - Motivo: OUT_OF_MEMORY", pcb_out_of_memory->pid);
+        eliminar_proceso(pcb_out_of_memory);
+        break;
     case IO_GEN_SLEEP:
         log_debug(logger, "El CPU pidió un sleep");
         t_sleep *sleep = recibir_sleep(socket_cpu_dispatch);
+        pcb_ejecutandose->quantum = temporal_gettime(quantVrr); //agregarlo a todas las io
+        temporal_destroy(quantVrr);
+        //pthread_attr_destroy(quantum_count); ??
+        //sem_post(sem_v_round_robin); ??
 
         // Hay que mandarle a la interfaz generica el sleep que llega de CPU
         // Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
@@ -565,8 +674,9 @@ void esperar_cpu()
         break;
     case INSTRUCCION_EXIT:
         log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
-        t_pcb *pcb = recibir_pcb(socket_cpu_dispatch);
-        eliminar_proceso(pcb);
+        t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
+        log_info(logger, "Finaliza el proceso %i - Motivo: EXIT", pcb_exit->pid);
+        eliminar_proceso(pcb_exit);
         break;
     case INTERRUPCION:
         log_debug(logger, "Al CPU el llegó una interrupción, así que envía el pcb junto con el motivo de la interrupción");
@@ -580,28 +690,48 @@ void esperar_cpu()
         }
         if (interrupcion->motivo == FIN_DE_QUANTUM)
         {
-            if (strcmp(algoritmo_planificacion, "RR"))
+            if (strcmp(algoritmo_planificacion, "RR") == 0)
             {
                 log_debug(logger, "Este motivo es FIN_DE_QUANTUM con RR, entonces se agrega al final de la cola el proceso");
                 interrupcion->pcb->estado = READY;
                 queue_push(cola_ready, interrupcion->pcb);
                 sem_post(&sem_proceso_ready);
             }
-            else
+            if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
-                // TODO: VRR
+                log_debug(logger, "Este motivo es FIN_DE_QUANTUM con VRR, entonces se agrega al final de la cola el proceso");
+                interrupcion->pcb->estado = READY;
+                queue_push(cola_ready, interrupcion->pcb);
+                sem_post(&sem_proceso_ready);
             }
         }
+        // TODO PROCESAR WAIT Y SIGNAL DE CPU
+        // if(interrupcion->motivo == WAIT){}
+        // if(interrupcion->motivo == SIGNAL){}
         break;
     default:
-        log_warning(logger, "Mensaje desconocido del CPU");
+        log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
         break;
     }
 }
 
 void eliminar_proceso(t_pcb *pcb)
 {
-    // TODO: Informarle a la Memoria la eliminación del proceso, para que pueda liberar sus estructuras
+    enviar_finalizacion_proceso(socket_memoria, pcb);
+
+    op_code cod_op = recibir_operacion(socket_memoria);
+    if (cod_op != FINALIZACION_PROCESO_OK)
+    {
+        log_error(logger, "El Kernel esperaba recibir un OK de la memoria (luego de pedirle finalizar un proceso) pero recibió otra cosa");
+    }
+    recibir_ok(socket_memoria);
+    log_trace(logger, "Recibí OK de la memoria luego de pedirle finalizar un proceso");
+
+    if (pcb_ejecutandose->pid == pcb->pid)
+    {
+        free(pcb_ejecutandose->cpu_registers);
+        free(pcb_ejecutandose);
+    }
 
     free(pcb->cpu_registers);
     free(pcb);

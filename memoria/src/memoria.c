@@ -10,8 +10,24 @@ int socket_kernel;
 int socket_cpu;
 int socket_entradasalida;
 
-pthread_t hilo_kernel;
 pthread_t hilo_cpu;
+pthread_t hilo_kernel;
+pthread_t hilo_entradasalida[100];
+int numero_de_entradasalida;
+
+int tamanio_memoria;
+int tamanio_pagina;
+
+int marcos_memoria;
+
+int retardo;
+
+void *espacio_de_usuario;
+sem_t mutex_espacio_de_usuario;
+
+t_bitarray *marcos_libres;
+
+t_list *lista_tablas_de_paginas;
 
 t_list *lista_instrucciones_por_proceso;
 
@@ -22,19 +38,7 @@ int main(int argc, char* argv[])
 
     decir_hola("Memoria");
 
-    path_instrucciones = config_get_string_value(config, "PATH_INSTRUCCIONES");
-
-    lista_instrucciones_por_proceso = list_create();
-
-    // Crear socket memoria, tomando el puerto de un archivo.
-    // char *puerto_memoria= config_get_string_value(config, "PUERTO_ESCUCHA");
-    // int socket_memoria = iniciar_servidor(puerto_memoria);
-
-    // Espero a los clientes.
-    // Esto es repetitivo, y no tiene mucho sentido tampoco. Tendriamos que tener 1 socket solo que diferencie desde donde le estan hablando.
-    // recibir_kernel();
-    // recibir_cpu(socket_memoria);
-    // recibir_entradasalida(socket_memoria);
+    inicializar_variables_globales();
 
     iniciar_servidor_memoria();
 
@@ -52,18 +56,22 @@ int main(int argc, char* argv[])
     }
     pthread_detach(hilo_cpu);
 
+    // Recibo mensajes de interfaces
     while(1)
     {
-        // TODO: Recibir mensajes del módulo E/S
+        int socket_entradasalida = esperar_cliente(socket_memoria);
+        log_trace(logger, "Se conectó una interfaz con socket %i", socket_entradasalida);
+
+        int *socket = &socket_entradasalida;
+
+        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz, socket);
+        pthread_detach(hilo_entradasalida[numero_de_entradasalida]);
+        numero_de_entradasalida++;
     }
 
-    // Cerrar sockets
-    // liberar_conexion(socket_entradasalida); 
     liberar_conexion(socket_kernel); 
     liberar_conexion(socket_cpu);
     liberar_conexion(socket_memoria);
-
-    printf("Terminó\n");
 
     return 0;
 }
@@ -85,55 +93,111 @@ void crear_config(){
     }
 }
 
+void inicializar_variables_globales()
+{
+    path_instrucciones = config_get_string_value(config, "PATH_INSTRUCCIONES");
+    tamanio_memoria = config_get_int_value(config, "TAM_MEMORIA");
+    tamanio_pagina = config_get_int_value(config, "TAM_PAGINA");
+    retardo = config_get_int_value(config, "RETARDO_RESPUESTA");
+
+    numero_de_entradasalida = 0;
+
+    espacio_de_usuario = malloc(tamanio_memoria);
+    sem_init(&mutex_espacio_de_usuario, 0, 1);
+
+    marcos_memoria = tamanio_memoria / tamanio_pagina;
+
+    // para crear un bitarray hace falta pasarle el tamaño en bytes (8 bits),
+    // así que por las dudas verificamos que la cantidad de marcos sea un múltiplo de 8
+    if (marcos_memoria % 8 != 0) {
+        marcos_memoria = (int) ceil((float) marcos_memoria / (float) 8) * 8;
+        log_debug(logger, "El tamaño de la memoria es %i y el tamaño de la página es %i. Por lo tanto, la memoria tiene %i marcos (redondeado)",
+        tamanio_memoria, tamanio_pagina, marcos_memoria);
+    }
+    else
+    {
+        log_debug(logger, "El tamaño de la memoria es %i y el tamaño de la página es %i. Por lo tanto, la memoria tiene %i marcos",
+        tamanio_memoria, tamanio_pagina, marcos_memoria);
+    }
+    void *bitarray_memoria = malloc(marcos_memoria / 8);
+    marcos_libres = bitarray_create_with_mode(bitarray_memoria, marcos_memoria / 8, LSB_FIRST);
+    for (int i = 0; i < bitarray_get_max_bit(marcos_libres); i++)
+    {
+        bitarray_clean_bit(marcos_libres, i);
+    }
+    estado_del_bitarray();
+
+    lista_tablas_de_paginas = list_create();
+    lista_instrucciones_por_proceso = list_create();
+}
+
 void iniciar_servidor_memoria() {
     char *puerto_memoria= config_get_string_value(config, "PUERTO_ESCUCHA");
     socket_memoria = iniciar_servidor(puerto_memoria);
     socket_cpu = esperar_cliente(socket_memoria);
     socket_kernel = esperar_cliente(socket_memoria);
-    // socket_entradasalida = esperar_cliente(socket_memoria);
 }
 
-/*Esta funcion gestiona los accesos a memoria. 
-El tema de la concurrencia a la memoria es una duda que todavia tengo. ¿Que pasa si 2 modulos distintos quieren entrar al mismo tiempo?*/
-// void manejar_conexion_entrante(int socket_memoria) {
-//     // Esperar una conexión entrante
-//     int socket_cliente = esperar_cliente(socket_memoria);
-//     if (socket_cliente == -1) {
-//         log_info(logger, "Error al aceptar la conexión entrante.\n");
-//         return;
-//     }
+void *interfaz(void *socket)
+{
+    bool sigue_conectado = true;
+    while(sigue_conectado)
+    {
+        op_code cod_op = recibir_operacion(*(int *) socket);
 
-//     // Recibir el primer mensaje para determinar el tipo de módulo
-//     t_paquete* paquete = recibir_paquete(socket_cliente);
-//     if (paquete == NULL) {
-//         log_info(logger, "Error al recibir el mensaje del cliente.\n");
-//         liberar_conexion(socket_cliente);
-//         return;
-//     }
+        switch (cod_op)
+        {
+            case MENSAJE:
+                recibir_ok(*(int *) socket);
+                log_debug(logger, "Mensaje recibido exitosamente de la interfaz de socket %i", *(int *) socket);
+                break;
+            case LEER_MEMORIA:
+                log_trace(logger, "Recibí una solicitud de una interfaz para leer de Memoria");
+                usleep(retardo * 1000);
+                t_leer_memoria *leer_memoria = recibir_leer_memoria(*(int *) socket);
+                void *lectura = leer(leer_memoria->direccion, leer_memoria->tamanio);
+                log_info(logger, "PID: %i - Accion: LEER - Direccion fisica: %i - Tamaño: %i",
+                    leer_memoria->pid,
+                    leer_memoria->direccion,
+                    leer_memoria->tamanio);
+                enviar_lectura(*(int *) socket, lectura, leer_memoria->tamanio);
+                break;
+            case ESCRIBIR_MEMORIA:
+                log_trace(logger, "Recibí una solicitud de una interfaz para escribir en Memoria");
+                usleep(retardo * 1000);
+                t_escribir_memoria *escribir_memoria = recibir_escribir_memoria(*(int *) socket);
+                escribir(escribir_memoria->direccion, escribir_memoria->tamanio, escribir_memoria->valor);
+                log_info(logger, "PID: %i - Accion: ESCRIBIR - Direccion fisica: %i - Tamaño: %i",
+                    escribir_memoria->pid,
+                    escribir_memoria->direccion,
+                    escribir_memoria->tamanio);
+                enviar_mensaje_simple(*(int *) socket, MEMORIA_ESCRITA);
+                break;
+            case DESCONEXION:
+                log_warning(logger, "Se desconectó una interfaz");
+                sigue_conectado = false;
+                break;
+            default:
+                log_warning(logger, "Mensaje desconocido de una interfaz: %i", cod_op);
+                while(1);
+                break;
+        }
+    }
+    return NULL;
+}
 
-//     // Verificar el tipo de operación del paquete recibido
-//     switch (paquete->codigo_operacion) {
-//         case KERNEL_CREACION_PROCESO:
-//             log_info(logger, "Conexión recibida del Kernel.\n");
-//             // Realizar operaciones correspondientes al Kernel
-//             // ...
-//             break;
-//         case CPU_SOLICITAR_INSTRUCCION:
-//             log_info(logger, "Conexión recibida del CPU.\n");
-//             // Realizar operaciones correspondientes al CPU
-//             // ...
-//             break;
-//         case MENSAJE_ENTRADA_SALIDA:
-//             log_info(logger, "Conexión recibida de Entrada/Salida.\n");
-//             // Realizar operaciones correspondientes a Entrada/Salida
-//             // ...
-//             break;
-//         default:
-//             log_info(logger, "Conexión recibida de un módulo desconocido.\n");
-//             break;
-//     }
+void *leer(int direccion_fisica, int tamanio)
+{
+    void *valor = malloc(tamanio);
+    sem_wait(&mutex_espacio_de_usuario);
+    memcpy(valor, espacio_de_usuario + direccion_fisica, tamanio);
+    sem_post(&mutex_espacio_de_usuario);
+    return valor;
+}
 
-//     // Liberar recursos y cerrar la conexión
-//     eliminar_paquete(paquete);
-//     liberar_conexion(socket_cliente);
-// }
+void escribir(int direccion_fisica, int tamanio, void *valor)
+{
+    sem_wait(&mutex_espacio_de_usuario);
+    memcpy(espacio_de_usuario + direccion_fisica, valor, tamanio);
+    sem_post(&mutex_espacio_de_usuario);
+}

@@ -5,8 +5,13 @@ t_log *logger;
 char *ip_kernel;
 char *puerto_kernel;
 int socket_kernel;
+
 const char *nombre;
 const char *archivo_configuracion;
+
+char *ip_memoria;
+char *puerto_memoria;
+int socket_memoria;
 
 int main(int argc, char *argv[])
 {
@@ -18,8 +23,18 @@ int main(int argc, char *argv[])
     decir_hola("una Interfaz de Entrada/Salida");
 
     conectar_kernel();
+
     // conectar_memoria();
     crear_interaz();
+
+    conectar_memoria();
+    // Prueba inicio
+    enviar_mensaje_simple(socket_memoria, MENSAJE);
+    sleep(2);
+    enviar_mensaje_simple(socket_memoria, MENSAJE);
+    // Prueba fin
+    crear_interfaz_generica("PruebaIO");
+
 
     log_info(logger, "Terminó\n");
     liberar_conexion(socket_kernel);
@@ -57,9 +72,9 @@ void conectar_kernel()
 void conectar_memoria()
 {
     // Establecer conexión con el módulo Memoria
-    // char *ip_memoria = config_get_string_value(config, "IP_MEMORIA");
-    // char *puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
-    // int socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
+    ip_memoria = config_get_string_value(config, "IP_MEMORIA");
+    puerto_memoria = config_get_string_value(config, "PUERTO_MEMORIA");
+    socket_memoria = conectar_modulo(ip_memoria, puerto_memoria);
 }
 
 // Creacion de interfaces
@@ -106,6 +121,11 @@ void crear_interfaz_generica()
         op_code cod_op = recibir_operacion(socket_kernel);
         log_trace(logger, "Llegó un pedido del Kernel");
 
+        if(cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó el Kernel");
+            while(1);
+        }
         if (cod_op != IO_GEN_SLEEP)
         {
             log_error(logger, "La interfaz esperaba recibir una operación IO_GEN_SLEEP del Kernel pero recibió otra operación");
