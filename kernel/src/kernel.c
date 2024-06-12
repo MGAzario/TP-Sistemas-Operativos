@@ -234,11 +234,16 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
 void fin_sleep(t_interfaz *interfaz)
 {
     op_code cod_op = recibir_operacion(interfaz->socket);
-    if (cod_op != FIN_SLEEP)
-    {
-        log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
-        return;
-    }
+    if (cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+            sigue_conectado = false;
+            // TODO: Liberar estructuras
+        }
+        else if (cod_op != FIN_SLEEP)
+        {
+            log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        }
    desbloquear_proceso_io(interfaz);
 }
 
@@ -260,11 +265,28 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
     // Recibir el PCB que se desbloqueará
     t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
 
-    // Eliminar el proceso de la lista de bloqueados
-    list_remove_element(lista_bloqueados, pcb_a_desbloquear);
+    // Buscamos el proceso en BLOCKED y lo mandamos a READY
+            for (int i = 0; i < list_size(lista_bloqueados); i++)
+            {
+                t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+                if (pcb->pid == pcb_a_desbloquear->pid)
+                {
+                    list_remove(lista_bloqueados, i);
+                    pcb->estado = READY;
 
-    // Cambiar el estado del PCB a READY
-    pcb_a_desbloquear->estado = READY;
+                    if (strcmp(algoritmo_planificacion, "VRR") == 0)
+                    {
+                        queue_push(queue_prio, pcb_ejecutandose);
+                    }
+                    else
+                    {
+                        queue_push(cola_ready, pcb);
+                    }
+
+                    sem_post(&sem_proceso_ready);
+                    interfaz->ocupada = false;
+                }
+            }
 
     // Colocar el PCB en la cola de ready
     queue_push(cola_ready, pcb_a_desbloquear);
