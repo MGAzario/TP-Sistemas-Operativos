@@ -230,32 +230,39 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
     list_add(lista_interfaces, interfaz);
 }
 
-
 void fin_sleep(t_interfaz *interfaz)
 {
+    bool sigue_conectado = true;
     op_code cod_op = recibir_operacion(interfaz->socket);
     if (cod_op == DESCONEXION)
-        {
-            log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
-            sigue_conectado = false;
-            // TODO: Liberar estructuras
-        }
-        else if (cod_op != FIN_SLEEP)
-        {
-            log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
-        }
-   desbloquear_proceso_io(interfaz);
-}
-
-void fin_io_read(t_interfaz *interfaz) {
-    op_code cod_op = recibir_operacion(interfaz->socket);
-    if (cod_op != FIN_IO_READ) {
-        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_READ pero recibió otra cosa");
-        return;  // Abortamos la función si no recibimos el código esperado
+    {
+        log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        sigue_conectado = false;
+        // TODO: Liberar estructuras
+    }
+    else if (cod_op != FIN_SLEEP)
+    {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
     }
     desbloquear_proceso_io(interfaz);
+}
 
-    
+void fin_io_read(t_interfaz *interfaz)
+{
+    bool sigue_conectado = true;
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op == DESCONEXION)
+    {
+        log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        sigue_conectado = false;
+        // TODO: Liberar estructuras
+    }
+    else if (cod_op != FIN_IO_READ)
+    {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_READ pero recibió otra cosa");
+        return; // Abortamos la función si no recibimos el código esperado
+    }
+    desbloquear_proceso_io(interfaz);
 }
 //Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
 void desbloquear_proceso_io(t_interfaz *interfaz)
@@ -276,7 +283,7 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
 
                     if (strcmp(algoritmo_planificacion, "VRR") == 0)
                     {
-                        queue_push(queue_prio, pcb_ejecutandose);
+                        queue_push(cola_prio, pcb_ejecutandose);
                     }
                     else
                     {
@@ -287,7 +294,6 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
                     interfaz->ocupada = false;
                 }
             }
-
 }
 
 void *interfaz_generica(void *interfaz_sleep)
