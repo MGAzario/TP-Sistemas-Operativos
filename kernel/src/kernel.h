@@ -9,6 +9,7 @@
 #include <readline/readline.h>
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
+#include <commons/temporal.h>
 #include <pthread.h>
 #include <utils/utils.h>
 
