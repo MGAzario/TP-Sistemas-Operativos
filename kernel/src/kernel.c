@@ -288,11 +288,6 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
                 }
             }
 
-    // Colocar el PCB en la cola de ready
-    queue_push(cola_ready, pcb_a_desbloquear);
-
-    // Activar el planificador
-    sem_post(&sem_proceso_ready);
 }
 
 void *interfaz_generica(void *interfaz_sleep)
