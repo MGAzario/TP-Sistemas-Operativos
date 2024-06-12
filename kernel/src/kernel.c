@@ -271,6 +271,7 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
 
     // Activar el planificador
     sem_post(&sem_proceso_ready);
+}
 
 void *interfaz_generica(void *interfaz_sleep)
 {
