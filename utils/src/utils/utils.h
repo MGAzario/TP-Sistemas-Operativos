@@ -28,13 +28,17 @@ typedef enum {
 } motivo_interrupcion;
 
 typedef enum {
+    GENERICA,
+    STDIN,
+    STDOUT,
+    DialFS
+  } tipo_interfaz;
+
+typedef enum {
     WAIT,
     SIGNAL
 } motivo_bloqueo;
 
-typedef enum {
-    GENERICA
-} tipo_interfaz;
 
 // Definición de los registros de la CPU
 typedef struct {
@@ -87,6 +91,7 @@ typedef struct
     motivo_interrupcion motivo;
 } t_interrupcion;
 
+//Estructuras para interfaces
 typedef struct
 {
     t_pcb *pcb;
@@ -94,6 +99,13 @@ typedef struct
     uint32_t tamanio_nombre_interfaz;
     uint32_t unidades_de_trabajo;
 } t_sleep;
+
+typedef struct {
+    t_pcb* pcb;                 // Puntero al PCB del proceso que realiza la operación
+    uint32_t direccion_fisica;  // Dirección física en la memoria
+    uint32_t tamanio;           // Tamaño del texto
+} t_io_std;
+
 
 typedef struct
 {

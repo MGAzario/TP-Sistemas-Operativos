@@ -177,9 +177,7 @@ void *recibir_entradasalida()
         }
         t_nombre_y_tipo_io *nombre_y_tipo = recibir_nombre_y_tipo(socket_entradasalida);
 
-        // TODO: Comprobar tipo de interfaz
-
-        // Si es una interfaz genérica:
+        
 
         // Guardamos nombre y socket de la interfaz
         t_interfaz *interfaz = malloc(sizeof(t_interfaz));
@@ -187,8 +185,9 @@ void *recibir_entradasalida()
 
         log_trace(logger, "La interfaz tiene nombre %s", interfaz->nombre);
 
+        // Creamos el hilo. Manejo de interfaces va a chequear el tipo de interfaz
+        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, manejo_interfaces, interfaz);
         // Creamos el hilo
-        pthread_create(&hilo_entradasalida[numero_de_entradasalida], NULL, interfaz_generica, interfaz);
         pthread_detach(hilo_entradasalida[numero_de_entradasalida]);
         numero_de_entradasalida++;
 
@@ -199,6 +198,29 @@ void *recibir_entradasalida()
     liberar_conexion(socket_kernel);
 }
 
+void *manejo_interfaces(t_interfaz *interfaz)
+{
+    while (1)
+    {
+        switch (interfaz->tipo)
+        {
+        case GENERICA:
+            fin_sleep(interfaz);
+            break;
+        case STDIN:
+            log_error(logger, "Falta implementar");
+            fin_io_read(interfaz);
+            break;
+        case STDOUT:
+            log_error(logger, "Falta implementar");
+            break;
+        case DialFS:
+            log_error(logger, "Falta implementar");
+            break:
+        }
+    }
+}
+
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
 {
     interfaz->socket = socket_entradasalida;
@@ -207,6 +229,48 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
     interfaz->ocupada = false;
     list_add(lista_interfaces, interfaz);
 }
+
+
+void fin_sleep(t_interfaz *interfaz)
+{
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op != FIN_SLEEP)
+    {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        return;
+    }
+   desbloquear_proceso_io(interfaz);
+}
+
+void fin_io_read(t_interfaz *interfaz) {
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op != FIN_IO_READ) {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_READ pero recibió otra cosa");
+        return;  // Abortamos la función si no recibimos el código esperado
+    }
+    desbloquear_proceso_io(interfaz);
+
+    
+}
+//Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
+void desbloquear_proceso_io(t_interfaz *interfaz)
+{
+    // La interfaz ya no está más ocupada
+    interfaz->ocupada = false;
+    // Recibir el PCB que se desbloqueará
+    t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+
+    // Eliminar el proceso de la lista de bloqueados
+    list_remove_element(lista_bloqueados, pcb_a_desbloquear);
+
+    // Cambiar el estado del PCB a READY
+    pcb_a_desbloquear->estado = READY;
+
+    // Colocar el PCB en la cola de ready
+    queue_push(cola_ready, pcb_a_desbloquear);
+
+    // Activar el planificador
+    sem_post(&sem_proceso_ready);
 
 void *interfaz_generica(void *interfaz_sleep)
 {
@@ -485,6 +549,7 @@ void planificar_vrr()
     if (!queue_is_empty(cola_ready))
     {
         // Obtener el proceso listo para ejecutarse de la cola
+
         if (!queue_is_empty(cola_prio))
         {
             t_pcb *proceso_a_ejecutar = queue_pop(cola_prio);
@@ -509,13 +574,16 @@ void planificar_vrr()
     pthread_create(&quantum_thread, NULL, (void *)quantum_count, (void *)quantum);
 
     pcb_ejecutandose = proceso_a_ejecutar;
+
 }
 
 void quantum_count(int *quantum)
 {
+
     usleep(*quantum * 1000); // en caso de que muera el proceso, se resetea quantvrr y se mata a quantumcount y se agrega a queue_prio
                              //  valor del timer en el pcb, se manda sempostvrr
     sem_post(&sem_v_round_robin);
+
 }
 
 void esperar_cpu()
@@ -541,6 +609,7 @@ void esperar_cpu()
         // while(1){}
         // esperar_cpu();
         break;
+
     case OUT_OF_MEMORY:
         log_debug(logger, "El CPU informa que, luego de pedirle un RESIZE ampliativo a la Memoria, esta le respondió que no tiene más espacio");
         t_pcb *pcb_out_of_memory = recibir_pcb(socket_cpu_dispatch);
@@ -554,7 +623,6 @@ void esperar_cpu()
         temporal_destroy(quantVrr);
         //pthread_attr_destroy(quantum_count); ??
         //sem_post(sem_v_round_robin); ??
-
 
         // Hay que mandarle a la interfaz generica el sleep que llega de CPU
         // Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
