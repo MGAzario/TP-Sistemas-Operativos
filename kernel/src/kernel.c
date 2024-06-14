@@ -11,13 +11,16 @@ t_queue *cola_prio;
 
 t_list *lista_bloqueados;
 
-t_temporal *quantVrr;
+t_temporal *cron_quant_vrr;
+
+t_dictionary *  dic_recursos;
 
 /*-----------------------------VARIABLES GLOBALES--------------------------------------------------------------------*/
 
 int ultimo_pid;
 char *ip_cpu;
 char *ip_memoria;
+
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 int socket_memoria;
@@ -25,6 +28,7 @@ int socket_kernel;
 int numero_de_entradasalida;
 int grado_multiprogramacion_activo;
 int grado_multiprogramacion_max;
+int quantum;
 
 t_pcb *pcb_ejecutandose;
 
@@ -34,26 +38,28 @@ char *algoritmo_planificacion;
 sem_t sem_nuevo_pcb;
 sem_t sem_proceso_ready;
 sem_t sem_round_robin;
-sem_t sem_v_round_robin;
+sem_t sem_vrr_block;
 
 /*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
-
 pthread_t hilo_recibir_entradasalida;
 pthread_t hilo_entradasalida[100];
+pthread_t hilo_quantum_vrr;
 
 int main(int argc, char *argv[])
 {
     sem_init(&sem_nuevo_pcb, 0, 0);
     sem_init(&sem_proceso_ready, 0, 0);
     sem_init(&sem_round_robin, 0, 1);
-    sem_init(&sem_v_round_robin, 0, 1);
 
     crear_logger();
     crear_config();
 
     decir_hola("Kernel");
+
+
+    crear_diccionario();
 
     // El grado de multiprogramacion va a ser una variable global, que van a manejar entre CPU y Kernel
     grado_multiprogramacion_max = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
@@ -161,6 +167,23 @@ void conectar_interrupt_cpu(char *ip_cpu)
     socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
 }
 
+void crear_diccionario(){
+    char** recursos;
+    char** instancias_recursos;
+    recursos=config_get_array_value(config, "RECURSOS");
+    instancias_recursos= config_get_array_value(config, "INSTANCIAS_RECURSOS");
+
+    dic_recursos=dictionary_create();
+    int i=0;
+    int i_rec;
+    while(recursos[i]!=NULL){
+        i_rec=atoi(instancias_recursos[i]);
+        dictionary_put(dic_recursos, recursos[i], i_rec);
+        i++;
+    }
+    
+}
+
 /*-----------------------------ENTRADA SALIDA--------------------------------------------------------------------*/
 void *recibir_entradasalida()
 {
@@ -176,8 +199,6 @@ void *recibir_entradasalida()
             log_error(logger, "El Kernel esperaba recibir el nombre y tipo de la interfaz pero recibió otra cosa");
         }
         t_nombre_y_tipo_io *nombre_y_tipo = recibir_nombre_y_tipo(socket_entradasalida);
-
-        
 
         // Guardamos nombre y socket de la interfaz
         t_interfaz *interfaz = malloc(sizeof(t_interfaz));
@@ -264,7 +285,7 @@ void fin_io_read(t_interfaz *interfaz)
     }
     desbloquear_proceso_io(interfaz);
 }
-//Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
+// Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
 void desbloquear_proceso_io(t_interfaz *interfaz)
 {
     // La interfaz ya no está más ocupada
@@ -273,28 +294,30 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
     t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
 
     // Buscamos el proceso en BLOCKED y lo mandamos a READY
-            for (int i = 0; i < list_size(lista_bloqueados); i++)
+    for (int i = 0; i < list_size(lista_bloqueados); i++)
+    {
+        t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+        if (pcb->pid == pcb_a_desbloquear->pid)
+        {
+            list_remove(lista_bloqueados, i);
+            pcb->estado = READY;
+
+            if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
-                t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
-                if (pcb->pid == pcb_a_desbloquear->pid)
-                {
-                    list_remove(lista_bloqueados, i);
-                    pcb->estado = READY;
-
-                    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-                    {
-                        queue_push(cola_prio, pcb_ejecutandose);
-                    }
-                    else
-                    {
-                        queue_push(cola_ready, pcb);
-                    }
-
-                    sem_post(&sem_proceso_ready);
-                    interfaz->ocupada = false;
-                }
+                queue_push(cola_prio, pcb);
             }
+            else
+            {
+                queue_push(cola_ready, pcb);
+            }
+
+            sem_post(&sem_proceso_ready);
+            interfaz->ocupada = false;
+        }
+    }
 }
+
+// FUNCION DEPRECADA ??
 
 void *interfaz_generica(void *interfaz_sleep)
 {
@@ -326,15 +349,6 @@ void *interfaz_generica(void *interfaz_sleep)
                 {
                     list_remove(lista_bloqueados, i);
                     pcb->estado = READY;
-
-                    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-                    {
-                        queue_push(queue_prio, pcb_ejecutandose);
-                    }
-                    else
-                    {
-                        queue_push(cola_ready, pcb);
-                    }
 
                     sem_post(&sem_proceso_ready);
                     interfaz->ocupada = false;
@@ -469,13 +483,19 @@ void *planificador_largo_plazo()
 // Planificador corto plazo
 void *planificador_corto_plazo()
 {
+    pthread_t hilo_quantum_block;
+    quantum = config_get_int_value(config, "QUANTUM");
+    if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    {
+        pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, NULL);
+    }
     while (1)
     {
         // Esperar a que se cree un nuevo PCB
         log_trace(logger, "PCP: Esperando que llegue un proceso a ready");
         sem_wait(&sem_proceso_ready);
         log_trace(logger, "PCP: Un proceso entró a ready");
-
+        
         if (strcmp(algoritmo_planificacion, "FIFO") == 0)
         {
             planificar_fifo();
@@ -522,92 +542,92 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-    // pthread_t quantum_thread;
-    // int quantum = config_get_int_value(config, "QUANTUM");
+    pthread_t quantum_thread;
 
-    // sem_wait(&sem_round_robin);
-    // //desalojo de CPU
-    // // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+    sem_wait(&sem_round_robin);
+    //desalojo de CPU
+    // pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
 
-    // // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
-    // if (!queue_is_empty(cola_ready))
-    // {
-    //     // Obtener el proceso listo para ejecutarse de la cola
-    //     t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    if (!queue_is_empty(cola_ready))
+    {
+        // Obtener el proceso listo para ejecutarse de la cola
+        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
 
-    //     //wait(sem_mutex_interrupt)
-    //     enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-    //     esperar_cpu();
-    //     //sem_post(sem_mutex_interrupt)
+        //wait(sem_mutex_interrupt)
+        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+        esperar_cpu();
+        //sem_post(sem_mutex_interrupt)
 
-    //     // Cambiar el estado del proceso a EXEC
-    //     proceso_a_ejecutar->estado = EXEC;
+        // Cambiar el estado del proceso a EXEC
+        proceso_a_ejecutar->estado = EXEC;
 
-    //     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
-    //     pthread_create(&quantum_thread, NULL, (void*) quantum_count, (void*) quantum);
+        pthread_create(&quantum_thread, NULL, (void*) quantum_count);
 
-    //     pcb_ejecutandose = proceso_a_ejecutar;
+        pcb_ejecutandose = proceso_a_ejecutar;
 
-    //     // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
-    //     // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-    //     // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
+        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
 
-    // }
-    // //mutex en la cola de interrupt
-}
-
-void quantum_count(int *quantum)
-{
-    usleep(*quantum * 1000);
-    sem_post(&sem_round_robin);
+    }
+    //mutex en la cola de interrupt
 }
 
 void planificar_vrr()
 {
-    pthread_t quantum_vrr;
-    int quantum = config_get_int_value(config, "QUANTUM");
+    t_pcb *proceso_a_ejecutar;
+    
+    sem_wait(&sem_round_robin);
 
-    sem_wait(&sem_v_round_robin);
-
-    if (!queue_is_empty(cola_ready))
+    if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
     {
         // Obtener el proceso listo para ejecutarse de la cola
 
         if (!queue_is_empty(cola_prio))
         {
-            t_pcb *proceso_a_ejecutar = queue_pop(cola_prio);
+            proceso_a_ejecutar = queue_pop(cola_prio);
         }
         else
         {
-            t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+            proceso_a_ejecutar = queue_pop(cola_ready);
         }
     }
-
-    wait(sem_mutex_interrupt)
-        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-        esperar_cpu();
-    sem_post(sem_mutex_interrupt)
-        // Cambiar el estado del proceso a EXEC
-        proceso_a_ejecutar->estado = EXEC;
+    // sem_mutex_interrupt
+    //sem_wait(sem_mutex_interrupt);
+    enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    esperar_cpu();
+    //sem_post(sem_mutex_interrupt);
+    // Cambiar el estado del proceso a EXEC
+    proceso_a_ejecutar->estado = EXEC;
 
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-
-    quantVrr = temporal_create(void);
-
-    pthread_create(&quantum_thread, NULL, (void *)quantum_count, (void *)quantum);
-
+    cron_quant_vrr = temporal_create(void);
+    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count);
     pcb_ejecutandose = proceso_a_ejecutar;
-
 }
 
-void quantum_count(int *quantum)
+void quantum_block()
 {
+    sem_wait(sem_vrr_block);
+    pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
+    temporal_destroy(cron_quant_vrr);
+    pthread_kill(hilo_quantum_vrr, SIGKILL);
+    sem_post(sem_round_robin);
+}
 
-    usleep(*quantum * 1000); // en caso de que muera el proceso, se resetea quantvrr y se mata a quantumcount y se agrega a queue_prio
-                             //  valor del timer en el pcb, se manda sempostvrr
-    sem_post(&sem_v_round_robin);
+// en caso de que muera el proceso, se resetea cron_quant_vrr y se mata a quantumcount y se agrega a queue_prio
+//  valor del timer en el pcb, se manda sempostvrr
 
+void quantum_count()
+{
+    usleep(quantum * 1000);
+    if(strcmp(algoritmo_planificacion,"VRR")==0){
+        temporal_destroy(cron_quant_vrr);
+    }
+    sem_post(&sem_round_robin);
 }
 
 void esperar_cpu()
@@ -643,10 +663,6 @@ void esperar_cpu()
     case IO_GEN_SLEEP:
         log_debug(logger, "El CPU pidió un sleep");
         t_sleep *sleep = recibir_sleep(socket_cpu_dispatch);
-        pcb_ejecutandose->quantum = temporal_gettime(quantVrr); //agregarlo a todas las io
-        temporal_destroy(quantVrr);
-        //pthread_attr_destroy(quantum_count); ??
-        //sem_post(sem_v_round_robin); ??
 
         // Hay que mandarle a la interfaz generica el sleep que llega de CPU
         // Vamos a recibir un paquete desde el dispatch proveniente de CPU que tiene la info de IO_GEN_SLEEP
@@ -678,7 +694,10 @@ void esperar_cpu()
 
         sleep->pcb->estado = BLOCKED;
         list_add(lista_bloqueados, sleep->pcb);
-
+        if (strcmp(algoritmo_planificacion, "VRR") == 0)
+        {
+            sem_post(sem_vrr_block);
+        }
         // Verficamos si la interfaz está ocupada
         if (interfaz_sleep->ocupada == false)
         {
@@ -733,9 +752,61 @@ void esperar_cpu()
         // if(interrupcion->motivo == WAIT){}
         // if(interrupcion->motivo == SIGNAL){}
         break;
+    case WAIT:
+        t_pcb* pcb= recibir_pcb(socket_cpu_dispatch); 
+        char* recurso_solicitado= recibir_wait();  //@leo pendiente serializar
+        if(dictionary_has_key(dic_recursos,recurso_solicitado)){
+            int cant_inst=dictionary_get(dic_recursos,recurso_solicitado);
+            cant_inst --;
+            dictionary_put(dic_recursos);
+            if(cant_inst<0){
+                bloquear_proceso(pcb);
+            }
+        }
+        else{
+            //enviar proceso a exit
+            eliminar_proceso(pcb);
+        }
+        break;
+    case SIGNAL:
+        t_pcb* pcb= recibir_pcb(socket_cpu_dispatch); // 
+        char* recurso_solicitado= recibir_wait(); //@leo pendiente serializar
+        if(dictionary_has_key(dic_recursos,recurso_solicitado)){
+            int cant_inst=dictionary_get(dic_recursos,recurso_solicitado);
+            cant_inst ++;
+            dictionary_put(dic_recursos);
+            if(cant_inst>=0){
+                desbloquear_proceso(pcb);
+            }
+        }
+        else{
+            eliminar_proceso(pcb);
+        }
+        break;
     default:
         log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
         break;
+    }
+}
+
+void bloquear_proceso(t_pcb *pcb){
+
+    pcb->estado=BLOCKED;
+    list_add(lista_bloqueados, pcb);
+
+}
+
+void desbloquear_proceso(t_pcb *pcb){
+    for (int i = 0; i < list_size(lista_bloqueados); i++)
+    {
+        
+        if (pcb->pid == pcb_a_desbloquear->pid)
+        {
+            list_remove(lista_bloqueados, i);
+            pcb->estado = READY;
+            sem_post(&sem_proceso_ready);
+            
+        }
     }
 }
 
