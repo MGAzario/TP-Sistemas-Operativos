@@ -9,6 +9,7 @@
 #include <readline/readline.h>
 #include <commons/collections/list.h>
 #include <commons/collections/queue.h>
+#include <commons/collections/dictionary.h>
 #include <commons/temporal.h>
 #include <pthread.h>
 #include <utils/utils.h>
@@ -30,10 +31,17 @@ void planificar_fifo();
 void planificar_round_robin();
 void planificar_vrr();
 void esperar_cpu();
+void bloquear_proceso(t_pcb *pcb);
+void desbloquear_proceso(t_pcb *pcb);
 void eliminar_proceso(t_pcb *pcb);
 void consola();
 void planificar_round_robin();
 void planificar_vrr();
-void quantum_count(int* quantum);
+void quantum_count();
+void quantum_block();
+void crear_diccionario();
+char* recibir_wait(); //a diseñar
+char* recibir_signal(); //a diseñar
+
 
 #endif /*KERNEL_H*/
