@@ -164,7 +164,7 @@ void crear_interfaz_stdin() {
         //TODO: recibir el IO_READ
         t_io_std *io_read = recibir_io_std(socket_kernel);
         uint32_t direccion_fisica = io_read->direccion_fisica;
-        uint32_t tamanio = io_read->tamanio;
+        uint32_t tamanio = io_read->tamanio_texto;
         
 
 

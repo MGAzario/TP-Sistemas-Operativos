@@ -385,7 +385,8 @@ t_io_std *recibir_io_std(int socket_cliente)
 	memcpy(io_std->nombre_interfaz, buffer, io_std->tamanio_nombre_interfaz);
 	buffer += io_std->tamanio_nombre_interfaz;
 
-	memcpy(&(io_std->unidades_de_trabajo), buffer, sizeof(uint32_t));
+	memcpy(&(io_std->direccion_fisica), buffer, sizeof(uint32_t));
+	memcpy(&(io_std->tamanio_texto), buffer, sizeof(uint32_t));
 
 	buffer = buffer - 2 * sizeof(int) - 8 * sizeof(uint32_t) - 4 * sizeof(uint8_t) - sizeof(estado_proceso) - io_std->tamanio_nombre_interfaz;
 	free(buffer);

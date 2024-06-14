@@ -219,7 +219,7 @@ void *recibir_entradasalida()
     liberar_conexion(socket_kernel);
 }
 
-void *manejo_interfaces(t_interfaz *interfaz)
+void manejo_interfaces(t_interfaz *interfaz)
 {
     while (1)
     {
@@ -253,12 +253,11 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
 
 void fin_sleep(t_interfaz *interfaz)
 {
-    bool sigue_conectado = true;
+    
     op_code cod_op = recibir_operacion(interfaz->socket);
     if (cod_op == DESCONEXION)
     {
         log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
-        sigue_conectado = false;
         // TODO: Liberar estructuras
     }
     else if (cod_op != FIN_SLEEP)
@@ -270,12 +269,10 @@ void fin_sleep(t_interfaz *interfaz)
 
 void fin_io_read(t_interfaz *interfaz)
 {
-    bool sigue_conectado = true;
     op_code cod_op = recibir_operacion(interfaz->socket);
     if (cod_op == DESCONEXION)
     {
         log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
-        sigue_conectado = false;
         // TODO: Liberar estructuras
     }
     else if (cod_op != FIN_IO_READ)

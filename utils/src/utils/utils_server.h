@@ -39,5 +39,7 @@ t_solicitud_marco *recibir_solicitud_marco(int socket_cliente);
 t_leer_memoria *recibir_leer_memoria(int socket_cliente);
 t_lectura *recibir_lectura(int socket_cliente);
 t_escribir_memoria *recibir_escribir_memoria(int socket_cliente);
+t_io_std *recibir_io_std(int socket_cliente);
+
 
 #endif /* UTILS_SERVER_SERVER_H_ */

@@ -46,7 +46,7 @@ void desbloquear_proceso_io(t_interfaz *interfaz);
 void fin_io_read(t_interfaz *interfaz);
 void fin_sleep(t_interfaz *interfaz);
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo);
-void *manejo_interfaces(t_interfaz *interfaz);
+void manejo_interfaces(t_interfaz *interfaz);
 
 
 #endif /*KERNEL_H*/
