@@ -712,6 +712,9 @@ void esperar_cpu()
         // free(sleep);
 
         break;
+    case IO_STDIN_READ:
+        pedido_io_stdin_read();
+        break;
     case INSTRUCCION_EXIT:
         log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
         t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
@@ -791,7 +794,54 @@ void esperar_cpu()
         break;
     }
 }
+void pedido_io_stdin_read(){
+    log_debug(logger, "El CPU pidió un IO_STDIN_READ");
+        //t_io_std *io_std = recibir_paquete(socket_cpu_dispatch);
 
+
+        t_interfaz *interfaz_stdin_read = NULL;
+        // Buscamos la interfaz por su nombre
+        for (int i = 0; i < list_size(lista_interfaces); i++)
+        {
+            t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
+            if (strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
+            {
+                interfaz_stdin_read = list_get(lista_interfaces, i);
+            }
+        }
+
+        // Si la interfaz no existe mandamos el proceso a EXIT
+        if (interfaz_stdin_read == NULL)
+        {
+            log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+            eliminar_proceso(sleep->pcb);
+        }
+
+        // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
+        if (interfaz_stdin_read->tipo != STDIN)
+        {
+            log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+            eliminar_proceso(sleep->pcb);
+        }
+
+        sleep->pcb->estado = BLOCKED;
+        list_add(lista_bloqueados, sleep->pcb);
+        if (strcmp(algoritmo_planificacion, "VRR") == 0)
+        {
+            sem_post(&sem_vrr_block);
+        }
+        // Verficamos si la interfaz está ocupada
+        if (interfaz_stdin_read->ocupada == false)
+        {
+            //enviar_stdin_read();
+        }
+        else
+        {
+            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        }
+
+        interfaz_stdin_read->ocupada = true;
+}
 void bloquear_proceso(t_pcb *pcb)
 {
 

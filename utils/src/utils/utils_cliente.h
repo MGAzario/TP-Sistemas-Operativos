@@ -118,5 +118,6 @@ void enviar_solicitud_marco(int socket_cliente, int pid, int pagina);
 void enviar_leer_memoria(int socket_cliente, int pid, int direccion, int tamanio);
 void enviar_lectura(int socket_cliente, void *lectura, int tamanio_lectura);
 void enviar_escribir_memoria(int socket_cliente, int pid, int direccion, int tamanio, void *valor);
+void enviar_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones );
 
 #endif /* UTILS_CLIENTE_H_ */
