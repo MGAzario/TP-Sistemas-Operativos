@@ -16,6 +16,8 @@ void execute_signal(t_pcb *pcb, char *nombre_recurso);
 void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo);
 void execute_exit(t_pcb *pcb);
 void destruir_direccion(void *elem);
+void execute_io_stdout_write(t_pcb *pcb, char *interfaz, t_list *direcciones);
+void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones);
 
 
 #endif /*INSTRUCCIONES_H*/
