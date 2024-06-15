@@ -740,6 +740,17 @@ void enviar_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_
 	enviar_paquete(paquete, socket_cliente);
 	eliminar_paquete(paquete);
 }
+void enviar_stdout_write(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones)
+{
+	t_paquete *paquete = crear_paquete();
+	paquete->codigo_operacion = IO_STDOUT_WRITE;
+
+	agregar_a_paquete(paquete, pcb, sizeof(t_pcb));
+	agregar_a_paquete(paquete, nombre_interfaz, sizeof(nombre_interfaz));
+	agregar_a_paquete(paquete, direcciones, sizeof(t_list));
+	enviar_paquete(paquete, socket_cliente);
+	eliminar_paquete(paquete);
+}
 
 void enviar_nombre_y_tipo(int socket_cliente, char *nombre, tipo_interfaz tipo)
 {
