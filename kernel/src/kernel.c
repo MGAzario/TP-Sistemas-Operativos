@@ -750,8 +750,9 @@ void esperar_cpu()
         // if(interrupcion->motivo == SIGNAL){}
         break;
     case WAIT:
-        t_pcb *pcb_wait = recibir_pcb(socket_cpu_dispatch);
-        char *recurso_solicitado = recibir_wait(); //@leo pendiente serializar
+        t_recurso *recurso_wait = recibir_recurso(socket_cpu_dispatch);
+        t_pcb *pcb_wait = recurso_wait->pcb;
+        char *recurso_solicitado = recurso_wait->nombre;
         if (dictionary_has_key(dic_recursos, recurso_solicitado))
         {
             int cant_inst = dictionary_get(dic_recursos, recurso_solicitado);
@@ -769,8 +770,9 @@ void esperar_cpu()
         }
         break;
     case SIGNAL:
-        t_pcb *pcb_signal = recibir_pcb(socket_cpu_dispatch);
-        char *recurso_liberado= recibir_signal(); //@leo pendiente serializar
+        t_recurso *recurso_signal = recibir_recurso(socket_cpu_dispatch);
+        t_pcb *pcb_signal = recurso_signal->pcb;
+        char *recurso_liberado = recurso_signal->nombre;
         if (dictionary_has_key(dic_recursos, recurso_liberado))
         {
             int cant_inst = dictionary_get(dic_recursos, recurso_liberado);

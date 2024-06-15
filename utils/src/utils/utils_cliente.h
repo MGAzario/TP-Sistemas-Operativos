@@ -52,7 +52,9 @@ typedef enum
 	LEER_MEMORIA,
 	MEMORIA_LEIDA,
 	ESCRIBIR_MEMORIA,
-	MEMORIA_ESCRITA
+	MEMORIA_ESCRITA,
+	WAIT,
+	SIGNAL
 } op_code;
 
 typedef struct
@@ -76,7 +78,7 @@ void liberar_conexion(int socket_cliente);
 void eliminar_paquete(t_paquete* paquete);
 int conectar_modulo(char* ip, char* puerto);
 t_paquete *crear_paquete_pcb(op_code cod_op);
-t_paquete *crear_paquete_creacion_proceso(uint32_t tamanio_path);
+t_paquete *crear_paquete_pcb_con_cadena(uint32_t tamanio_path, op_code cod_op);
 t_paquete* crear_paquete_instruccion(uint32_t tamanio_instruccion);
 t_paquete* crear_paquete_interrupcion();
 t_paquete* crear_paquete_sleep(uint32_t tamanio_nombre_interfaz);
@@ -88,7 +90,7 @@ t_paquete* crear_paquete_leer_memoria();
 t_paquete* crear_paquete_lectura(int tamanio_lectura);
 t_paquete* crear_paquete_escribir_memoria(int tamanio_valor);
 void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb);
-void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* path, uint32_t tamanio_path);
+void agregar_pcb_con_cadena_a_paquete(t_paquete* paquete, t_pcb* pcb, char* cadena, uint32_t tamanio_cadena);
 void agregar_instruccion_a_paquete(t_paquete* paquete, char* instruccion, uint32_t tamanio_instruccion);
 void agregar_interrupcion_a_paquete(t_paquete* paquete, t_pcb* pcb, motivo_interrupcion motivo);
 void agregar_sleep_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t unidades_de_trabajo);
@@ -118,5 +120,7 @@ void enviar_solicitud_marco(int socket_cliente, int pid, int pagina);
 void enviar_leer_memoria(int socket_cliente, int pid, int direccion, int tamanio);
 void enviar_lectura(int socket_cliente, void *lectura, int tamanio_lectura);
 void enviar_escribir_memoria(int socket_cliente, int pid, int direccion, int tamanio, void *valor);
+void enviar_wait(int socket_cliente, t_pcb *pcb, char *recurso);
+void enviar_signal(int socket_cliente, t_pcb *pcb, char *recurso);
 
 #endif /* UTILS_CLIENTE_H_ */

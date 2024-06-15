@@ -34,12 +34,6 @@ typedef enum {
     DialFS
   } tipo_interfaz;
 
-typedef enum {
-    WAIT,
-    SIGNAL
-} motivo_bloqueo;
-
-
 // Definición de los registros de la CPU
 typedef struct {
     uint32_t pc;   // Program Counter, 4 bytes
@@ -167,6 +161,13 @@ typedef struct
     int tamanio;
     void *valor;
 } t_escribir_memoria;
+
+typedef struct
+{
+    t_pcb *pcb;
+    char *nombre;
+    uint32_t tamanio_nombre;
+} t_recurso;
 
 
 //Declaracion de los semaforos

@@ -141,15 +141,15 @@ t_paquete* crear_paquete_pcb(op_code cod_op) {
     return paquete;
 }
 
-t_paquete* crear_paquete_creacion_proceso(uint32_t tamanio_path) {
+t_paquete* crear_paquete_pcb_con_cadena(uint32_t tamanio_cadena, op_code cod_op) {
     t_paquete* paquete = malloc(sizeof(t_paquete));
-    paquete->codigo_operacion = CREACION_PROCESO;
+    paquete->codigo_operacion = cod_op;
 	crear_buffer(paquete);
     paquete->buffer->size = 8 * sizeof(uint32_t) 
 							+ 2 * sizeof(int) 
 							+ sizeof(estado_proceso)
 							+ 4 * sizeof(uint8_t)
-							+ tamanio_path;
+							+ tamanio_cadena;
 	void *magic = malloc(paquete->buffer->size);
     paquete->buffer->stream = magic;
 	free(magic);
@@ -322,7 +322,7 @@ void agregar_pcb_a_paquete(t_paquete* paquete, t_pcb* pcb) {
 	paquete->buffer->stream = magic;
 }
 
-void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* path, uint32_t tamanio_path) {
+void agregar_pcb_con_cadena_a_paquete(t_paquete* paquete, t_pcb* pcb, char* cadena, uint32_t tamanio_cadena) {
 	void * magic = malloc(paquete->buffer->size);
 	int desplazamiento = 0;
 
@@ -360,9 +360,9 @@ void agregar_creacion_proceso_a_paquete(t_paquete* paquete, t_pcb* pcb, char* pa
 	memcpy(magic + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
 	desplazamiento+= sizeof(estado_proceso);
 
-	memcpy(magic + desplazamiento, &tamanio_path, sizeof(uint32_t));
+	memcpy(magic + desplazamiento, &tamanio_cadena, sizeof(uint32_t));
 	desplazamiento+= sizeof(u_int32_t);
-	memcpy(magic + desplazamiento, path, tamanio_path);
+	memcpy(magic + desplazamiento, cadena, tamanio_cadena);
 
 	paquete->buffer->stream = magic;
 }
@@ -628,9 +628,9 @@ void enviar_pcb(int socket_cliente, t_pcb *pcb)
 void enviar_creacion_proceso(int socket_cliente, t_pcb *pcb, char *path)
 {
 	uint32_t tamanio_path = string_length(path) + 1;
-	t_paquete* paquete = crear_paquete_creacion_proceso(tamanio_path);
+	t_paquete* paquete = crear_paquete_pcb_con_cadena(tamanio_path, CREACION_PROCESO);
 
-	agregar_creacion_proceso_a_paquete(paquete, pcb, path, tamanio_path);
+	agregar_pcb_con_cadena_a_paquete(paquete, pcb, path, tamanio_path);
 
 	enviar_paquete(paquete, socket_cliente);
 }
@@ -779,6 +779,26 @@ void enviar_escribir_memoria(int socket_cliente, int pid, int direccion, int tam
 	t_paquete* paquete = crear_paquete_escribir_memoria(tamanio);
 
 	agregar_escribir_memoria_a_paquete(paquete, pid, direccion, tamanio, valor);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_wait(int socket_cliente, t_pcb *pcb, char *recurso)
+{
+	uint32_t tamanio_recurso = string_length(recurso) + 1;
+	t_paquete* paquete = crear_paquete_pcb_con_cadena(tamanio_recurso, WAIT);
+
+	agregar_pcb_con_cadena_a_paquete(paquete, pcb, recurso, tamanio_recurso);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
+void enviar_signal(int socket_cliente, t_pcb *pcb, char *recurso)
+{
+	uint32_t tamanio_recurso = string_length(recurso) + 1;
+	t_paquete* paquete = crear_paquete_pcb_con_cadena(tamanio_recurso, SIGNAL);
+
+	agregar_pcb_con_cadena_a_paquete(paquete, pcb, recurso, tamanio_recurso);
 
 	enviar_paquete(paquete, socket_cliente);
 }

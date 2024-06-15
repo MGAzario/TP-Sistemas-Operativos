@@ -244,11 +244,26 @@ void execute_resize(t_pcb *pcb, int nuevo_tamanio_del_proceso)
     }
 }
 
+void execute_wait(t_pcb *pcb, char *nombre_recurso)
+{
+    log_info(logger, "PID: %i - Ejecutando: WAIT - %s", pcb->pid, nombre_recurso);
+    enviar_wait(socket_kernel_dispatch, pcb, nombre_recurso);
+    continuar_ciclo = 0;
+
+}
+
+void execute_signal(t_pcb *pcb, char *nombre_recurso)
+{
+    log_info(logger, "PID: %i - Ejecutando: SIGNAL - %s", pcb->pid, nombre_recurso);
+    enviar_signal(socket_kernel_dispatch, pcb, nombre_recurso);
+    continuar_ciclo = 0;
+}
+
 void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo)
 {
     /*IO_GEN_SLEEP (Interfaz, Unidades de trabajo): Esta instrucción solicita al Kernel que se envíe a una interfaz de I/O a que realice un 
     sleep por una cantidad de unidades de trabajo.*/
-    log_info(logger, "PID: %i - Ejecutando: IO_GEN_SLEEP", pcb->pid);
+    log_info(logger, "PID: %i - Ejecutando: IO_GEN_SLEEP - %s %i", pcb->pid, nombre_interfaz, unidades_de_trabajo);
     enviar_sleep(socket_kernel_dispatch, pcb, nombre_interfaz, unidades_de_trabajo);
     continuar_ciclo = 0;
     log_trace(logger, "Terminando instrucción de sleep");

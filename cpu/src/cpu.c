@@ -278,6 +278,24 @@ void decode(t_pcb *pcb, char *instruccion)
         pcb->cpu_registers->pc++;
         execute_resize(pcb, nuevo_tamanio_del_proceso);
     }
+    else if (strcmp("WAIT", operacion) == 0)
+    {
+        char nombre_recurso[50];
+
+        sscanf(instruccion, "%s %s", operacion, nombre_recurso);
+
+        pcb->cpu_registers->pc++;
+        execute_wait(pcb, nombre_recurso);
+    }
+    else if (strcmp("SIGNAL", operacion) == 0)
+    {
+        char nombre_recurso[50];
+
+        sscanf(instruccion, "%s %s", operacion, nombre_recurso);
+
+        pcb->cpu_registers->pc++;
+        execute_signal(pcb, nombre_recurso);
+    }
     else if (strcmp("IO_GEN_SLEEP", operacion) == 0)
     {
         char nombre_interfaz[50];

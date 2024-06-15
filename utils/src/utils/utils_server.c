@@ -552,3 +552,58 @@ t_escribir_memoria *recibir_escribir_memoria(int socket_cliente)
 	free(buffer);
 	return escribir_memoria;
 }
+
+t_recurso *recibir_recurso(int socket_cliente)
+{
+	int size;
+	void *buffer;
+	buffer = recibir_buffer(&size, socket_cliente);
+	t_recurso *recurso = malloc(sizeof(t_recurso));
+	t_pcb *pcb = malloc(sizeof(t_pcb));
+	t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
+	pcb->cpu_registers = registros;
+	recurso->pcb = pcb;
+
+	memcpy(&(recurso->pcb->pid), buffer, sizeof(int));
+	buffer += sizeof(int);
+	memcpy(&(recurso->pcb->quantum), buffer, sizeof(int));
+	buffer += sizeof(int);
+
+	memcpy(&(recurso->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(recurso->pcb->cpu_registers->normales[AX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(recurso->pcb->cpu_registers->normales[BX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(recurso->pcb->cpu_registers->normales[CX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+	memcpy(&(recurso->pcb->cpu_registers->normales[DX]), buffer, sizeof(uint8_t));
+	buffer += sizeof(uint8_t);
+
+	memcpy(&(recurso->pcb->cpu_registers->extendidos[EAX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(recurso->pcb->cpu_registers->extendidos[EBX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(recurso->pcb->cpu_registers->extendidos[ECX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(recurso->pcb->cpu_registers->extendidos[EDX]), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(recurso->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	memcpy(&(recurso->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+
+	memcpy(&(recurso->pcb->estado), buffer, sizeof(estado_proceso));
+	buffer += sizeof(estado_proceso);
+	
+	memcpy(&(recurso->tamanio_nombre), buffer, sizeof(uint32_t));
+	buffer += sizeof(uint32_t);
+	recurso->nombre = malloc(recurso->tamanio_nombre);
+	memcpy(recurso->nombre, buffer, recurso->tamanio_nombre);
+
+	buffer = buffer - 2 * sizeof(int) - 8 * sizeof(uint32_t) - 4 * sizeof(uint8_t) - sizeof(estado_proceso);
+	free(buffer);
+	return recurso;
+}
