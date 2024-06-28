@@ -168,20 +168,20 @@ void conectar_interrupt_cpu(char *ip_cpu)
 
 void crear_diccionario()
 {
-    char **recursos;
-    char **instancias_recursos;
-    recursos = config_get_array_value(config, "RECURSOS");
-    instancias_recursos = config_get_array_value(config, "INSTANCIAS_RECURSOS");
+    // char **recursos;
+    // char **instancias_recursos;
+    // recursos = config_get_array_value(config, "RECURSOS");
+    // instancias_recursos = config_get_array_value(config, "INSTANCIAS_RECURSOS");
 
-    dic_recursos = dictionary_create();
-    int i = 0;
-    int i_rec;
-    while (recursos[i] != NULL)
-    {
-        i_rec = atoi(instancias_recursos[i]);
-        dictionary_put(dic_recursos, recursos[i], (int)i_rec);
-        i++;
-    }
+    // dic_recursos = dictionary_create();
+    // int i = 0;
+    // int i_rec;
+    // while (recursos[i] != NULL)
+    // {
+    //     i_rec = atoi(instancias_recursos[i]);
+    //     dictionary_put(dic_recursos, recursos[i], (int)i_rec);
+    //     i++;
+    // }
 }
 
 /*-----------------------------ENTRADA SALIDA--------------------------------------------------------------------*/
@@ -219,14 +219,16 @@ void *recibir_entradasalida()
     liberar_conexion(socket_kernel);
 }
 
-void manejo_interfaces(t_interfaz *interfaz)
+void *manejo_interfaces(void *interfaz_hilo)
 {
-    while (1)
+    bool sigue_conectado = true;
+    while (sigue_conectado)
     {
+        t_interfaz *interfaz = interfaz_hilo;
         switch (interfaz->tipo)
         {
         case GENERICA:
-            fin_sleep(interfaz);
+            sigue_conectado = fin_sleep(interfaz);
             break;
         case STDIN:
             log_error(logger, "Falta implementar");
@@ -240,6 +242,7 @@ void manejo_interfaces(t_interfaz *interfaz)
             break;
         }
     }
+    return NULL;
 }
 
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
@@ -251,20 +254,25 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
     list_add(lista_interfaces, interfaz);
 }
 
-void fin_sleep(t_interfaz *interfaz)
+bool fin_sleep(t_interfaz *interfaz)
 {
-    
     op_code cod_op = recibir_operacion(interfaz->socket);
     if (cod_op == DESCONEXION)
     {
         log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        return false;
         // TODO: Liberar estructuras
     }
     else if (cod_op != FIN_SLEEP)
     {
         log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        return false;
     }
+    else
+    {
     desbloquear_proceso_io(interfaz);
+    return true;
+    }
 }
 
 void fin_io_read(t_interfaz *interfaz)
@@ -539,70 +547,70 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-    pthread_t quantum_thread;
+    // pthread_t quantum_thread;
 
-    sem_wait(&sem_round_robin);
-    // desalojo de CPU
-    //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+    // sem_wait(&sem_round_robin);
+    // // desalojo de CPU
+    // //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
 
-    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
-    if (!queue_is_empty(cola_ready))
-    {
-        // Obtener el proceso listo para ejecutarse de la cola
-        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+    // // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    // if (!queue_is_empty(cola_ready))
+    // {
+    //     // Obtener el proceso listo para ejecutarse de la cola
+    //     t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
 
-        // wait(sem_mutex_interrupt)
-        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-        esperar_cpu();
-        // sem_post(sem_mutex_interrupt)
+    //     // wait(sem_mutex_interrupt)
+    //     enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    //     esperar_cpu();
+    //     // sem_post(sem_mutex_interrupt)
 
-        // Cambiar el estado del proceso a EXEC
-        proceso_a_ejecutar->estado = EXEC;
+    //     // Cambiar el estado del proceso a EXEC
+    //     proceso_a_ejecutar->estado = EXEC;
 
-        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    //     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
 
-        pthread_create(&quantum_thread, NULL, (void *)quantum_count,NULL);
+    //     pthread_create(&quantum_thread, NULL, (void *)quantum_count,NULL);
 
-        pcb_ejecutandose = proceso_a_ejecutar;
+    //     pcb_ejecutandose = proceso_a_ejecutar;
 
-        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
-        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
-    }
-    // mutex en la cola de interrupt
+    //     // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+    //     // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+    //     // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
+    // }
+    // // mutex en la cola de interrupt
 }
 
 void planificar_vrr()
 {
-    t_pcb *proceso_a_ejecutar;
+    // t_pcb *proceso_a_ejecutar;
 
-    sem_wait(&sem_round_robin);
+    // sem_wait(&sem_round_robin);
 
-    if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
-    {
-        // Obtener el proceso listo para ejecutarse de la cola
+    // if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
+    // {
+    //     // Obtener el proceso listo para ejecutarse de la cola
 
-        if (!queue_is_empty(cola_prio))
-        {
-            proceso_a_ejecutar = queue_pop(cola_prio);
-        }
-        else
-        {
-            proceso_a_ejecutar = queue_pop(cola_ready);
-        }
-    }
-    // sem_mutex_interrupt
-    // sem_wait(sem_mutex_interrupt);
-    enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-    esperar_cpu();
-    // sem_post(sem_mutex_interrupt);
-    //  Cambiar el estado del proceso a EXEC
-    proceso_a_ejecutar->estado = EXEC;
+    //     if (!queue_is_empty(cola_prio))
+    //     {
+    //         proceso_a_ejecutar = queue_pop(cola_prio);
+    //     }
+    //     else
+    //     {
+    //         proceso_a_ejecutar = queue_pop(cola_ready);
+    //     }
+    // }
+    // // sem_mutex_interrupt
+    // // sem_wait(sem_mutex_interrupt);
+    // enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    // esperar_cpu();
+    // // sem_post(sem_mutex_interrupt);
+    // //  Cambiar el estado del proceso a EXEC
+    // proceso_a_ejecutar->estado = EXEC;
 
-    enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-    cron_quant_vrr = temporal_create();
-    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count,NULL);
-    pcb_ejecutandose = proceso_a_ejecutar;
+    // enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    // cron_quant_vrr = temporal_create();
+    // pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count,NULL);
+    // pcb_ejecutandose = proceso_a_ejecutar;
 }
 
 void quantum_block()
@@ -753,96 +761,97 @@ void esperar_cpu()
         // if(interrupcion->motivo == SIGNAL){}
         break;
     case WAIT:
-        t_recurso *recurso_wait = recibir_recurso(socket_cpu_dispatch);
-        t_pcb *pcb_wait = recurso_wait->pcb;
-        char *recurso_solicitado = recurso_wait->nombre;
-        if (dictionary_has_key(dic_recursos, recurso_solicitado))
-        {
-            int cant_inst = dictionary_get(dic_recursos, recurso_solicitado);
-            cant_inst--;
-            dictionary_put(dic_recursos,recurso_solicitado,cant_inst);
-            if (cant_inst < 0)
-            {
-                bloquear_proceso(pcb_wait);
-            }
-        }
-        else
-        {
-            // enviar proceso a exit
-            eliminar_proceso(pcb_wait);
-        }
+        // t_recurso *recurso_wait = recibir_recurso(socket_cpu_dispatch);
+        // t_pcb *pcb_wait = recurso_wait->pcb;
+        // char *recurso_solicitado = recurso_wait->nombre;
+        // if (dictionary_has_key(dic_recursos, recurso_solicitado))
+        // {
+        //     int cant_inst = dictionary_get(dic_recursos, recurso_solicitado);
+        //     cant_inst--;
+        //     dictionary_put(dic_recursos,recurso_solicitado,cant_inst);
+        //     if (cant_inst < 0)
+        //     {
+        //         bloquear_proceso(pcb_wait);
+        //     }
+        // }
+        // else
+        // {
+        //     // enviar proceso a exit
+        //     eliminar_proceso(pcb_wait);
+        // }
         break;
     case SIGNAL:
-        t_recurso *recurso_signal = recibir_recurso(socket_cpu_dispatch);
-        t_pcb *pcb_signal = recurso_signal->pcb;
-        char *recurso_liberado = recurso_signal->nombre;
-        if (dictionary_has_key(dic_recursos, recurso_liberado))
-        {
-            int cant_inst = dictionary_get(dic_recursos, recurso_liberado);
-            cant_inst++;
-            dictionary_put(dic_recursos, recurso_liberado,cant_inst);
-            if (cant_inst >= 0)
-            {
-                desbloquear_proceso(pcb_signal);
-            }
-        }
-        else
-        {
-            eliminar_proceso(pcb_signal);
-        }
+        // t_recurso *recurso_signal = recibir_recurso(socket_cpu_dispatch);
+        // t_pcb *pcb_signal = recurso_signal->pcb;
+        // char *recurso_liberado = recurso_signal->nombre;
+        // if (dictionary_has_key(dic_recursos, recurso_liberado))
+        // {
+        //     int cant_inst = dictionary_get(dic_recursos, recurso_liberado);
+        //     cant_inst++;
+        //     dictionary_put(dic_recursos, recurso_liberado,cant_inst);
+        //     if (cant_inst >= 0)
+        //     {
+        //         desbloquear_proceso(pcb_signal);
+        //     }
+        // }
+        // else
+        // {
+        //     eliminar_proceso(pcb_signal);
+        // }
         break;
     default:
         log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
         break;
     }
 }
-void pedido_io_stdin_read(){
-    log_debug(logger, "El CPU pidió un IO_STDIN_READ");
-        //t_io_std *io_std = recibir_paquete(socket_cpu_dispatch);
+void pedido_io_stdin_read()
+{
+    // log_debug(logger, "El CPU pidió un IO_STDIN_READ");
+    //     //t_io_std *io_std = recibir_paquete(socket_cpu_dispatch);
 
 
-        t_interfaz *interfaz_stdin_read = NULL;
-        // Buscamos la interfaz por su nombre
-        for (int i = 0; i < list_size(lista_interfaces); i++)
-        {
-            t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
-            if (strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
-            {
-                interfaz_stdin_read = list_get(lista_interfaces, i);
-            }
-        }
+    //     t_interfaz *interfaz_stdin_read = NULL;
+    //     // Buscamos la interfaz por su nombre
+    //     for (int i = 0; i < list_size(lista_interfaces); i++)
+    //     {
+    //         t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
+    //         if (strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
+    //         {
+    //             interfaz_stdin_read = list_get(lista_interfaces, i);
+    //         }
+    //     }
 
-        // Si la interfaz no existe mandamos el proceso a EXIT
-        if (interfaz_stdin_read == NULL)
-        {
-            log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
-            eliminar_proceso(sleep->pcb);
-        }
+    //     // Si la interfaz no existe mandamos el proceso a EXIT
+    //     if (interfaz_stdin_read == NULL)
+    //     {
+    //         log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+    //         eliminar_proceso(sleep->pcb);
+    //     }
 
-        // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
-        if (interfaz_stdin_read->tipo != STDIN)
-        {
-            log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
-            eliminar_proceso(sleep->pcb);
-        }
+    //     // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
+    //     if (interfaz_stdin_read->tipo != STDIN)
+    //     {
+    //         log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+    //         eliminar_proceso(sleep->pcb);
+    //     }
 
-        sleep->pcb->estado = BLOCKED;
-        list_add(lista_bloqueados, sleep->pcb);
-        if (strcmp(algoritmo_planificacion, "VRR") == 0)
-        {
-            sem_post(&sem_vrr_block);
-        }
-        // Verficamos si la interfaz está ocupada
-        if (interfaz_stdin_read->ocupada == false)
-        {
-            //enviar_stdin_read();
-        }
-        else
-        {
-            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
-        }
+    //     sleep->pcb->estado = BLOCKED;
+    //     list_add(lista_bloqueados, sleep->pcb);
+    //     if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    //     {
+    //         sem_post(&sem_vrr_block);
+    //     }
+    //     // Verficamos si la interfaz está ocupada
+    //     if (interfaz_stdin_read->ocupada == false)
+    //     {
+    //         //enviar_stdin_read();
+    //     }
+    //     else
+    //     {
+    //         log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    //     }
 
-        interfaz_stdin_read->ocupada = true;
+    //     interfaz_stdin_read->ocupada = true;
 }
 void bloquear_proceso(t_pcb *pcb)
 {

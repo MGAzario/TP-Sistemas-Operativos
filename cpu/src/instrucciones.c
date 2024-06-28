@@ -41,6 +41,26 @@ void execute_mov_in(t_pcb *pcb, char *registro_datos, t_list *direcciones)
             log_error(logger, "El CPU esperaba recibir una operación MEMORIA_LEIDA de la Memoria pero recibió otra operación");
         }
         t_lectura *leido = recibir_lectura(socket_memoria);
+
+        if(tamanio_registro(registro_datos) == 1)
+        {
+            uint8_t valor_un_byte = 0;
+            void *valor_un_byte_puntero = &valor_un_byte;
+            memcpy(valor_un_byte_puntero, leido->lectura, direccion_y_tamanio->tamanio);
+            log_info(logger, "PID: %i - Acción: LEER - Dirección Física: %i - Valor: %d", pcb->pid, direccion_y_tamanio->direccion, valor_un_byte);
+        }
+        else if(tamanio_registro(registro_datos) == 4)
+        {
+            uint32_t valor_cuatro_bytes = 0;
+            void *valor_cuatro_bytes_puntero = &valor_cuatro_bytes;
+            memcpy(valor_cuatro_bytes_puntero, leido->lectura, direccion_y_tamanio->tamanio);
+            log_info(logger, "PID: %i - Acción: LEER - Dirección Física: %i - Valor: %d", pcb->pid, direccion_y_tamanio->direccion, valor_cuatro_bytes);
+        }
+        else
+        {
+            log_error(logger, "No se sabe de qué tamaño es el registro. No pudo mostrarse el log de lectura");
+        }
+
         memcpy(puntero_valor + desplazamiento_puntero, leido->lectura, leido->tamanio_lectura);
         desplazamiento_puntero += leido->tamanio_lectura;
         free(leido->lectura);
@@ -64,6 +84,26 @@ void execute_mov_out(t_pcb *pcb, t_list *direcciones, char *registro_datos)
         void *valor_a_escribir = malloc(direccion_y_tamanio->tamanio);
         memcpy(valor_a_escribir, puntero_valor + desplazamiento_puntero, direccion_y_tamanio->tamanio);
         desplazamiento_puntero += direccion_y_tamanio->tamanio;
+
+        if(tamanio_registro(registro_datos) == 1)
+        {
+            uint8_t valor_un_byte = 0;
+            void *valor_un_byte_puntero = &valor_un_byte;
+            memcpy(valor_un_byte_puntero, valor_a_escribir, direccion_y_tamanio->tamanio);
+            log_info(logger, "PID: %i - Acción: ESCRIBIR - Dirección Física: %i - Valor: %d", pcb->pid, direccion_y_tamanio->direccion, valor_un_byte);
+        }
+        else if(tamanio_registro(registro_datos) == 4)
+        {
+            uint32_t valor_cuatro_bytes = 0;
+            void *valor_cuatro_bytes_puntero = &valor_cuatro_bytes;
+            memcpy(valor_cuatro_bytes_puntero, valor_a_escribir, direccion_y_tamanio->tamanio);
+            log_info(logger, "PID: %i - Acción: ESCRIBIR - Dirección Física: %i - Valor: %d", pcb->pid, direccion_y_tamanio->direccion, valor_cuatro_bytes);
+        }
+        else
+        {
+            log_error(logger, "No se sabe de qué tamaño es el registro. No pudo mostrarse el log de escritura");
+        }
+
         enviar_escribir_memoria(socket_memoria, pcb->pid, direccion_y_tamanio->direccion, direccion_y_tamanio->tamanio, valor_a_escribir);
         free(valor_a_escribir);
         op_code cod_op = recibir_operacion(socket_memoria);

@@ -8,6 +8,9 @@
 #include <semaphore.h>
 #include <utils/utils.h>
 #include <utils/hello.h>
+#include <commons/collections/list.h>
+#include <commons/collections/queue.h>
+#include <commons/memory.h>
 #include <pthread.h>
 #include <math.h>
 #include "instrucciones.h"
@@ -23,6 +26,11 @@ extern int socket_kernel_interrupt;
 extern int socket_memoria;
 
 extern int tamanio_pagina;
+
+extern bool lru;
+extern int cantidad_entradas_tlb;
+extern t_list *lista_entradas_tlb;
+extern t_queue *cola_reemplazo_tlb;
 
 extern int continuar_ciclo;
 extern int pid_de_interrupcion;
@@ -47,6 +55,8 @@ void escribir_registro(t_pcb *pcb, char *registro, uint32_t valor);
 int tamanio_registro(char *registro);
 t_list *mmu(uint32_t direccion_logica, int tamanio_del_contenido, int pid);
 int averiguar_marco(int pid, int pagina);
+int preguntar_marco_a_memoria(int pid, int pagina);
+void tlb();
 
 
 #endif /*CPU_H*/

@@ -169,6 +169,13 @@ typedef struct
     uint32_t tamanio_nombre;
 } t_recurso;
 
+typedef struct
+{
+    int pid;
+    int pagina;
+    int marco;
+} t_entrada_tlb;
+
 
 //Declaracion de los semaforos
 extern sem_t sem_nuevo_pcb;
