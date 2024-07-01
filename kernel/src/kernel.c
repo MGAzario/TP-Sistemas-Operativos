@@ -547,70 +547,73 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-    // pthread_t quantum_thread;
+    pthread_t quantum_thread;
+    log_trace(logger, "Inicia ciclo");
+    sem_wait(&sem_round_robin);
+    // desalojo de CPU
+    //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+    
+    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    if (!queue_is_empty(cola_ready))
+    {
+        //INICIAR_PROCESO PRUEBARR
+        log_trace(logger, "Entro if");
+        // Obtener el proceso listo para ejecutarse de la cola
+        t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+        log_trace(logger, "FALLO ENVIAR INT");
+        // wait(sem_mutex_interrupt)
+        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+        log_trace(logger, "Esperando CPU");
+        esperar_cpu();
+        // sem_post(sem_mutex_interrupt)
 
-    // sem_wait(&sem_round_robin);
-    // // desalojo de CPU
-    // //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
+        // Cambiar el estado del proceso a EXEC
+        proceso_a_ejecutar->estado = EXEC;
 
-    // // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
-    // if (!queue_is_empty(cola_ready))
-    // {
-    //     // Obtener el proceso listo para ejecutarse de la cola
-    //     t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
+        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+        log_trace(logger, "PCBenviado");
+        pthread_create(&quantum_thread, NULL, (void *)quantum_count,NULL);
 
-    //     // wait(sem_mutex_interrupt)
-    //     enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-    //     esperar_cpu();
-    //     // sem_post(sem_mutex_interrupt)
-
-    //     // Cambiar el estado del proceso a EXEC
-    //     proceso_a_ejecutar->estado = EXEC;
-
-    //     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-
-    //     pthread_create(&quantum_thread, NULL, (void *)quantum_count,NULL);
-
-    //     pcb_ejecutandose = proceso_a_ejecutar;
-
-    //     // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
-    //     // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
-    //     // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
-    // }
-    // // mutex en la cola de interrupt
+        pcb_ejecutandose = proceso_a_ejecutar;
+        log_trace(logger, "Termino ciclo");
+        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
+    }
+    // mutex en la cola de interrupt
 }
 
 void planificar_vrr()
 {
-    // t_pcb *proceso_a_ejecutar;
+    t_pcb *proceso_a_ejecutar;
 
-    // sem_wait(&sem_round_robin);
+    sem_wait(&sem_round_robin);
 
-    // if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
-    // {
-    //     // Obtener el proceso listo para ejecutarse de la cola
+    if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
+    {
+        // Obtener el proceso listo para ejecutarse de la cola
 
-    //     if (!queue_is_empty(cola_prio))
-    //     {
-    //         proceso_a_ejecutar = queue_pop(cola_prio);
-    //     }
-    //     else
-    //     {
-    //         proceso_a_ejecutar = queue_pop(cola_ready);
-    //     }
-    // }
-    // // sem_mutex_interrupt
-    // // sem_wait(sem_mutex_interrupt);
-    // enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-    // esperar_cpu();
-    // // sem_post(sem_mutex_interrupt);
-    // //  Cambiar el estado del proceso a EXEC
-    // proceso_a_ejecutar->estado = EXEC;
+        if (!queue_is_empty(cola_prio))
+        {
+            proceso_a_ejecutar = queue_pop(cola_prio);
+        }
+        else
+        {
+            proceso_a_ejecutar = queue_pop(cola_ready);
+        }
+    }
+    // sem_mutex_interrupt
+    // sem_wait(sem_mutex_interrupt);
+    enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    esperar_cpu();
+    // sem_post(sem_mutex_interrupt);
+    //  Cambiar el estado del proceso a EXEC
+    proceso_a_ejecutar->estado = EXEC;
 
-    // enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-    // cron_quant_vrr = temporal_create();
-    // pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count,NULL);
-    // pcb_ejecutandose = proceso_a_ejecutar;
+    enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    cron_quant_vrr = temporal_create();
+    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count,NULL);
+    pcb_ejecutandose = proceso_a_ejecutar;
 }
 
 void quantum_block()

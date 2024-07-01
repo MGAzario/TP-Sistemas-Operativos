@@ -163,7 +163,7 @@ void *recibir_interrupciones()
 
         pid_de_interrupcion = interrupcion->pcb->pid;
         motivo_de_interrupcion = interrupcion->motivo;
-
+        log_trace(logger, "El motivo de interrupcion es %d",motivo_de_interrupcion);
         free(interrupcion->pcb->cpu_registers);
         free(interrupcion->pcb);
         free(interrupcion);
