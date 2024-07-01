@@ -102,6 +102,12 @@ typedef struct {
     t_list *direcciones_fisicas;
 } t_io_stdin_read;
 
+typedef struct {
+    t_pcb *pcb;
+    uint32_t direccion_logica;
+    uint32_t tamaño;
+} t_io_stdout_write;
+
 
 typedef struct
 {

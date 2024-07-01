@@ -360,14 +360,14 @@ void decode(t_pcb *pcb, char *instruccion)
     uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
     uint32_t tamaño = leer_registro(pcb, registro_tamaño);
 
-    // Convertir la dirección lógica a direcciones físicas
+    // Convertir la dirección lógica a direcciones físicas (en este caso no necesitamos mmu)
     t_list *direcciones_fisicas = mmu(direccion_logica, tamaño, pcb->pid);
 
     pcb->cpu_registers->pc++;
     log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamaño);
 
     execute_io_stdout_write(pcb, nombre_interfaz, direcciones_fisicas, tamaño);
-    } 
+    }
     else if (strcmp("EXIT", operacion) == 0)
     {
         pcb->cpu_registers->pc++;
