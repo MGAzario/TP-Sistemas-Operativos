@@ -197,6 +197,29 @@ t_paquete* crear_paquete_sleep(uint32_t tamanio_nombre_interfaz) {
     return paquete;
 }
 
+t_paquete* crear_paquete_io_stdin_read(uint32_t tamanio_interfaz, uint32_t cantidad_direcciones) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = IO_STDIN_READ;
+    crear_buffer(paquete);
+
+    // Calcular el tamaño total del paquete
+    paquete->buffer->size = 9 * sizeof(uint32_t) 
+                            + 2 * sizeof(int) 
+                            + sizeof(estado_proceso)
+                            + 4 * sizeof(uint8_t)
+                            + tamanio_interfaz
+                            + sizeof(uint32_t)  // Tamaño de la cantidad de direcciones
+                            + cantidad_direcciones * sizeof(t_direccion_y_tamanio);
+
+    // Asignar memoria para el stream de datos del buffer
+    void* magic = malloc(paquete->buffer->size);
+    paquete->buffer->stream = magic;
+
+    return paquete;
+}
+
+
+
 t_paquete* crear_paquete_nombre_y_tipo(uint32_t tamanio_nombre) {
     t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = NOMBRE_Y_TIPO_IO;
@@ -468,53 +491,62 @@ void agregar_sleep_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interf
 
 	paquete->buffer->stream = magic;
 }
-void agregar_stidn_read_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t unidades_de_trabajo) {
-	void * magic = malloc(paquete->buffer->size);
-	int desplazamiento = 0;
 
-    memcpy(magic + desplazamiento, &(pcb->pid), sizeof(int));
-	desplazamiento+= sizeof(int);
-	memcpy(magic + desplazamiento, &(pcb->quantum), sizeof(int));
-	desplazamiento+= sizeof(int);
+void agregar_io_stdin_read_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, t_list* direcciones_fisicas, uint32_t tamaño) {
+    int desplazamiento = 0;
 
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->pc), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
+    // Copiar datos del PCB
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->pid), sizeof(int));
+    desplazamiento += sizeof(int);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->quantum), sizeof(int));
+    desplazamiento += sizeof(int);
 
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[AX]), sizeof(uint8_t));
-	desplazamiento+= sizeof(u_int8_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[BX]), sizeof(uint8_t));
-	desplazamiento+= sizeof(u_int8_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[CX]), sizeof(uint8_t));
-	desplazamiento+= sizeof(u_int8_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->normales[DX]), sizeof(uint8_t));
-	desplazamiento+= sizeof(u_int8_t);
+    // Copiar datos de los registros de CPU
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->pc), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->normales[AX]), sizeof(uint8_t));
+    desplazamiento += sizeof(uint8_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->normales[BX]), sizeof(uint8_t));
+    desplazamiento += sizeof(uint8_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->normales[CX]), sizeof(uint8_t));
+    desplazamiento += sizeof(uint8_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->normales[DX]), sizeof(uint8_t));
+    desplazamiento += sizeof(uint8_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->extendidos[EAX]), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->extendidos[EBX]), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->extendidos[ECX]), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->extendidos[EDX]), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->si), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->cpu_registers->di), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
+    desplazamiento += sizeof(estado_proceso);
 
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EAX]), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EBX]), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[ECX]), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->extendidos[EDX]), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
+    // Copiar datos de la interfaz y tamaño de nombre de interfaz
+    memcpy(paquete->buffer->stream + desplazamiento, &tamanio_nombre_interfaz, sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, nombre_interfaz, tamanio_nombre_interfaz);
+    desplazamiento += tamanio_nombre_interfaz;
 
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->si), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
-	memcpy(magic + desplazamiento, &(pcb->cpu_registers->di), sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
+    // Copiar cantidad de direcciones físicas
+    memcpy(paquete->buffer->stream + desplazamiento, &cantidad_direcciones, sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
 
-	memcpy(magic + desplazamiento, &(pcb->estado), sizeof(estado_proceso));
-	desplazamiento+= sizeof(estado_proceso);
-
-	memcpy(magic + desplazamiento, &tamanio_nombre_interfaz, sizeof(uint32_t));
-	desplazamiento+= sizeof(u_int32_t);
-	memcpy(magic + desplazamiento, nombre_interfaz, tamanio_nombre_interfaz);
-	desplazamiento+= tamanio_nombre_interfaz;
-
-	memcpy(magic + desplazamiento, &unidades_de_trabajo, sizeof(uint32_t));
-
-	paquete->buffer->stream = magic;
+    // Copiar cada dirección física y su tamaño
+    for (int i = 0; i < cantidad_direcciones; ++i) {
+        t_direccion_y_tamanio *dir_tam = list_get(direcciones_fisicas, i);
+        memcpy(paquete->buffer->stream + desplazamiento, &(dir_tam->direccion), sizeof(uint32_t));
+        desplazamiento += sizeof(uint32_t);
+        memcpy(paquete->buffer->stream + desplazamiento, &(dir_tam->tamanio), sizeof(uint32_t));
+        desplazamiento += sizeof(uint32_t);
+    }
 }
+
 
 void agregar_nombre_y_tipo_a_paquete(t_paquete* paquete, char *nombre, uint32_t tamanio_nombre, tipo_interfaz tipo) {
 	void * magic = malloc(paquete->buffer->size);
@@ -729,17 +761,17 @@ void enviar_sleep(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, uint32_
 	enviar_paquete(paquete, socket_cliente);
 }
 
-void enviar_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones)
+void enviar_io_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones_fisicas, uint32_t tamaño)
 {
-	t_paquete *paquete = crear_paquete();
-	paquete->codigo_operacion = IO_STDIN_READ;
+    uint32_t tamanio_nombre_interfaz = strlen(nombre_interfaz) + 1;
+    uint32_t cantidad_direcciones = list_size(direcciones_fisicas);
+    t_paquete* paquete = crear_paquete_io_stdin_read(tamanio_nombre_interfaz, cantidad_direcciones);
 
-	agregar_a_paquete(paquete, pcb, sizeof(t_pcb));
-	agregar_a_paquete(paquete, nombre_interfaz, sizeof(nombre_interfaz));
-	agregar_a_paquete(paquete, direcciones, sizeof(t_list));
-	enviar_paquete(paquete, socket_cliente);
-	eliminar_paquete(paquete);
+    agregar_io_stdin_read_a_paquete(paquete, pcb, nombre_interfaz, tamanio_nombre_interfaz, direcciones_fisicas, tamaño);
+
+    enviar_paquete(paquete, socket_cliente);
 }
+
 void enviar_stdout_write(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones)
 {
 	t_paquete *paquete = crear_paquete();

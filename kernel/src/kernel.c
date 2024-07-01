@@ -794,54 +794,63 @@ void esperar_cpu()
         break;
     }
 }
-void pedido_io_stdin_read(){
+
+void pedido_io_stdin_read() {
     log_debug(logger, "El CPU pidió un IO_STDIN_READ");
-        //t_io_std *io_std = recibir_paquete(socket_cpu_dispatch);
 
+    t_io_stdin_read *io_stdin_read = recibir_io_stdin_read(socket_cpu_dispatch);
 
-        t_interfaz *interfaz_stdin_read = NULL;
-        // Buscamos la interfaz por su nombre
-        for (int i = 0; i < list_size(lista_interfaces); i++)
-        {
-            t_interfaz *interfaz_en_lista = (t_interfaz *)list_get(lista_interfaces, i);
-            if (strcmp(sleep->nombre_interfaz, interfaz_en_lista->nombre) == 0)
-            {
-                interfaz_stdin_read = list_get(lista_interfaces, i);
-            }
-        }
+    t_interfaz *interfaz_stdin_read = NULL;
 
-        // Si la interfaz no existe mandamos el proceso a EXIT
-        if (interfaz_stdin_read == NULL)
-        {
-            log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
-            eliminar_proceso(sleep->pcb);
+    // Buscamos la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_stdin_read->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_stdin_read = interfaz_en_lista;
+            break;
         }
+    }
 
-        // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
-        if (interfaz_stdin_read->tipo != STDIN)
-        {
-            log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
-            eliminar_proceso(sleep->pcb);
-        }
+    // Si la interfaz no existe mandamos el proceso a EXIT
+    if (interfaz_stdin_read == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_stdin_read->pcb);
+        return;
+    }
 
-        sleep->pcb->estado = BLOCKED;
-        list_add(lista_bloqueados, sleep->pcb);
-        if (strcmp(algoritmo_planificacion, "VRR") == 0)
-        {
-            sem_post(&sem_vrr_block);
-        }
-        // Verficamos si la interfaz está ocupada
-        if (interfaz_stdin_read->ocupada == false)
-        {
-            //enviar_stdin_read();
-        }
-        else
-        {
-            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
-        }
+    // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
+    if (interfaz_stdin_read->tipo != STDIN) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_stdin_read->pcb);
+        return;
+    }
 
-        interfaz_stdin_read->ocupada = true;
+    io_stdin_read->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_stdin_read->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificamos si la interfaz está ocupada
+    if (!interfaz_stdin_read->ocupada) {
+        // Enviar la solicitud de IO_STDIN_READ a la interfaz
+        enviar_io_stdin_read(socket_interfaz_stdin_read->socket, io_stdin_read);
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    interfaz_stdin_read->ocupada = true;
+
+    // Liberar memoria de la estructura t_io_stdin_read
+    free(io_stdin_read->nombre_interfaz);
+    free(io_stdin_read->pcb->cpu_registers);
+    free(io_stdin_read->pcb);
+    free(io_stdin_read);
 }
+
+
+
 void bloquear_proceso(t_pcb *pcb)
 {
 
