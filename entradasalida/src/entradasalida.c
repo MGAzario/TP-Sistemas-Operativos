@@ -6,8 +6,8 @@ char *ip_kernel;
 char *puerto_kernel;
 int socket_kernel;
 
-const char *nombre;
-const char *archivo_configuracion;
+char *nombre;
+char *archivo_configuracion;
 
 char *ip_memoria;
 char *puerto_memoria;
@@ -15,8 +15,10 @@ int socket_memoria;
 
 int main(int argc, char *argv[])
 {
-    const char *nombre = argv[1];
-    const char *archivo_configuracion = argv[2];
+    // nombre = argv[1];
+    // archivo_configuracion = argv[2];
+    nombre = "nombre";
+    archivo_configuracion = "./entradasalida.config";
     crear_logger();
     create_config();
 
@@ -25,7 +27,7 @@ int main(int argc, char *argv[])
     conectar_kernel();
 
     // conectar_memoria();
-    crear_interaz();
+    crear_interfaz();
 
     conectar_memoria();
     // Prueba inicio
@@ -99,7 +101,7 @@ void crear_interfaz()
     }
     else
     {
-        log_error("Error: TIPO_INTERFAZ '%s' no es válido.\n", tipo_interfaz);
+        log_error(logger, "Error: TIPO_INTERFAZ '%s' no es válido.", tipo_interfaz);
     }
 }
 
@@ -238,4 +240,9 @@ void crear_interfaz_stdout() {
     }
 
     liberar_conexion(socket_memoria);
+}
+
+void crear_interfaz_dialfs()
+{
+
 }

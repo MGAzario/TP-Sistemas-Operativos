@@ -168,20 +168,20 @@ void conectar_interrupt_cpu(char *ip_cpu)
 
 void crear_diccionario()
 {
-    char **recursos;
-    char **instancias_recursos;
-    recursos = config_get_array_value(config, "RECURSOS");
-    instancias_recursos = config_get_array_value(config, "INSTANCIAS_RECURSOS");
+    // char **recursos;
+    // char **instancias_recursos;
+    // recursos = config_get_array_value(config, "RECURSOS");
+    // instancias_recursos = config_get_array_value(config, "INSTANCIAS_RECURSOS");
 
-    dic_recursos = dictionary_create();
-    int i = 0;
-    int i_rec;
-    while (recursos[i] != NULL)
-    {
-        i_rec = atoi(instancias_recursos[i]);
-        dictionary_put(dic_recursos, recursos[i], (int)i_rec);
-        i++;
-    }
+    // dic_recursos = dictionary_create();
+    // int i = 0;
+    // int i_rec;
+    // while (recursos[i] != NULL)
+    // {
+    //     i_rec = atoi(instancias_recursos[i]);
+    //     dictionary_put(dic_recursos, recursos[i], (int)i_rec);
+    //     i++;
+    // }
 }
 
 /*-----------------------------ENTRADA SALIDA--------------------------------------------------------------------*/
@@ -219,14 +219,16 @@ void *recibir_entradasalida()
     liberar_conexion(socket_kernel);
 }
 
-void manejo_interfaces(t_interfaz *interfaz)
+void *manejo_interfaces(void *interfaz_hilo)
 {
-    while (1)
+    bool sigue_conectado = true;
+    while (sigue_conectado)
     {
+        t_interfaz *interfaz = interfaz_hilo;
         switch (interfaz->tipo)
         {
         case GENERICA:
-            fin_sleep(interfaz);
+            sigue_conectado = fin_sleep(interfaz);
             break;
         case STDIN:
             log_error(logger, "Falta implementar");
@@ -240,6 +242,7 @@ void manejo_interfaces(t_interfaz *interfaz)
             break;
         }
     }
+    return NULL;
 }
 
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo)
@@ -251,20 +254,25 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
     list_add(lista_interfaces, interfaz);
 }
 
-void fin_sleep(t_interfaz *interfaz)
+bool fin_sleep(t_interfaz *interfaz)
 {
-    
     op_code cod_op = recibir_operacion(interfaz->socket);
     if (cod_op == DESCONEXION)
     {
         log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        return false;
         // TODO: Liberar estructuras
     }
     else if (cod_op != FIN_SLEEP)
     {
         log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
+        return false;
     }
+    else
+    {
     desbloquear_proceso_io(interfaz);
+    return true;
+    }
 }
 
 void fin_io_read(t_interfaz *interfaz)
@@ -540,19 +548,22 @@ void planificar_fifo()
 void planificar_round_robin()
 {
     pthread_t quantum_thread;
-
+    log_trace(logger, "Inicia ciclo");
     sem_wait(&sem_round_robin);
     // desalojo de CPU
     //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
-
+    
     // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
     if (!queue_is_empty(cola_ready))
     {
+        //INICIAR_PROCESO PRUEBARR
+        log_trace(logger, "Entro if");
         // Obtener el proceso listo para ejecutarse de la cola
         t_pcb *proceso_a_ejecutar = queue_pop(cola_ready);
-
+        log_trace(logger, "FALLO ENVIAR INT");
         // wait(sem_mutex_interrupt)
         enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+        log_trace(logger, "Esperando CPU");
         esperar_cpu();
         // sem_post(sem_mutex_interrupt)
 
@@ -560,11 +571,11 @@ void planificar_round_robin()
         proceso_a_ejecutar->estado = EXEC;
 
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-
+        log_trace(logger, "PCBenviado");
         pthread_create(&quantum_thread, NULL, (void *)quantum_count,NULL);
 
         pcb_ejecutandose = proceso_a_ejecutar;
-
+        log_trace(logger, "Termino ciclo");
         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
         // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
         // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
@@ -753,41 +764,43 @@ void esperar_cpu()
         // if(interrupcion->motivo == SIGNAL){}
         break;
     case WAIT:
-        t_pcb *pcb_wait = recibir_pcb(socket_cpu_dispatch);
-        char *recurso_solicitado = recibir_wait(); //@leo pendiente serializar
-        if (dictionary_has_key(dic_recursos, recurso_solicitado))
-        {
-            int cant_inst = dictionary_get(dic_recursos, recurso_solicitado);
-            cant_inst--;
-            dictionary_put(dic_recursos,recurso_solicitado,cant_inst);
-            if (cant_inst < 0)
-            {
-                bloquear_proceso(pcb_wait);
-            }
-        }
-        else
-        {
-            // enviar proceso a exit
-            eliminar_proceso(pcb_wait);
-        }
+        // t_recurso *recurso_wait = recibir_recurso(socket_cpu_dispatch);
+        // t_pcb *pcb_wait = recurso_wait->pcb;
+        // char *recurso_solicitado = recurso_wait->nombre;
+        // if (dictionary_has_key(dic_recursos, recurso_solicitado))
+        // {
+        //     int cant_inst = dictionary_get(dic_recursos, recurso_solicitado);
+        //     cant_inst--;
+        //     dictionary_put(dic_recursos,recurso_solicitado,cant_inst);
+        //     if (cant_inst < 0)
+        //     {
+        //         bloquear_proceso(pcb_wait);
+        //     }
+        // }
+        // else
+        // {
+        //     // enviar proceso a exit
+        //     eliminar_proceso(pcb_wait);
+        // }
         break;
     case SIGNAL:
-        t_pcb *pcb_signal = recibir_pcb(socket_cpu_dispatch);
-        char *recurso_liberado= recibir_signal(); //@leo pendiente serializar
-        if (dictionary_has_key(dic_recursos, recurso_liberado))
-        {
-            int cant_inst = dictionary_get(dic_recursos, recurso_liberado);
-            cant_inst++;
-            dictionary_put(dic_recursos, recurso_liberado,cant_inst);
-            if (cant_inst >= 0)
-            {
-                desbloquear_proceso(pcb_signal);
-            }
-        }
-        else
-        {
-            eliminar_proceso(pcb_signal);
-        }
+        // t_recurso *recurso_signal = recibir_recurso(socket_cpu_dispatch);
+        // t_pcb *pcb_signal = recurso_signal->pcb;
+        // char *recurso_liberado = recurso_signal->nombre;
+        // if (dictionary_has_key(dic_recursos, recurso_liberado))
+        // {
+        //     int cant_inst = dictionary_get(dic_recursos, recurso_liberado);
+        //     cant_inst++;
+        //     dictionary_put(dic_recursos, recurso_liberado,cant_inst);
+        //     if (cant_inst >= 0)
+        //     {
+        //         desbloquear_proceso(pcb_signal);
+        //     }
+        // }
+        // else
+        // {
+        //     eliminar_proceso(pcb_signal);
+        // }
         break;
     default:
         log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);

@@ -12,6 +12,11 @@ int socket_memoria;
 
 int tamanio_pagina;
 
+bool lru;
+int cantidad_entradas_tlb;
+t_list *lista_entradas_tlb;
+t_queue *cola_reemplazo_tlb;
+
 int continuar_ciclo;
 int pid_de_interrupcion;
 motivo_interrupcion motivo_de_interrupcion;
@@ -35,6 +40,25 @@ int main(int argc, char *argv[])
     tamanio_pagina = -1;
     continuar_ciclo = 1;
     pid_de_interrupcion = -1;
+    cantidad_entradas_tlb = config_get_int_value(config, "CANTIDAD_ENTRADAS_TLB");
+    if(cantidad_entradas_tlb < 0)
+    {
+        log_error(logger, "Cantidad negativa de entradas de la TLB (debería ser 0 o más)");
+    }
+    lista_entradas_tlb = list_create();
+    cola_reemplazo_tlb = queue_create();
+    if(strcmp("FIFO", config_get_string_value(config, "ALGORITMO_TLB")) == 0)
+    {
+        lru = false;
+    }
+    else if(strcmp("LRU", config_get_string_value(config, "ALGORITMO_TLB")) == 0)
+    {
+        lru = true;
+    }
+    else
+    {
+        log_error(logger, "Algoritmo de reemplazo de la TLB desconocido");
+    }
 
     // Creo un hilo para recibir interrupciones
     if (pthread_create(&hilo_interrupciones, NULL, recibir_interrupciones, NULL) != 0){
@@ -139,7 +163,7 @@ void *recibir_interrupciones()
 
         pid_de_interrupcion = interrupcion->pcb->pid;
         motivo_de_interrupcion = interrupcion->motivo;
-
+        log_trace(logger, "El motivo de interrupcion es %d",motivo_de_interrupcion);
         free(interrupcion->pcb->cpu_registers);
         free(interrupcion->pcb);
         free(interrupcion);
@@ -277,6 +301,24 @@ void decode(t_pcb *pcb, char *instruccion)
 
         pcb->cpu_registers->pc++;
         execute_resize(pcb, nuevo_tamanio_del_proceso);
+    }
+    else if (strcmp("WAIT", operacion) == 0)
+    {
+        char nombre_recurso[50];
+
+        sscanf(instruccion, "%s %s", operacion, nombre_recurso);
+
+        pcb->cpu_registers->pc++;
+        execute_wait(pcb, nombre_recurso);
+    }
+    else if (strcmp("SIGNAL", operacion) == 0)
+    {
+        char nombre_recurso[50];
+
+        sscanf(instruccion, "%s %s", operacion, nombre_recurso);
+
+        pcb->cpu_registers->pc++;
+        execute_signal(pcb, nombre_recurso);
     }
     else if (strcmp("IO_GEN_SLEEP", operacion) == 0)
     {
@@ -549,8 +591,72 @@ t_list *mmu(uint32_t direccion_logica, int tamanio_del_contenido, int pid)
 
 int averiguar_marco(int pid, int pagina)
 {
-    // TODO: TLB
+    // Si la TLB está deshabilitada, le preguntamos directamente a la memoria
+    if(cantidad_entradas_tlb == 0)
+    {
+        return preguntar_marco_a_memoria(pid, pagina);
+    }
 
+    // Buscamos la página en la TLB
+    for (int i = 0; i < list_size(lista_entradas_tlb); i++)
+    {
+        t_entrada_tlb *entrada = list_get(lista_entradas_tlb, i);
+
+        if (entrada->pid == pid)
+        {
+            if(entrada->pagina == pagina)
+            {
+                log_info(logger, "PID: %i - TLB HIT - Pagina: %i", pid, pagina);
+                log_info(logger, "PID: %i - OBTENER MARCO - Página: %i - Marco: %i", pid, pagina, entrada->marco);
+                if(lru)
+                {
+                    t_numero *recientemente_usado;
+                    for (int j = 0; j < list_size(cola_reemplazo_tlb->elements); j++)
+                    {
+                        t_numero *numero_cola = list_get(cola_reemplazo_tlb->elements, j);
+                        if(numero_cola->numero == i)
+                        {
+                            recientemente_usado = list_remove(cola_reemplazo_tlb->elements, j);
+                        }
+                    }
+                    queue_push(cola_reemplazo_tlb, recientemente_usado);
+                }
+                return entrada->marco;
+            }
+        }
+    }
+    log_info(logger, "PID: %i - TLB MISS - Pagina: %i", pid, pagina);
+
+    // La página no estaba en la TLB, así que se la consultamos a la memoria
+    int marco = preguntar_marco_a_memoria(pid, pagina);
+    t_entrada_tlb *nueva_entrada = malloc(sizeof(t_entrada_tlb));
+    nueva_entrada->pid = pid;
+    nueva_entrada->pagina = pagina;
+    nueva_entrada->marco = marco;
+
+    // Si la TLB aún tiene espacio disponible, agregamos una entrada
+    if(list_size(lista_entradas_tlb) < cantidad_entradas_tlb)
+    {
+        t_numero *numero_de_entrada = malloc(sizeof(t_numero));
+        numero_de_entrada->numero = list_add(lista_entradas_tlb, nueva_entrada);
+        queue_push(cola_reemplazo_tlb, numero_de_entrada);
+        tlb();
+    }
+    // Si la TLB no tiene espacio disponible, debemos elegir una víctima y reemplazarla
+    else
+    {
+        t_numero *numero_victima = queue_pop(cola_reemplazo_tlb);
+        t_entrada_tlb *victima = list_replace(lista_entradas_tlb, numero_victima->numero, nueva_entrada);
+        queue_push(cola_reemplazo_tlb, numero_victima);
+        free(victima);
+        tlb();
+    }
+
+    return marco;
+}
+
+int preguntar_marco_a_memoria(int pid, int pagina)
+{
     enviar_solicitud_marco(socket_memoria, pid, pagina);
     op_code cod_op = recibir_operacion(socket_memoria);
     if(cod_op != MARCO)
@@ -560,4 +666,23 @@ int averiguar_marco(int pid, int pagina)
     int marco = recibir_numero(socket_memoria);
     log_info(logger, "PID: %i - OBTENER MARCO - Página: %i - Marco: %i", pid, pagina, marco);
     return marco;
+}
+
+// Esta función es solo para testear
+void tlb()
+{
+    log_trace(logger, "TLB (capacidad máxima de %i entradas):", cantidad_entradas_tlb);
+    log_trace(logger, "PID | Página | Marco");
+    for (int i = 0; i < list_size(lista_entradas_tlb); i++)
+    {
+        t_entrada_tlb *entrada = list_get(lista_entradas_tlb, i);
+        if(entrada->pagina < 10)
+        {
+            log_trace(logger, "%i   | %i      | %i    ", entrada->pid, entrada->pagina, entrada->marco);
+        }
+        else
+        {
+            log_trace(logger, "%i   | %i     | %i    ", entrada->pid, entrada->pagina, entrada->marco);
+        }
+    }
 }

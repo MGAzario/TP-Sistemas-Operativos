@@ -14,7 +14,6 @@ void *recibir_cpu()
                 usleep(retardo * 1000);
                 t_pcb *pcb = recibir_pcb(socket_cpu);
                 char *instruccion = buscar_instruccion(pcb->pid, pcb->cpu_registers->pc);
-                sleep(1); // TODO: Reemplazar con configuración
                 enviar_instruccion(socket_cpu, instruccion);
                 break;
             case PREGUNTA_TAMANIO_PAGINA:
