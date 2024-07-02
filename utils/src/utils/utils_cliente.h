@@ -125,7 +125,5 @@ void enviar_fin_io_read(int socket_cliente, t_pcb *pcb);
 void enviar_stdout_write(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones);
 void enviar_wait(int socket_cliente, t_pcb *pcb, char *recurso);
 void enviar_signal(int socket_cliente, t_pcb *pcb, char *recurso);
-t_paquete* crear_paquete_io_stdin_read(uint32_t tamanio_interfaz, uint32_t cantidad_direcciones);
-void agregar_io_stdin_read_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, t_list* direcciones_fisicas, uint32_t tamaño);
-void enviar_io_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones_fisicas, uint32_t tamaño);
+
 #endif /* UTILS_CLIENTE_H_ */

@@ -97,16 +97,10 @@ typedef struct
 typedef struct {
     t_pcb *pcb;
     char *nombre_interfaz;
-    uint32_t tamanio_nombre_interfaz;
-    uint32_t tamanio_contenido;
-    t_list *direcciones_fisicas;
-} t_io_stdin_read;
-
-typedef struct {
-    t_pcb *pcb;
-    uint32_t direccion_logica;
-    uint32_t tamaño;
-} t_io_stdout_write;
+    uint32_t tamanio_nombre_interfaz;    // Puntero al PCB del proceso que realiza la operación
+    uint32_t direccion_fisica;          // Dirección física en la memoria
+    uint32_t tamanio_texto;           // Tamaño del texto
+} t_io_std;
 
 
 typedef struct
