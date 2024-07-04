@@ -309,20 +309,20 @@ void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_d
     log_trace(logger, "Terminando instrucción de sleep");
 }
 
-void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones)
+void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamaño)
 {
     log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ", pcb->pid);
-    enviar_stdin_read(socket_kernel_dispatch, pcb, interfaz, direcciones);
+    enviar_io_stdin_read(socket_kernel_dispatch, pcb, interfaz, direcciones_fisicas, tamaño);
     continuar_ciclo = 0;
     log_trace(logger, "Terminando instrucción de IO_STDIN_READ");
 }
 
-void execute_io_stdout_write(t_pcb *pcb, char *interfaz, t_list *direcciones)
-{
-    log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ", pcb->pid);
-    enviar_stdout_write(socket_kernel_dispatch, pcb, interfaz, direcciones);
+void execute_io_stdout_write(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamaño) {
+    log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE", pcb->pid);
+    // Enviar la solicitud de IO_STDOUT_WRITE al kernel dispatch
+    enviar_io_stdout_write(socket_kernel_dispatch, pcb, interfaz, direcciones_fisicas, tamaño);
     continuar_ciclo = 0;
-    log_trace(logger, "Terminando instrucción de IO_STDIN_READ");
+    log_trace(logger, "Terminando instrucción de IO_STDOUT_WRITE");
 }
 
 void execute_exit(t_pcb *pcb)

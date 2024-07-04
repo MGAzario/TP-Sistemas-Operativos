@@ -120,10 +120,15 @@ void enviar_solicitud_marco(int socket_cliente, int pid, int pagina);
 void enviar_leer_memoria(int socket_cliente, int pid, int direccion, int tamanio);
 void enviar_lectura(int socket_cliente, void *lectura, int tamanio_lectura);
 void enviar_escribir_memoria(int socket_cliente, int pid, int direccion, int tamanio, void *valor);
-void enviar_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones );
 void enviar_fin_io_read(int socket_cliente, t_pcb *pcb);
 void enviar_stdout_write(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones);
 void enviar_wait(int socket_cliente, t_pcb *pcb, char *recurso);
 void enviar_signal(int socket_cliente, t_pcb *pcb, char *recurso);
+t_paquete* crear_paquete_io_stdin_read(uint32_t tamanio_interfaz, uint32_t cantidad_direcciones);
+t_paquete* crear_paquete_io_stdout_write(uint32_t tamanio_interfaz, uint32_t direccion_logica, uint32_t tamaño_contenido);
+void agregar_io_stdin_read_a_paquete(t_paquete* paquete, t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, t_list* direcciones_fisicas, uint32_t tamaño);
+void agregar_io_stdout_write_a_paquete(t_paquete* paquete, t_pcb* pcb, uint32_t direccion_logica, uint32_t tamaño);
+void enviar_io_stdin_read(int socket_cliente, t_pcb *pcb, char *nombre_interfaz, t_list *direcciones_fisicas, uint32_t tamaño);
+void enviar_io_stdout_write(int socket_cliente, t_io_stdout_write* io_stdout_write);
 
 #endif /* UTILS_CLIENTE_H_ */
