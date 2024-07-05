@@ -48,6 +48,7 @@ bool fin_sleep(t_interfaz *interfaz);
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo);
 void *manejo_interfaces(void *interfaz_hilo);
 void pedido_io_stdin_read();
+void pedido_io_stdout_write();
 
 
 #endif /*KERNEL_H*/
