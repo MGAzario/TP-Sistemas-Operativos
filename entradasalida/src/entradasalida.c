@@ -150,7 +150,6 @@ void crear_interfaz_generica()
 
 void crear_interfaz_stdin()
 {
-    int socket_memoria;
     conectar_memoria(); // Conectar con la memoria
     enviar_nombre_y_tipo(socket_kernel, nombre, STDIN);
     while (true)
@@ -181,8 +180,14 @@ void crear_interfaz_stdin()
         memcpy(buffer_bytes, buffer, io_stdin_read->tamanio_contenido);
 
         // Enviar datos a la memoria a partir de la dirección lógica especificada
-        enviar_escribir_memoria(socket_memoria, io_stdin_read->pcb->pid, io_stdin_read->direcciones_fisicas, io_stdin_read->tamanio_contenido, buffer_bytes);
+        // Iterar sobre la lista de direcciones físicas
+        for (int i = 0; i < list_size(io_stdin_read->direcciones_fisicas); i++)
+        {
+            int *direccion_fisica = list_get(io_stdin_read->direcciones_fisicas, i);
 
+            // Enviar la solicitud de escribir en memoria para cada dirección física
+            enviar_escribir_memoria(socket_memoria, io_stdin_read->pcb->pid, *direccion_fisica, io_stdin_read->tamanio_contenido, buffer_bytes);
+        }
         // Liberar memoria del buffer de bytes
         free(buffer_bytes);
 

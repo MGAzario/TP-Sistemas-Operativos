@@ -104,6 +104,8 @@ typedef struct {
 
 typedef struct {
     t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
     uint32_t direccion_logica;
     uint32_t tamaño;
 } t_io_stdout_write;
