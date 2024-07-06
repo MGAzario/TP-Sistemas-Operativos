@@ -251,62 +251,117 @@ void crear_interfaz_stdout() {
 
 void crear_interfaz_dialfs()
 {
-    
+
     int tiempo_unidad_trabajo = config_get_int_value(config, "TIEMPO_UNIDAD_TRABAJO");
-    char* path_base_dialfs = config_get_string_value(config, "PATH_BASE_DIALFS");
+    char *path_base_dialfs = config_get_string_value(config, "PATH_BASE_DIALFS");
     int block_size = config_get_int_value(config, "BLOCK_SIZE");
     int block_count = config_get_int_value(config, "BLOCK_COUNT");
     int retraso_compactacion = config_get_int_value(config, "RETRASO_COMPACTACION");
     enviar_nombre_y_tipo(socket_kernel, nombre, DialFS);
     conectar_memoria();
 
-     // Inicializar archivos de bloques
-    t_fs_bloques* bloques = malloc(sizeof(t_fs_bloques));
+    // Inicializar archivos de bloques
+    t_fs_bloques *bloques = malloc(sizeof(t_fs_bloques));
     bloques->block_size = block_size;
     bloques->block_count = block_count;
 
     char bloques_path[256];
-    //construir la ruta completa del archivo bloques.dat
+    // construir la ruta completa del archivo bloques.dat
     snprintf(bloques_path, sizeof(bloques_path), "%s/bloques.dat", path_base_dialfs);
     bloques->archivo = fopen(bloques_path, "r+");
 
     // Si el archivo no existe, crear y establecer el tamaño adecuado
-    if (bloques->archivo == NULL) {
+    if (bloques->archivo == NULL)
+    {
         bloques->archivo = fopen(bloques_path, "w+");
-        if (bloques->archivo == NULL) {
-            log_error(logger,"Error al crear bloques.dat");
+        if (bloques->archivo == NULL)
+        {
+            log_error(logger, "Error al crear bloques.dat");
             exit(EXIT_FAILURE);
         }
         ftruncate(fileno(bloques->archivo), block_size * block_count);
-    } else {
+    }
+    else
+    {
         fseek(bloques->archivo, 0, SEEK_END);
         long file_size = ftell(bloques->archivo);
-        if (file_size != block_size * block_count) {
+        if (file_size != block_size * block_count)
+        {
             ftruncate(fileno(bloques->archivo), block_size * block_count);
         }
         rewind(bloques->archivo);
     }
 
     // Inicializar archivos de bitmap
-    t_bitarray* bitarray;
+    t_bitarray *bitarray;
     char bitmap_path[256];
-    //construir la ruta completa del archivo bitmap.dat
+    // construir la ruta completa del archivo bitmap.dat
     snprintf(bitmap_path, sizeof(bitmap_path), "%s/bitmap.dat", path_base_dialfs);
-    FILE* bitmap_file = fopen(bitmap_path, "r+");
-    if (bitmap_file == NULL) {
+    FILE *bitmap_file = fopen(bitmap_path, "r+");
+    if (bitmap_file == NULL)
+    {
         bitmap_file = fopen(bitmap_path, "w+");
-        if (bitmap_file == NULL) {
-            log_error(logger,"Error al crear bitmap.dat");
+        if (bitmap_file == NULL)
+        {
+            log_error(logger, "Error al crear bitmap.dat");
             exit(EXIT_FAILURE);
         }
-        char* bitmap_data = calloc(block_count, sizeof(char));
+        char *bitmap_data = calloc(block_count, sizeof(char));
         fwrite(bitmap_data, sizeof(char), block_count, bitmap_file);
         free(bitmap_data);
     }
 
     fseek(bitmap_file, 0, SEEK_SET);
-    char* bitmap_data = malloc(block_count);
+    char *bitmap_data = malloc(block_count);
     fread(bitmap_data, sizeof(char), block_count, bitmap_file);
     bitarray = bitarray_create_with_mode(bitmap_data, block_count, LSB_FIRST);
 
+    // Ejemplo de creación de archivo de metadata
+    t_metadata_archivo metadata = {25, 1024};
+    crear_metadata_archivo("notas.txt", metadata, path_base_dialfs);
+    while (true) {
+        log_trace(logger, "Esperando pedido del Kernel");
+        op_code cod_op = recibir_operacion(socket_kernel);
+        log_trace(logger, "Llegó un pedido del Kernel");
+
+        switch (cod_op)
+        {
+        case IO_FS_CREATE:
+            manejar_io_fs_create();
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata, char* path_base_dialfs) {
+    char archivo_path[256];
+
+    // Construir el path completo del archivo de configuración
+    snprintf(archivo_path, sizeof(archivo_path), "%s/%s", path_base_dialfs, nombre_archivo);
+
+    t_config* config_metadata = config_create(archivo_path);
+    if (config_metadata == NULL) {
+        printf("Error: No se pudo crear el archivo de metadata para %s\n", nombre_archivo);
+        return;
+    }
+
+    // Convertir valores a string
+    char bloque_inicial_str[20];
+    char tamanio_archivo_str[20];
+    sprintf(bloque_inicial_str, "%d", metadata.bloque_inicial);
+    sprintf(tamanio_archivo_str, "%d", metadata.tamanio_archivo);
+
+    // Setear valores en el archivo de configuración
+    config_set_value(config_metadata, "BLOQUE_INICIAL", bloque_inicial_str);
+    config_set_value(config_metadata, "TAMANIO_ARCHIVO", tamanio_archivo_str);
+
+    // Guardar cambios y destruir la estructura de configuración
+    config_save(config_metadata);
+    config_destroy(config_metadata);
+}
+
+void manejar_io_fs_create(){
+    
 }

@@ -16,6 +16,10 @@ typedef struct {
     uint32_t block_count;
 } t_fs_bloques;
 
+typedef struct {
+    int bloque_inicial;
+    int tamanio_archivo;
+} t_metadata_archivo;
 
 void crear_logger();
 void create_config();
@@ -26,6 +30,7 @@ void crear_interfaz_generica();
 void crear_interfaz_stdin();
 void crear_interfaz_stdout();
 void crear_interfaz_dialfs();
+void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata, char* path_base_dialfs);
 
 
 
