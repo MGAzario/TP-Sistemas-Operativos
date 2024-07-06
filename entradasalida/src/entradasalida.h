@@ -7,6 +7,14 @@
 #include <utils/utils_server.h>
 #include <utils/hello.h>
 #include <utils/utils.h>
+#include <commons/bitarray.h>
+
+//Estructrua para bloques.dat
+typedef struct {
+    FILE *archivo;
+    uint32_t block_size;
+    uint32_t block_count;
+} t_fs_bloques;
 
 
 void crear_logger();

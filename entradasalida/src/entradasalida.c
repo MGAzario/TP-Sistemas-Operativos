@@ -26,7 +26,6 @@ int main(int argc, char *argv[])
 
     conectar_kernel();
 
-    // conectar_memoria();
     crear_interfaz();
 
     conectar_memoria();
@@ -153,7 +152,7 @@ void crear_interfaz_stdin()
 {
     int socket_memoria;
     conectar_memoria(); // Conectar con la memoria
-
+    enviar_nombre_y_tipo(socket_kernel, nombre, STDIN);
     while (true)
     {
         log_trace(logger, "Esperando pedido del Kernel");
@@ -202,9 +201,8 @@ void crear_interfaz_stdin()
 }
 
 void crear_interfaz_stdout() {
-    int socket_memoria;
     conectar_memoria(); // Conectar con la memoria
-
+    enviar_nombre_y_tipo(socket_kernel, nombre, STDOUT);
     while (true) {
         log_trace(logger, "Esperando pedido del Kernel");
         op_code cod_op = recibir_operacion(socket_kernel);
@@ -248,5 +246,62 @@ void crear_interfaz_stdout() {
 
 void crear_interfaz_dialfs()
 {
+    
+    int tiempo_unidad_trabajo = config_get_int_value(config, "TIEMPO_UNIDAD_TRABAJO");
+    char* path_base_dialfs = config_get_string_value(config, "PATH_BASE_DIALFS");
+    int block_size = config_get_int_value(config, "BLOCK_SIZE");
+    int block_count = config_get_int_value(config, "BLOCK_COUNT");
+    int retraso_compactacion = config_get_int_value(config, "RETRASO_COMPACTACION");
+    enviar_nombre_y_tipo(socket_kernel, nombre, DialFS);
+    conectar_memoria();
+
+     // Inicializar archivos de bloques
+    t_fs_bloques* bloques = malloc(sizeof(t_fs_bloques));
+    bloques->block_size = block_size;
+    bloques->block_count = block_count;
+
+    char bloques_path[256];
+    //construir la ruta completa del archivo bloques.dat
+    snprintf(bloques_path, sizeof(bloques_path), "%s/bloques.dat", path_base_dialfs);
+    bloques->archivo = fopen(bloques_path, "r+");
+
+    // Si el archivo no existe, crear y establecer el tamaño adecuado
+    if (bloques->archivo == NULL) {
+        bloques->archivo = fopen(bloques_path, "w+");
+        if (bloques->archivo == NULL) {
+            log_error(logger,"Error al crear bloques.dat");
+            exit(EXIT_FAILURE);
+        }
+        ftruncate(fileno(bloques->archivo), block_size * block_count);
+    } else {
+        fseek(bloques->archivo, 0, SEEK_END);
+        long file_size = ftell(bloques->archivo);
+        if (file_size != block_size * block_count) {
+            ftruncate(fileno(bloques->archivo), block_size * block_count);
+        }
+        rewind(bloques->archivo);
+    }
+
+    // Inicializar archivos de bitmap
+    t_bitarray* bitarray;
+    char bitmap_path[256];
+    //construir la ruta completa del archivo bitmap.dat
+    snprintf(bitmap_path, sizeof(bitmap_path), "%s/bitmap.dat", path_base_dialfs);
+    FILE* bitmap_file = fopen(bitmap_path, "r+");
+    if (bitmap_file == NULL) {
+        bitmap_file = fopen(bitmap_path, "w+");
+        if (bitmap_file == NULL) {
+            log_error(logger,"Error al crear bitmap.dat");
+            exit(EXIT_FAILURE);
+        }
+        char* bitmap_data = calloc(block_count, sizeof(char));
+        fwrite(bitmap_data, sizeof(char), block_count, bitmap_file);
+        free(bitmap_data);
+    }
+
+    fseek(bitmap_file, 0, SEEK_SET);
+    char* bitmap_data = malloc(block_count);
+    fread(bitmap_data, sizeof(char), block_count, bitmap_file);
+    bitarray = bitarray_create_with_mode(bitmap_data, block_count, LSB_FIRST);
 
 }
