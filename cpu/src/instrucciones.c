@@ -346,6 +346,28 @@ void execute_io_stdout_write(t_pcb *pcb, char *interfaz, uint32_t direccion_logi
     log_trace(logger, "Terminando instrucción de IO_STDOUT_WRITE");
 }
 
+void execute_io_fs_create(t_pcb *pcb, char *interfaz, char *nombre_archivo) {
+    log_info(logger, "PID: %i - Ejecutando: IO_FS_CREATE para el archivo %s", pcb->pid, nombre_archivo);
+
+    // Crear la estructura t_io_fs_create
+    t_io_fs_create *io_fs_create = crear_io_fs_create(pcb, interfaz, nombre_archivo);
+    if (io_fs_create == NULL) {
+        log_error(logger, "No se pudo crear la estructura para IO_FS_CREATE");
+        return; // Gestión de error en caso de que no se pueda crear la estructura
+    }
+
+    // Enviar la estructura t_io_fs_create al kernel dispatch
+    enviar_io_fs_create(socket_kernel_dispatch, io_fs_create);
+
+    // Liberar memoria de la estructura t_io_fs_create
+    free(io_fs_create->nombre_interfaz);
+    free(io_fs_create->nombre_archivo);
+    free(io_fs_create);
+
+    continuar_ciclo = 0;
+    log_trace(logger, "Terminando instrucción de IO_FS_CREATE para el archivo %s", nombre_archivo);
+}
+
 
 void execute_exit(t_pcb *pcb)
 {

@@ -368,6 +368,19 @@ void decode(t_pcb *pcb, char *instruccion)
 
     execute_io_stdout_write(pcb, nombre_interfaz, direcciones_fisicas, tamaño);
     }
+    else if (strcmp("IO_FS_CREATE", operacion) == 0)
+    {
+        char nombre_interfaz[50];
+        char nombre_archivo[256]; // Asumimos que el nombre del archivo no superará los 256 caracteres
+
+        sscanf(instruccion, "%s %s %s", operacion, nombre_interfaz, nombre_archivo);
+
+        // Aquí no necesitas convertir direcciones lógicas a físicas ni leer registros específicos
+        pcb->cpu_registers->pc++;
+        log_info(logger, "PID: %i - Ejecutando: IO_FS_CREATE - %s %s", pcb->pid, nombre_interfaz, nombre_archivo);
+
+        execute_io_fs_create(pcb, nombre_interfaz, nombre_archivo);
+    }
     else if (strcmp("EXIT", operacion) == 0)
     {
         pcb->cpu_registers->pc++;

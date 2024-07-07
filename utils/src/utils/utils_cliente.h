@@ -132,7 +132,10 @@ void agregar_io_stdout_write_a_paquete(t_paquete* paquete, t_io_stdout_write* io
 void enviar_io_stdout_write(int socket_cliente, t_io_stdout_write* io_stdout_write);
 t_io_stdin_read* crear_io_stdin_read(t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t tamanio_contenido, t_list* direcciones_fisicas);
 t_io_stdout_write* crear_io_stdout_write(t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t direccion_logica, uint32_t tamaño);
-
+t_paquete* crear_paquete_io_fs_create(t_io_fs_create* io_fs_create);
+void agregar_io_fs_create_a_paquete(t_paquete* paquete, t_io_fs_create* io_fs_create);
+t_io_fs_create* crear_io_fs_create(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo);
+void enviar_io_fs_create(int socket_cliente, t_io_fs_create* io_fs_create);
 
 
 #endif /* UTILS_CLIENTE_H_ */

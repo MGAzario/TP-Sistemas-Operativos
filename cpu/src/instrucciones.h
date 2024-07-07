@@ -18,5 +18,6 @@ void execute_exit(t_pcb *pcb);
 void destruir_direccion(void *elem);
 void execute_io_stdout_write(t_pcb *pcb, char *interfaz, uint32_t direccion_logica, uint32_t tamaño);
 void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamaño);
+void execute_io_fs_create(t_pcb *pcb, char *interfaz, char *nombre_archivo);
 
 #endif /*INSTRUCCIONES_H*/

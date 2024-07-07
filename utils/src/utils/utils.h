@@ -110,6 +110,13 @@ typedef struct {
     uint32_t tamaño;
 } t_io_stdout_write;
 
+typedef struct {
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;
+    uint32_t tamanio_nombre_archivo;
+} t_io_fs_create;
 
 typedef struct
 {

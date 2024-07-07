@@ -13,6 +13,15 @@ char *ip_memoria;
 char *puerto_memoria;
 int socket_memoria;
 
+char *path_base_dialfs;
+int block_size;
+int block_count;
+// Inicializar archivos de bitmap
+t_bitarray *bitarray;
+FILE *bitmap_file;
+t_bitarray *bitarray;
+char bitmap_path[256];
+
 int main(int argc, char *argv[])
 {
     // nombre = argv[1];
@@ -292,12 +301,10 @@ void crear_interfaz_dialfs()
         rewind(bloques->archivo);
     }
 
-    // Inicializar archivos de bitmap
-    t_bitarray *bitarray;
-    char bitmap_path[256];
+    
     // construir la ruta completa del archivo bitmap.dat
     snprintf(bitmap_path, sizeof(bitmap_path), "%s/bitmap.dat", path_base_dialfs);
-    FILE *bitmap_file = fopen(bitmap_path, "r+");
+    bitmap_file = fopen(bitmap_path, "r+");
     if (bitmap_file == NULL)
     {
         bitmap_file = fopen(bitmap_path, "w+");
@@ -318,7 +325,7 @@ void crear_interfaz_dialfs()
 
     // Ejemplo de creación de archivo de metadata
     t_metadata_archivo metadata = {25, 1024};
-    crear_metadata_archivo("notas.txt", metadata, path_base_dialfs);
+    crear_metadata_archivo("notas.txt", metadata);
     while (true) {
         log_trace(logger, "Esperando pedido del Kernel");
         op_code cod_op = recibir_operacion(socket_kernel);
@@ -335,7 +342,7 @@ void crear_interfaz_dialfs()
     }
 }
 
-void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata, char* path_base_dialfs) {
+void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata) {
     char archivo_path[256];
 
     // Construir el path completo del archivo de configuración
@@ -362,6 +369,50 @@ void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata, c
     config_destroy(config_metadata);
 }
 
-void manejar_io_fs_create(){
-    
+void manejar_io_fs_create() {
+    // Recibir la estructura t_io_fs_create desde el Kernel
+    t_io_fs_create *solicitud = recibir_io_fs_create(socket_kernel); // Función ficticia para recibir la estructura
+
+    if (solicitud == NULL) {
+        log_error(logger, "Error al recibir la solicitud de creación de archivo");
+        return;
+    }
+
+    // Extraer el PID y el nombre del archivo desde la solicitud
+    uint32_t pid = solicitud->pcb->pid;
+    char *nombre_archivo = solicitud->nombre_archivo;
+
+    // Log de la acción
+    log_info(logger, "DialFS - Crear Archivo: “PID: %d - Crear Archivo: %s”", pid, nombre_archivo);
+
+    // Buscar un bloque libre en el bitmap
+    int bloque_inicial = -1;
+    for (int i = 0; i < block_count; i++) {
+        if (!bitarray_test_bit(bitarray, i)) {
+            bloque_inicial = i;
+            bitarray_set_bit(bitarray, i);
+            break;
+        }
+    }
+
+    if (bloque_inicial == -1) {
+        log_error(logger, "No hay bloques disponibles para crear el archivo %s", nombre_archivo);
+        free(solicitud);
+        return;
+    }
+
+    // Crear la metadata del archivo
+    t_metadata_archivo metadata;
+    metadata.bloque_inicial = bloque_inicial;
+    metadata.tamanio_archivo = 0;
+
+    crear_metadata_archivo(nombre_archivo, metadata);
+
+    // Guardar cambios en el bitmap
+    fseek(bitmap_file, 0, SEEK_SET);
+    fwrite(bitarray->bitarray, sizeof(char), bitarray_get_max_bit(bitarray) / 8, bitmap_file);
+    fflush(bitmap_file);
+
+    // Liberar memoria
+    free(solicitud);
 }

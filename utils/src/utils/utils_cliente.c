@@ -903,7 +903,6 @@ t_io_stdout_write* crear_io_stdout_write(t_pcb* pcb, char* nombre_interfaz, uint
     return io_stdout_write;
 }
 
-
 t_paquete* crear_paquete_io_stdin_read(uint32_t tamanio_interfaz, uint32_t cantidad_direcciones) {
     t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = IO_STDIN_READ;
@@ -1038,13 +1037,18 @@ t_paquete* crear_paquete_io_stdout_write(t_io_stdout_write* io_stdout_write) {
     t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = IO_STDOUT_WRITE;
     crear_buffer(paquete);
+	
+	uint32_t size_pcb = sizeof(int)            // pid
+                        + sizeof(int)          // quantum
+                        + sizeof(uint32_t)     // pc
+                        + sizeof(uint8_t) * 4  // normales
+                        + sizeof(uint32_t) * 4 // extendidos
+                        + sizeof(uint32_t)     // si
+                        + sizeof(uint32_t)     // di
+                        + sizeof(estado_proceso); // estado_proceso
 
     // Calcular el tamaño total del paquete
-    paquete->buffer->size = sizeof(uint32_t) * 6   // 6 uint32_t
-                            + sizeof(int)           // 1 int
-                            + sizeof(estado_proceso)
-                            + sizeof(uint8_t) * 4   // 4 uint8_t
-                            + io_stdout_write->tamanio_nombre_interfaz + sizeof(uint32_t);  // nombre interfaz y su tamaño
+    paquete->buffer->size = size_pcb + io_stdout_write->tamanio_nombre_interfaz + sizeof(uint32_t);  // nombre interfaz y su tamaño
 
     // Asignar memoria para el stream de datos del buffer
     paquete->buffer->stream = malloc(paquete->buffer->size);
@@ -1052,11 +1056,89 @@ t_paquete* crear_paquete_io_stdout_write(t_io_stdout_write* io_stdout_write) {
     return paquete;
 }
 
-void enviar_io_stdout_write(int socket_cliente, t_io_stdout_write* io_stdout_write) {
-    t_paquete* paquete = crear_paquete_io_stdout_write(io_stdout_write);
+void enviar_io_fs_create(int socket_cliente, t_io_fs_create* io_fs_create) {
+    t_paquete* paquete = crear_paquete_io_fs_create(io_fs_create);
 
-    agregar_io_stdout_write_a_paquete(paquete, io_stdout_write);
+    agregar_io_fs_create_a_paquete(paquete, io_fs_create);
 
     enviar_paquete(paquete, socket_cliente);
     eliminar_paquete(paquete);
+}
+
+t_paquete* crear_paquete_io_fs_create(t_io_fs_create* io_fs_create) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    if (!paquete) {
+        perror("Failed to allocate paquete");
+        return NULL;
+    }
+    paquete->codigo_operacion = IO_FS_CREATE;
+    crear_buffer(paquete);
+    
+    size_t tamaño_nombre_interfaz = strlen(io_fs_create->nombre_interfaz) + 1;
+    size_t tamaño_nombre_archivo = strlen(io_fs_create->nombre_archivo) + 1;
+    paquete->buffer->size = sizeof(uint32_t) * 4 + sizeof(estado_proceso)
+                            + tamaño_nombre_interfaz + tamaño_nombre_archivo;
+
+    void* magic = malloc(paquete->buffer->size);
+    if (!magic) {
+        perror("Failed to allocate buffer stream");
+        free(paquete);
+        return NULL;
+    }
+    paquete->buffer->stream = magic;
+
+    return paquete;
+}
+
+void agregar_io_fs_create_a_paquete(t_paquete* paquete, t_io_fs_create* io_fs_create) {
+    int desplazamiento = 0;
+
+    // Copiar datos del PCB
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->pid), sizeof(int));
+    desplazamiento += sizeof(int);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->quantum), sizeof(int));
+    desplazamiento += sizeof(int);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->cpu_registers->pc), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->cpu_registers->normales[0]), sizeof(uint8_t) * 4);
+    desplazamiento += sizeof(uint8_t) * 4;
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->cpu_registers->extendidos[0]), sizeof(uint32_t) * 4);
+    desplazamiento += sizeof(uint32_t) * 4;
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->cpu_registers->si), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->cpu_registers->di), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->pcb->estado), sizeof(estado_proceso));
+    desplazamiento += sizeof(estado_proceso);
+
+    // Copiar datos de la interfaz y tamaño de nombre de interfaz
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->tamanio_nombre_interfaz), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_create->nombre_interfaz, io_fs_create->tamanio_nombre_interfaz);
+    desplazamiento += io_fs_create->tamanio_nombre_interfaz;
+
+    // Copiar datos del nombre del archivo y tamaño de nombre del archivo
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_create->tamanio_nombre_archivo), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_create->nombre_archivo, io_fs_create->tamanio_nombre_archivo);
+    desplazamiento += io_fs_create->tamanio_nombre_archivo;
+	
+}
+
+t_io_fs_create* crear_io_fs_create(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo) {
+    // Crear y asignar memoria para la nueva estructura
+    t_io_fs_create* io_fs_create = malloc(sizeof(t_io_fs_create));
+    if (io_fs_create == NULL) {
+        return NULL; // Manejo de error: no se pudo asignar memoria
+    }
+    // Asignar el PCB
+    io_fs_create->pcb = pcb;
+    // Asignar y duplicar el nombre de la interfaz
+    io_fs_create->nombre_interfaz = strdup(nombre_interfaz);
+    io_fs_create->tamanio_nombre_interfaz = strlen(io_fs_create->nombre_interfaz) + 1;
+    // Asignar y duplicar el nombre del archivo
+    io_fs_create->nombre_archivo = strdup(nombre_archivo);
+    io_fs_create->tamanio_nombre_archivo = strlen(io_fs_create->nombre_archivo) + 1;
+
+    return io_fs_create;
 }
