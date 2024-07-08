@@ -178,6 +178,6 @@ typedef struct
 
 
 //Declaracion de los semaforos
-extern sem_t sem_nuevo_pcb;
+extern sem_t sem_multiprogramacion;
 
 #endif /* UTILS_H */

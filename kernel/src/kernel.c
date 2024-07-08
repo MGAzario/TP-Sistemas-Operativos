@@ -31,14 +31,20 @@ int grado_multiprogramacion_max;
 int quantum;
 
 t_pcb *pcb_ejecutandose;
+bool proceso_en_ejecucion;
 
 char *algoritmo_planificacion;
 
+bool planificar;
+
 /*-----------------------------SEMAFOROS--------------------------------------------------------------------*/
-sem_t sem_nuevo_pcb;
+sem_t sem_multiprogramacion;
+sem_t mutex_cola_new;
 sem_t sem_proceso_ready;
 sem_t sem_round_robin;
 sem_t sem_vrr_block;
+sem_t sem_planificacion;
+sem_t mutex_memoria;
 
 /*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
@@ -49,9 +55,14 @@ pthread_t hilo_quantum_vrr;
 
 int main(int argc, char *argv[])
 {
-    sem_init(&sem_nuevo_pcb, 0, 0);
+    sem_init(&sem_multiprogramacion, 0, 0);
+    sem_init(&mutex_cola_new, 0, 1);
     sem_init(&sem_proceso_ready, 0, 0);
     sem_init(&sem_round_robin, 0, 1);
+    sem_init(&sem_planificacion, 0, 0);
+    sem_init(&mutex_memoria, 0, 1);
+
+    planificar = false;
 
     crear_logger();
     crear_config();
@@ -94,6 +105,8 @@ int main(int argc, char *argv[])
     }
 
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+
+    proceso_en_ejecucion = false;
 
     // Creo un hilo para el planificador de largo plazo
     if (pthread_create(&hilo_planificador_largo_plazo, NULL, planificador_largo_plazo, NULL) != 0)
@@ -392,6 +405,7 @@ void crear_pcb(char *path)
     pcb->estado = NEW;
 
     // Informar a la memoria
+    sem_wait(&mutex_memoria);
     enviar_creacion_proceso(socket_memoria, pcb, path);
     log_trace(logger, "Estoy esperando el OK de la memoria");
 
@@ -403,14 +417,29 @@ void crear_pcb(char *path)
         return;
     }
     recibir_ok(socket_memoria);
+    sem_post(&mutex_memoria);
     log_trace(logger, "Recibí OK de la memoria luego de pedirle crear un proceso");
 
     // El PCB se agrega a la cola de los procesos NEW
+    sem_wait(&mutex_cola_new);
     queue_push(cola_new, pcb);
     log_info(logger, "Se crea el proceso %d en NEW", ultimo_pid);
     log_debug(logger, "Hay %i procesos en NEW", queue_size(cola_new));
-    // Despertar el mover procesos a ready
-    sem_post(&sem_nuevo_pcb);
+    // Despertar el mover procesos a ready (si el grado de multiprogramación lo permite)
+    if (grado_multiprogramacion_activo < grado_multiprogramacion_max)
+    {
+        log_debug(logger, "El grado de multiprogramación máximo es %i, y actualmente hay %i proceso, por lo tanto deberá pasar a READY",
+            grado_multiprogramacion_max, grado_multiprogramacion_activo);
+        sem_post(&sem_multiprogramacion);
+        // Aumentamos el grado de multiprogramacion activo
+        grado_multiprogramacion_activo++;
+    }
+    else
+    {
+        log_debug(logger, "El grado de multiprogramación máximo es %i, y actualmente hay %i proceso, por lo tanto se quedará en NEW",
+            grado_multiprogramacion_max, grado_multiprogramacion_activo);
+    }
+    sem_post(&mutex_cola_new);
 }
 
 void encontrar_y_eliminar_proceso(int pid_a_eliminar)
@@ -429,7 +458,26 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
         if (pcb->pid == pid_a_eliminar)
         {
             list_remove(cola_new->elements, i);
-            eliminar_proceso(pcb);
+
+            // Acá no se pudo usar eliminar_proceso() porque eso implicaría liberar un espacio en el grado de multiprogramación;
+            // este proceso está en NEW y por lo tanto no afecta al grado de multiprogramación
+            enviar_finalizacion_proceso(socket_memoria, pcb);
+            op_code cod_op = recibir_operacion(socket_memoria);
+            if (cod_op != FINALIZACION_PROCESO_OK)
+            {
+                log_error(logger, "El Kernel esperaba recibir un OK de la memoria (luego de pedirle finalizar un proceso) pero recibió otra cosa");
+            }
+            recibir_ok(socket_memoria);
+            log_trace(logger, "Recibí OK de la memoria luego de pedirle finalizar un proceso");
+
+            if (pcb_ejecutandose->pid == pcb->pid)
+            {
+                free(pcb_ejecutandose->cpu_registers);
+                free(pcb_ejecutandose);
+            }
+            free(pcb->cpu_registers);
+            free(pcb);
+
             return;
         }
     }
@@ -455,33 +503,31 @@ void *planificador_largo_plazo()
 {
     while (1)
     {
-        // Esperar hasta que se cree un nuevo PCB
+        // Esperar hasta que se cree un nuevo PCB (o un proceso pase a EXIT)
         log_trace(logger, "PLP: Esperando nuevo proceso");
-        sem_wait(&sem_nuevo_pcb);
+        sem_wait(&sem_multiprogramacion);
         log_trace(logger, "PLP: Llegó un nuevo proceso");
 
-        // Verificar si el grado de multiprogramación lo permite
+        // Verificamos que la planificación no esté pausada
+        comprobar_planificacion();
+
         // Mover procesos de la cola de NEW a la cola de READY
-        if (grado_multiprogramacion_activo < grado_multiprogramacion_max)
-        {
-            log_trace(logger, "El grado de multiprogramación permite que un proceso entre a ready");
-            // Tomar el primer proceso de la cola de NEW
-            t_pcb *proceso_nuevo = queue_pop(cola_new);
+        log_trace(logger, "El grado de multiprogramación permite que un proceso entre a ready");
+        // Tomar el primer proceso de la cola de NEW
+        sem_wait(&mutex_cola_new);
+        t_pcb *proceso_nuevo = queue_pop(cola_new);
+        sem_post(&mutex_cola_new);
 
-            // Cambiar el estado del proceso a READY
-            proceso_nuevo->estado = READY;
+        // Cambiar el estado del proceso a READY
+        proceso_nuevo->estado = READY;
 
-            // Agregar el proceso a la cola de READY
-            queue_push(cola_ready, proceso_nuevo);
-            sem_post(&sem_proceso_ready);
-            log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
-            // Aumentamos el grado de multiprogramacion activo
-            // TODO poner MUTEX
-            grado_multiprogramacion_activo++;
+        // Agregar el proceso a la cola de READY
+        queue_push(cola_ready, proceso_nuevo);
+        sem_post(&sem_proceso_ready);
+        log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
 
-            // Reducir la cantidad de procesos en la cola de NEW
-            log_trace(logger, "PLP: El proceso fue enviado a ready");
-        }
+        // Reducir la cantidad de procesos en la cola de NEW
+        log_trace(logger, "PLP: El proceso fue enviado a ready");
     }
 }
 
@@ -500,6 +546,9 @@ void *planificador_corto_plazo()
         log_trace(logger, "PCP: Esperando que llegue un proceso a ready");
         sem_wait(&sem_proceso_ready);
         log_trace(logger, "PCP: Un proceso entró a ready");
+
+        // Verificamos que la planificación no esté pausada
+        comprobar_planificacion();
 
         if (strcmp(algoritmo_planificacion, "FIFO") == 0)
         {
@@ -537,6 +586,7 @@ void planificar_fifo()
 
         // Guardamos registro en el Kernel de qué proceso está ejecutándose
         pcb_ejecutandose = proceso_a_ejecutar;
+        proceso_en_ejecucion = true;
 
         // Espero a que el CPU me devuelva el proceso
         esperar_cpu();
@@ -640,6 +690,11 @@ void esperar_cpu()
     log_trace(logger, "PCP: Esperando respuesta del CPU");
     op_code cod_op = recibir_operacion(socket_cpu_dispatch);
     log_trace(logger, "PCP: Llegó una respuesta del CPU");
+
+    proceso_en_ejecucion = false;
+
+    // Verificamos que la planificación no esté pausada
+    comprobar_planificacion();
     
     switch (cod_op)
     {
@@ -876,6 +931,7 @@ void desbloquear_proceso(t_pcb *pcb_a_desbloquear)
 
 void eliminar_proceso(t_pcb *pcb)
 {
+    sem_wait(&mutex_memoria);
     enviar_finalizacion_proceso(socket_memoria, pcb);
 
     op_code cod_op = recibir_operacion(socket_memoria);
@@ -884,6 +940,7 @@ void eliminar_proceso(t_pcb *pcb)
         log_error(logger, "El Kernel esperaba recibir un OK de la memoria (luego de pedirle finalizar un proceso) pero recibió otra cosa");
     }
     recibir_ok(socket_memoria);
+    sem_post(&mutex_memoria);
     log_trace(logger, "Recibí OK de la memoria luego de pedirle finalizar un proceso");
 
     if (pcb_ejecutandose->pid == pcb->pid)
@@ -896,8 +953,227 @@ void eliminar_proceso(t_pcb *pcb)
     free(pcb);
 
     // Se habilita un espacio en el grado de multiprogramación
-    // TODO poner MUTEX
-    grado_multiprogramacion_activo--;
+    sem_wait(&mutex_cola_new);
+    if (!list_is_empty(cola_new->elements) && grado_multiprogramacion_activo <= grado_multiprogramacion_max)
+    {
+        sem_post(&sem_multiprogramacion);
+    }
+    else
+    {
+        if(grado_multiprogramacion_activo > 0)
+        {
+            grado_multiprogramacion_activo--;
+        }
+    }
+    sem_post(&mutex_cola_new);
+}
+
+void detener_planificacion()
+{
+    if (planificar)
+    {
+        planificar = false;
+        sem_wait(&sem_planificacion);
+    }
+    else
+    {
+        printf("Error: La planificación ya está pausada");
+    }
+}
+
+void iniciar_planificacion()
+{
+    if(!planificar)
+    {
+        planificar = true;
+        sem_post(&sem_planificacion);
+    }
+    else
+    {
+        printf("Error: La planificación ya está en marcha");
+    }
+}
+
+void comprobar_planificacion()
+{
+    // Si la planificación está pausada (con DETENER_PLANIFICACION) se "bloquea" hasta que se ponga en marcha (con INICIAR_PLANIFICACION)
+    sem_wait(&sem_planificacion);
+    sem_post(&sem_planificacion);
+}
+
+void modificar_grado_multiprogramacion(int nuevo_valor)
+{
+    sem_wait(&mutex_cola_new);
+    if (nuevo_valor > grado_multiprogramacion_max && !list_is_empty(cola_new->elements))
+    {
+        if (nuevo_valor - grado_multiprogramacion_max < list_size(cola_new->elements))
+        {
+            for (int i = 0; i < (nuevo_valor - grado_multiprogramacion_max); i++)
+            {
+                sem_post(&sem_multiprogramacion);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < list_size(cola_new->elements); i++)
+            {
+                sem_post(&sem_multiprogramacion);
+            }
+        } 
+    }
+    sem_post(&mutex_cola_new);
+
+    log_trace(logger, "El grado de multiprogramación anterior era %i y se cambió a %i", grado_multiprogramacion_max, nuevo_valor);
+    grado_multiprogramacion_max = nuevo_valor;
+}
+
+void procesos_por_estado()
+{
+    printf("NEW | READY | BLOCKED | EXEC\n");
+    
+    if(list_size(cola_new->elements) > list_size(cola_ready->elements))
+    {
+        if(list_size(cola_new->elements) > list_size(lista_bloqueados))
+        {
+            listar_procesos(list_size(cola_new->elements));
+        }
+        else
+        {
+            listar_procesos(list_size(lista_bloqueados));
+        }
+    }
+    else
+    {
+        if(list_size(cola_ready->elements) > list_size(lista_bloqueados))
+        {
+            listar_procesos(list_size(cola_ready->elements));
+        }
+        else
+        {
+            listar_procesos(list_size(lista_bloqueados));
+        }
+    }
+}
+
+void listar_procesos(int cantidad_filas)
+{
+    char pid_exec[10];
+    if(cantidad_filas == 0)
+    {
+        if(proceso_en_ejecucion)
+        {
+            strcpy(pid_exec, string_itoa_hasta_tres_cifras(pcb_ejecutandose->pid));
+            printf("    |       |         |  %s\n", pid_exec);
+        }
+        else
+        {
+            printf("    |       |         |       (No hay ningún proceso)\n");
+        }
+    }
+    else
+    {
+        char pid_new[10];
+        char pid_ready[10];
+        char pid_blocked[10];
+        for (int i = 0; i < cantidad_filas; i++)
+        {
+            if(list_size(cola_new->elements) > i)
+            {
+                t_pcb *proceso_new = list_get(cola_new->elements, i);
+                strcpy(pid_new, string_itoa_hasta_tres_cifras(proceso_new->pid));
+            }
+            else
+            {
+                strcpy(pid_new, "   ");
+            }
+
+            if(list_size(cola_ready->elements) > i)
+            {
+                t_pcb *proceso_ready = list_get(cola_ready->elements, i);
+                strcpy(pid_ready, string_itoa_hasta_tres_cifras(proceso_ready->pid));
+            }
+            else
+            {
+                strcpy(pid_ready, "   ");
+            }
+
+            if(list_size(lista_bloqueados) > i)
+            {
+                t_pcb *proceso_blocked = list_get(lista_bloqueados, i);
+                strcpy(pid_blocked, string_itoa_hasta_tres_cifras(proceso_blocked->pid));
+            }
+            else
+            {
+                strcpy(pid_blocked, "   ");
+            }
+
+            if(i == 0 && proceso_en_ejecucion)
+            {
+                strcpy(pid_exec, string_itoa_hasta_tres_cifras(pcb_ejecutandose->pid));
+                printf("%s |   %s |     %s |  %s\n", pid_new, pid_ready, pid_blocked, pid_exec);
+            }
+            else
+            {
+                printf("%s |   %s |     %s |     \n", pid_new, pid_ready, pid_blocked);
+            }
+        }
+    }
+}
+
+void script(char *path)
+{
+    char *linea = NULL;
+    size_t size = 0;
+    FILE *archivo = fopen(path, "r");
+
+    if (!archivo)
+    {
+        log_error(logger, "No se pudo abrir el archivo del script: %s", path);
+        exit(EXIT_FAILURE);
+    }
+
+    while (getline(&linea, &size, archivo) != -1)
+    {
+        char comando[50];
+        sscanf(linea, "%s", comando);
+
+        if (strcmp("INICIAR_PROCESO", comando) == 0)
+        {
+            char path_instrucciones[300];
+            sscanf(linea, "%s %s", comando, path_instrucciones);
+
+            crear_pcb(path_instrucciones);
+        }
+        else if(strcmp("FINALIZAR_PROCESO", comando) == 0)
+        {
+            int pid;
+            sscanf(linea, "%s %i", comando, &pid);
+
+            encontrar_y_eliminar_proceso(pid);
+        }
+        else if(strcmp("DETENER_PLANIFICACION", comando) == 0)
+        {
+            detener_planificacion();
+        }
+        else if(strcmp("INICIAR_PLANIFICACION", comando) == 0)
+        {
+            iniciar_planificacion();
+        }
+        else if(strcmp("MULTIPROGRAMACION", comando) == 0)
+        {
+            int valor;
+            sscanf(linea, "%s %i", comando, &valor);
+
+            modificar_grado_multiprogramacion(valor);
+        }
+        else if(strcmp("PROCESO_ESTADO", comando) == 0)
+        {
+            procesos_por_estado();
+        }
+    }
+
+    free(linea);
+    fclose(archivo);
 }
 
 /*-----------------------------CONSOLA--------------------------------------------------------------------*/
@@ -923,17 +1199,17 @@ void consola()
         }
         else if ((strcmp(comando, "EJECUTAR_SCRIPT") == 0) || (strcmp(comando, "1") == 0))
         {
-            char path[300];
-            sscanf(linea, "%s %s", comando, path);
+            char path_script[300];
+            sscanf(linea, "%s %s", comando, path_script);
 
-            printf("Falta implementar\n"); // TODO
+            script(path_script);
         }
         else if ((strcmp(comando, "INICIAR_PROCESO") == 0) || (strcmp(comando, "2") == 0))
         {
-            char path[300];
-            sscanf(linea, "%s %s", comando, path);
+            char path_instrucciones[300];
+            sscanf(linea, "%s %s", comando, path_instrucciones);
 
-            crear_pcb(path);
+            crear_pcb(path_instrucciones);
         }
         else if ((strcmp(comando, "FINALIZAR_PROCESO") == 0) || (strcmp(comando, "3") == 0))
         {
@@ -944,22 +1220,22 @@ void consola()
         }
         else if ((strcmp(comando, "DETENER_PLANIFICACION") == 0) || (strcmp(comando, "4") == 0))
         {
-            printf("Falta implementar\n"); // TODO
+            detener_planificacion();
         }
         else if ((strcmp(comando, "INICIAR_PLANIFICACION") == 0) || (strcmp(comando, "5") == 0))
         {
-            printf("Falta implementar\n"); // TODO
+            iniciar_planificacion();
         }
         else if ((strcmp(comando, "MULTIPROGRAMACION") == 0) || (strcmp(comando, "6") == 0))
         {
             int valor;
             sscanf(linea, "%s %i", comando, &valor);
 
-            printf("Falta implementar\n"); // TODO
+            modificar_grado_multiprogramacion(valor);
         }
         else if ((strcmp(comando, "PROCESO_ESTADO") == 0) || (strcmp(comando, "7") == 0))
         {
-            printf("Falta implementar\n"); // TODO
+            procesos_por_estado();
         }
         else
         {
