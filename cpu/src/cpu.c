@@ -163,7 +163,7 @@ void *recibir_interrupciones()
 
         pid_de_interrupcion = interrupcion->pcb->pid;
         motivo_de_interrupcion = interrupcion->motivo;
-
+        log_trace(logger, "El motivo de interrupcion es %d",motivo_de_interrupcion);
         free(interrupcion->pcb->cpu_registers);
         free(interrupcion->pcb);
         free(interrupcion);
@@ -329,6 +329,44 @@ void decode(t_pcb *pcb, char *instruccion)
 
         pcb->cpu_registers->pc++;
         execute_io_gen_sleep(pcb, nombre_interfaz, unidades_de_trabajo);
+    }
+    else if (strcmp("IO_STDIN_READ", operacion) == 0)
+    {
+    char nombre_interfaz[50];
+    char registro_direccion[10];
+    char registro_tamaño[10];
+
+    sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, registro_direccion, registro_tamaño);
+
+    uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
+    uint32_t tamaño = leer_registro(pcb, registro_tamaño);
+
+    // Convertir la dirección lógica a direcciones físicas
+    t_list *direcciones_fisicas = mmu(direccion_logica, tamaño, pcb->pid);
+
+    pcb->cpu_registers->pc++;
+    log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamaño);
+
+    execute_io_stdin_read(pcb, nombre_interfaz, direcciones_fisicas, tamaño);
+    }
+    else if (strcmp("IO_STDOUT_WRITE", operacion) == 0)
+    {
+    char nombre_interfaz[50];
+    char registro_direccion[10];
+    char registro_tamaño[10];
+
+    sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, registro_direccion, registro_tamaño);
+
+    uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
+    uint32_t tamaño = leer_registro(pcb, registro_tamaño);
+
+    // Convertir la dirección lógica a direcciones físicas (en este caso no necesitamos mmu)
+    t_list *direcciones_fisicas = mmu(direccion_logica, tamaño, pcb->pid);
+
+    pcb->cpu_registers->pc++;
+    log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamaño);
+
+    execute_io_stdout_write(pcb, nombre_interfaz, direcciones_fisicas, tamaño);
     }
     else if (strcmp("EXIT", operacion) == 0)
     {

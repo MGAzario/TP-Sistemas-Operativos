@@ -309,21 +309,43 @@ void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_d
     log_trace(logger, "Terminando instrucción de sleep");
 }
 
-void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones)
-{
+void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamaño) {
     log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ", pcb->pid);
-    enviar_stdin_read(socket_kernel_dispatch, pcb, interfaz, direcciones);
+
+    // Crear la estructura t_io_stdin_read
+    uint32_t tamanio_nombre_interfaz = strlen(interfaz) + 1;
+    t_io_stdin_read *io_stdin_read = crear_io_stdin_read(pcb, interfaz, tamanio_nombre_interfaz, tamaño, direcciones_fisicas);
+
+    // Enviar la estructura t_io_stdin_read al kernel dispatch
+    enviar_io_stdin_read(socket_kernel_dispatch, io_stdin_read);
+
+    // Liberar memoria de la estructura t_io_stdin_read
+    free(io_stdin_read->nombre_interfaz);
+    free(io_stdin_read);
+    
     continuar_ciclo = 0;
     log_trace(logger, "Terminando instrucción de IO_STDIN_READ");
 }
 
-void execute_io_stdout_write(t_pcb *pcb, char *interfaz, t_list *direcciones)
-{
-    log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ", pcb->pid);
-    enviar_stdout_write(socket_kernel_dispatch, pcb, interfaz, direcciones);
+
+void execute_io_stdout_write(t_pcb *pcb, char *interfaz, uint32_t direccion_logica, uint32_t tamaño) {
+    log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE", pcb->pid);
+
+    // Crear la estructura t_io_stdout_write
+    uint32_t tamanio_nombre_interfaz = strlen(interfaz) + 1;
+    t_io_stdout_write *io_stdout_write = crear_io_stdout_write(pcb, interfaz, tamanio_nombre_interfaz, direccion_logica, tamaño);
+
+    // Enviar la estructura t_io_stdout_write al kernel dispatch
+    enviar_io_stdout_write(socket_kernel_dispatch, io_stdout_write);
+
+    // Liberar memoria de la estructura t_io_stdout_write
+    free(io_stdout_write->nombre_interfaz);
+    free(io_stdout_write);
+
     continuar_ciclo = 0;
-    log_trace(logger, "Terminando instrucción de IO_STDIN_READ");
+    log_trace(logger, "Terminando instrucción de IO_STDOUT_WRITE");
 }
+
 
 void execute_exit(t_pcb *pcb)
 {
