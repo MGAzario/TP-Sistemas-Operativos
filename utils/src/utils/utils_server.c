@@ -675,3 +675,107 @@ t_io_stdout_write* recibir_io_stdout_write(int socket_cliente) {
     free(buffer);
     return io_stdout_write;
 }
+
+t_io_fs_create *recibir_io_fs_create(int socket_cliente) {
+    int size;
+    void *buffer = recibir_buffer(&size, socket_cliente);
+
+    t_io_fs_create *io_fs_create = malloc(sizeof(t_io_fs_create));
+    t_pcb *pcb = malloc(sizeof(t_pcb));
+    t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
+    pcb->cpu_registers = registros;
+    io_fs_create->pcb = pcb;
+
+    // Copiar datos del PCB desde el buffer
+    memcpy(&(io_fs_create->pcb->pid), buffer, sizeof(int));
+    buffer += sizeof(int);
+    memcpy(&(io_fs_create->pcb->quantum), buffer, sizeof(int));
+    buffer += sizeof(int);
+
+    // Copiar registros de la CPU
+    memcpy(&(io_fs_create->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+
+    memcpy(io_fs_create->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
+    buffer += sizeof(uint8_t) * 4;
+
+    memcpy(io_fs_create->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
+    buffer += sizeof(uint32_t) * 4;
+
+    memcpy(&(io_fs_create->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    memcpy(&(io_fs_create->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+
+    memcpy(&(io_fs_create->pcb->estado), buffer, sizeof(estado_proceso));
+    buffer += sizeof(estado_proceso);
+
+    // Deserializar datos de interfaz y nombre de archivo
+    memcpy(&(io_fs_create->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    io_fs_create->nombre_interfaz = malloc(io_fs_create->tamanio_nombre_interfaz);
+    memcpy(io_fs_create->nombre_interfaz, buffer, io_fs_create->tamanio_nombre_interfaz);
+    buffer += io_fs_create->tamanio_nombre_interfaz;
+
+    memcpy(&(io_fs_create->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    io_fs_create->nombre_archivo = malloc(io_fs_create->tamanio_nombre_archivo);
+    memcpy(io_fs_create->nombre_archivo, buffer, io_fs_create->tamanio_nombre_archivo);
+    buffer += io_fs_create->tamanio_nombre_archivo;
+
+    // Liberar el buffer original
+    free(buffer - size);
+    return io_fs_create;
+}
+
+t_io_fs_delete *recibir_io_fs_delete(int socket_cliente) {
+    int size;
+    void *buffer = recibir_buffer(&size, socket_cliente);
+
+    t_io_fs_delete *io_fs_delete = malloc(sizeof(t_io_fs_delete));
+    t_pcb *pcb = malloc(sizeof(t_pcb));
+    t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
+    pcb->cpu_registers = registros;
+    io_fs_delete->pcb = pcb;
+
+    // Copiar datos del PCB desde el buffer
+    memcpy(&(io_fs_delete->pcb->pid), buffer, sizeof(int));
+    buffer += sizeof(int);
+    memcpy(&(io_fs_delete->pcb->quantum), buffer, sizeof(int));
+    buffer += sizeof(int);
+
+    // Copiar registros de la CPU
+    memcpy(&(io_fs_delete->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+
+    memcpy(io_fs_delete->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
+    buffer += sizeof(uint8_t) * 4;
+
+    memcpy(io_fs_delete->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
+    buffer += sizeof(uint32_t) * 4;
+
+    memcpy(&(io_fs_delete->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    memcpy(&(io_fs_delete->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+
+    memcpy(&(io_fs_delete->pcb->estado), buffer, sizeof(estado_proceso));
+    buffer += sizeof(estado_proceso);
+
+    // Deserializar datos de interfaz y nombre de archivo
+    memcpy(&(io_fs_delete->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    io_fs_delete->nombre_interfaz = malloc(io_fs_delete->tamanio_nombre_interfaz);
+    memcpy(io_fs_delete->nombre_interfaz, buffer, io_fs_delete->tamanio_nombre_interfaz);
+    buffer += io_fs_delete->tamanio_nombre_interfaz;
+
+    memcpy(&(io_fs_delete->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    io_fs_delete->nombre_archivo = malloc(io_fs_delete->tamanio_nombre_archivo);
+    memcpy(io_fs_delete->nombre_archivo, buffer, io_fs_delete->tamanio_nombre_archivo);
+    buffer += io_fs_delete->tamanio_nombre_archivo;
+
+    // Liberar el buffer original
+    free(buffer - size);
+    return io_fs_delete;
+}

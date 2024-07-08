@@ -739,6 +739,12 @@ void esperar_cpu()
     case IO_STDOUT_WRITE:
         pedido_io_stdout_write();
         break;
+    case IO_FS_CREATE:
+        pedido_io_fs_create();
+        break;
+    case IO_FS_DELETE:
+        pedido_io_fs_delete();
+        break;
     case INSTRUCCION_EXIT:
         log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
         t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
@@ -941,6 +947,114 @@ void pedido_io_stdout_write() {
     free(io_stdout_write->pcb->cpu_registers);
     free(io_stdout_write->pcb);
     free(io_stdout_write);
+}
+
+void pedido_io_fs_create() {
+    log_debug(logger, "El CPU pidió un IO_FS_CREATE");
+
+    t_io_fs_create *io_fs_create = recibir_io_fs_create(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_create = NULL;
+
+    // Buscamos la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_create->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_create = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe mandamos el proceso a EXIT
+    if (interfaz_fs_create == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_create->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS" mandamos el proceso a EXIT
+    if (interfaz_fs_create->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_create->pcb);
+        return;
+    }
+
+    io_fs_create->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_create->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificamos si la interfaz está ocupada
+    if (!interfaz_fs_create->ocupada) {
+        // Enviar la solicitud de IO_FS_CREATE a la interfaz
+        enviar_io_fs_create(interfaz_fs_create->socket, io_fs_create);
+        interfaz_fs_create->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_create
+    free(io_fs_create->nombre_interfaz);
+    free(io_fs_create->nombre_archivo);
+    free(io_fs_create->pcb->cpu_registers);
+    free(io_fs_create->pcb);
+    free(io_fs_create);
+}
+
+void pedido_io_fs_delete() {
+    log_debug(logger, "El CPU pidió un IO_FS_DELETE");
+
+    t_io_fs_delete *io_fs_delete = recibir_io_fs_delete(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_delete = NULL;
+
+    // Buscar la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_delete->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_delete = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe, mandar el proceso a EXIT
+    if (interfaz_fs_delete == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_delete->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
+    if (interfaz_fs_delete->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_delete->pcb);
+        return;
+    }
+
+    io_fs_delete->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_delete->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificar si la interfaz está ocupada
+    if (!interfaz_fs_delete->ocupada) {
+        // Enviar la solicitud de IO_FS_DELETE a la interfaz
+        enviar_io_fs_delete(interfaz_fs_delete->socket, io_fs_delete);
+        interfaz_fs_delete->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_delete
+    free(io_fs_delete->nombre_interfaz);
+    free(io_fs_delete->nombre_archivo);
+    free(io_fs_delete->pcb->cpu_registers);
+    free(io_fs_delete->pcb);
+    free(io_fs_delete);
 }
 
 void bloquear_proceso(t_pcb *pcb)

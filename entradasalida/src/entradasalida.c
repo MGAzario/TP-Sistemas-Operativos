@@ -371,7 +371,7 @@ void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata) {
 
 void manejar_io_fs_create() {
     // Recibir la estructura t_io_fs_create desde el Kernel
-    t_io_fs_create *solicitud = recibir_io_fs_create(socket_kernel); // Función ficticia para recibir la estructura
+    t_io_fs_create *solicitud = recibir_io_fs_create(socket_kernel);
 
     if (solicitud == NULL) {
         log_error(logger, "Error al recibir la solicitud de creación de archivo");
@@ -383,7 +383,7 @@ void manejar_io_fs_create() {
     char *nombre_archivo = solicitud->nombre_archivo;
 
     // Log de la acción
-    log_info(logger, "DialFS - Crear Archivo: “PID: %d - Crear Archivo: %s”", pid, nombre_archivo);
+    log_info(logger, "PID: %d - Crear Archivo: %s", pid, nombre_archivo);
 
     // Buscar un bloque libre en el bitmap
     int bloque_inicial = -1;
@@ -416,3 +416,61 @@ void manejar_io_fs_create() {
     // Liberar memoria
     free(solicitud);
 }
+
+void manejar_io_fs_delete(int socket_kernel) {
+    // Recibir la estructura t_io_fs_delete desde el kernel
+    t_io_fs_delete *io_fs_delete = recibir_io_fs_delete(socket_kernel);
+    if (io_fs_delete == NULL) {
+        log_error(logger, "Error al recibir los datos de IO_FS_DELETE.");
+        return;
+    }
+
+    char metadata_path[256];
+    snprintf(metadata_path, sizeof(metadata_path), "%s/%s.metadata", path_base_dialfs, io_fs_delete->nombre_archivo);
+
+    if (access(metadata_path, F_OK) != 0) {
+        log_warning(logger, "PID: %d - Eliminar Archivo: %s - El archivo no existe.", io_fs_delete->pcb->pid, io_fs_delete->nombre_archivo);
+        return;
+    }
+
+    // Leer el archivo de metadatos para obtener bloques utilizados
+    t_config* metadata_config = config_create(metadata_path);
+    if (metadata_config == NULL) {
+        log_error(logger, "No se pudo abrir el archivo de metadatos para %s", io_fs_delete->nombre_archivo);
+        return;
+    }
+
+    int bloque_inicial = config_get_int_value(metadata_config, "BLOQUE_INICIAL");
+    int tamanio_archivo = config_get_int_value(metadata_config, "TAMANIO_ARCHIVO");
+    int bloques_usados = (tamanio_archivo + block_size - 1) / block_size; // Calcular cantidad de bloques
+
+    // Actualizar bitmap
+    for (int i = 0; i < bloques_usados; i++) {
+        bitarray_clean_bit(bitarray, bloque_inicial + i);
+    }
+
+    // Resetear los datos en el archivo de bloques
+    fseek(bloques->archivo, bloque_inicial * block_size, SEEK_SET);
+    char* empty_data = calloc(1, block_size); // Data buffer con ceros
+    for (int i = 0; i < bloques_usados; i++) {
+        fwrite(empty_data, block_size, 1, bloques->archivo); // Escribir ceros en cada bloque usado
+    }
+    fflush(bloques->archivo); // Asegurar que se escriba en disco
+    free(empty_data);
+
+    // Eliminar el archivo de metadatos
+    if (remove(metadata_path) == 0) {
+        log_info(logger, "PID: %d - Eliminar Archivo: %s", io_fs_delete->pcb->pid, io_fs_delete->nombre_archivo);
+    } else {
+        log_error(logger, "PID: %d - Eliminar Archivo: %s - Error al intentar eliminar el archivo.", io_fs_delete->pcb->pid, io_fs_delete->nombre_archivo);
+    }
+
+    config_destroy(metadata_config); // Liberar la configuración del metadata
+
+    // Liberar estructura de solicitud después de su uso
+    free(io_fs_delete->nombre_interfaz);
+    free(io_fs_delete->nombre_archivo);
+    free(io_fs_delete);
+}
+
+

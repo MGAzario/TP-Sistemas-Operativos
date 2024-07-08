@@ -42,5 +42,7 @@ t_escribir_memoria *recibir_escribir_memoria(int socket_cliente);
 t_recurso *recibir_recurso(int socket_cliente);
 t_io_stdin_read *recibir_io_stdin_read(int socket_cliente);
 t_io_stdout_write* recibir_io_stdout_write(int socket_cliente);
+t_io_fs_create *recibir_io_fs_create(int socket_cliente);
+t_io_fs_delete *recibir_io_fs_delete(int socket_cliente)
 
 #endif /* UTILS_SERVER_SERVER_H_ */

@@ -368,6 +368,28 @@ void execute_io_fs_create(t_pcb *pcb, char *interfaz, char *nombre_archivo) {
     log_trace(logger, "Terminando instrucción de IO_FS_CREATE para el archivo %s", nombre_archivo);
 }
 
+void execute_io_fs_delete(t_pcb *pcb, char *interfaz, char *nombre_archivo) {
+    log_info(logger, "PID: %i - Ejecutando: IO_FS_DELETE para el archivo %s", pcb->pid, nombre_archivo);
+
+    // Crear la estructura t_io_fs_delete
+    t_io_fs_delete *io_fs_delete = crear_io_fs_delete(pcb, interfaz, nombre_archivo);
+    if (io_fs_delete == NULL) {
+        log_error(logger, "No se pudo crear la estructura para IO_FS_DELETE");
+        return; // Gestión de error en caso de que no se pueda crear la estructura
+    }
+
+    // Enviar la estructura t_io_fs_delete al kernel dispatch
+    enviar_io_fs_delete(socket_kernel_dispatch, io_fs_delete);
+
+    // Liberar memoria de la estructura t_io_fs_delete
+    free(io_fs_delete->nombre_interfaz);
+    free(io_fs_delete->nombre_archivo);
+    free(io_fs_delete);
+
+    continuar_ciclo = 0;
+    log_trace(logger, "Terminando instrucción de IO_FS_DELETE para el archivo %s", nombre_archivo);
+}
+
 
 void execute_exit(t_pcb *pcb)
 {
