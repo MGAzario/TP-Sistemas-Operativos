@@ -336,6 +336,18 @@ void crear_interfaz_dialfs()
         case IO_FS_CREATE:
             manejar_io_fs_create();
             break;
+        case IO_FS_DELETE:
+            manejar_io_fs_delete();
+            break;
+        case IO_FS_TRUNCATE:
+            manejar_io_fs_truncate();
+            break;
+        case IO_FS_WRITE:
+            manejar_io_fs_write();
+            break;
+        case IO_FS_READ:
+            manejar_io_fs_read();
+            break;
         default:
             break;
         }
@@ -369,6 +381,7 @@ void crear_metadata_archivo(char* nombre_archivo, t_metadata_archivo metadata) {
     config_destroy(config_metadata);
 }
 
+//Funciones para las instrucciones
 void manejar_io_fs_create() {
     // Recibir la estructura t_io_fs_create desde el Kernel
     t_io_fs_create *solicitud = recibir_io_fs_create(socket_kernel);
@@ -471,6 +484,180 @@ void manejar_io_fs_delete(int socket_kernel) {
     free(io_fs_delete->nombre_interfaz);
     free(io_fs_delete->nombre_archivo);
     free(io_fs_delete);
+}
+
+void manejar_io_fs_truncate() {
+    log_debug(logger, "Recibiendo pedido de IO_FS_TRUNCATE");
+
+    // Recibir la solicitud de IO_FS_TRUNCATE
+    t_io_fs_truncate *io_fs_truncate = recibir_io_fs_truncate(socket_entrada_salida);
+
+    // Buscar si el archivo existe en el sistema de archivos DialFS
+    char metadata_path[256];
+    snprintf(metadata_path, sizeof(metadata_path), "%s/%s.metadata", path_base_dialfs, io_fs_truncate->nombre_archivo);
+
+    t_config *metadata = config_create(metadata_path);
+    if (metadata == NULL) {
+        log_warning(logger, "Archivo %s no existe. No se puede truncar.", io_fs_truncate->nombre_archivo);
+        enviar_error_truncate(io_fs_truncate->pcb);  // Asumiendo que esta función maneja la respuesta de error
+        return;
+    }
+
+    // Leer el bloque inicial y tamaño actual del archivo desde metadata
+    int bloque_inicial = config_get_int_value(metadata, "BLOQUE_INICIAL");
+    int tamanio_actual = config_get_int_value(metadata, "TAMANIO_ARCHIVO");
+
+    // Calcular el nuevo tamaño y actualizar la metadata
+    int nuevo_tamanio = io_fs_truncate->nuevo_tamanio; // asumimos que esta es la forma como se obtuvo el tamaño
+
+    if (nuevo_tamanio != tamanio_actual) {
+        config_set_value(metadata, "TAMANIO_ARCHIVO", string_itoa(nuevo_tamanio));
+        config_save(metadata);
+        log_info(logger, "Archivo %s truncado a %d bytes.", io_fs_truncate->nombre_archivo, nuevo_tamanio);
+
+        // Actualizar el bitmap y archivo de bloques si necesario
+        actualizar_estructura_bloques(bloque_inicial, tamanio_actual, nuevo_tamanio);
+    }
+
+    // Liberar recursos
+    config_destroy(metadata);
+    free(io_fs_truncate->nombre_interfaz);
+    free(io_fs_truncate->nombre_archivo);
+    free(io_fs_truncate->pcb->cpu_registers);
+    free(io_fs_truncate->pcb);
+    free(io_fs_truncate);
+
+    // TODO Asumiendo que hay alguna función que maneje la respuesta de éxito
+    //enviar_confirmacion_truncate(io_fs_truncate->pcb);
+}
+
+
+void manejar_io_fs_write(){
+    //TODO
+}
+
+void manejar_io_fs_read(){
+    //TODO
+}
+
+void actualizar_estructura_bloques(int bloque_inicial, int tamanio_actual, int nuevo_tamanio) {
+    int bloques_actuales = (tamanio_actual + block_size - 1) / block_size;
+    int nuevos_bloques = (nuevo_tamanio + block_size - 1) / block_size;
+
+    //El nuevo tamaño es mayor que el que tenia. Peor caso
+    if (nuevos_bloques > bloques_actuales) {
+        verificar_y_compactar_fs(bloque_inicial, bloques_actuales, nuevos_bloques);
+
+        // Ocupar nuevos bloques después de la compactación (si es necesaria)
+        for (int i = bloques_actuales; i < nuevos_bloques; i++) {
+            if (!bitarray_test_bit(bitarray, bloque_inicial + i)) {
+                bitarray_set_bit(bitarray, bloque_inicial + i);
+            }
+        }
+    //El nuevo tamaño es menor al que tenia. Mejor caso
+    } else if (nuevos_bloques < bloques_actuales) {
+        // Liberar bloques no utilizados
+        for (int i = nuevos_bloques; i < bloques_actuales; i++) {
+            bitarray_clean_bit(bitarray, bloque_inicial + i);
+        }
+    }
+
+    // Actualizar archivo de bloques si es necesario
+    if (nuevo_tamanio < tamanio_actual) {
+        fseek(bloques->archivo, bloque_inicial * block_size + nuevo_tamanio, SEEK_SET);
+        char* empty_data = calloc(block_size * (bloques_actuales - nuevos_bloques), 1);
+        fwrite(empty_data, 1, block_size * (bloques_actuales - nuevos_bloques), bloques->archivo);
+        free(empty_data);
+    }
+
+    // Guardar cambios en el bitmap
+    fseek(bitmap_file, 0, SEEK_SET);
+    fwrite(bitarray->bitarray, sizeof(char), bitarray->size, bitmap_file);
+    fflush(bitmap_file);
+
+    log_info(logger, "Estructura de bloques actualizada. Bloques usados ahora: %d", nuevos_bloques);
+}
+
+void verificar_y_compactar_fs(int bloque_inicial, int bloques_actuales, int nuevos_bloques) {
+    // Revisar si hay suficientes bloques contiguos libres desde el bloque inicial
+    bool espacio_contiguo = true;
+    for (int i = bloques_actuales; i < nuevos_bloques; i++) {
+        if (bitarray_test_bit(bitarray, bloque_inicial + i)) {
+            espacio_contiguo = false;
+            break;
+        }
+    }
+
+    if (!espacio_contiguo) {
+        log_info(logger, "Espacio no contiguo detectado, iniciando compactación");
+        compactar_fs();
+    }
+}
+
+void compactar_fs() {
+    log_info(logger, "Iniciando compactación del sistema de archivos");
+
+    // Simulación: identificar todos los bloques ocupados y libres
+    int total_blocks = block_count;
+    bool* blocks_ocupados = calloc(total_blocks, sizeof(bool));
+
+    // Marcar los bloques ocupados en una matriz temporal para facilitar la compactación
+    for (int i = 0; i < total_blocks; i++) {
+        blocks_ocupados[i] = bitarray_test_bit(bitarray, i);
+    }
+
+    int indice_escritura = 0; // Dónde escribir el próximo bloque compactado
+
+    // Recorrer todos los bloques y mover los ocupados al inicio
+    for (int i = 0; i < total_blocks; i++) {
+        if (blocks_ocupados[i]) {
+            if (indice_escritura != i) {
+                // Simular el movimiento de bloques en el archivo físico
+                mover_bloque(bloques->archivo, i, indice_escritura);
+
+                // Actualizar el bitmap
+                bitarray_clean_bit(bitarray, i);
+                bitarray_set_bit(bitarray, indice_escritura);
+
+                indice_escritura++;
+            } else {
+                indice_escritura++; // El bloque ya está en la posición correcta
+            }
+        }
+    }
+
+    free(blocks_ocupados);
+
+    // Escribir los cambios al archivo de bitmap
+    fseek(bitmap_file, 0, SEEK_SET);
+    fwrite(bitarray->bitarray, sizeof(char), bitarray->size, bitmap_file);
+    fflush(bitmap_file);
+
+    // Retrasar la compactación para simular tiempo de procesamiento
+    sleep(retraso_compactacion);
+
+    log_info(logger, "Compactación completada");
+}
+
+void mover_bloque(FILE* archivo, int bloque_origen, int bloque_destino) {
+    size_t tamano_bloque = block_size;
+    char* buffer = malloc(tamano_bloque);
+
+    // Leer el bloque origen
+    fseek(archivo, bloque_origen * tamano_bloque, SEEK_SET);
+    fread(buffer, tamano_bloque, 1, archivo);
+
+    // Escribir en la posición destino
+    fseek(archivo, bloque_destino * tamano_bloque, SEEK_SET);
+    fwrite(buffer, tamano_bloque, 1, archivo);
+
+    // Limpiar el bloque origen
+    char* empty_data = calloc(tamano_bloque, 1);
+    fseek(archivo, bloque_origen * tamano_bloque, SEEK_SET);
+    fwrite(empty_data, tamano_bloque, 1, archivo);
+
+    free(buffer);
+    free(empty_data);
 }
 
 

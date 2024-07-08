@@ -1246,3 +1246,96 @@ void enviar_io_fs_delete(int socket_cliente, t_io_fs_delete* io_fs_delete) {
     // Limpiar y liberar memoria utilizada por el paquete
     eliminar_paquete(paquete);
 }
+
+t_paquete* crear_paquete_io_fs_truncate(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    if (paquete == NULL) {
+        return NULL; // Error de memoria
+    }
+
+    crear_buffer(paquete);
+    paquete->codigo_operacion = IO_FS_DELETE;
+
+    // Calcular el tamaño total del buffer basado en las longitudes predeterminadas y proporcionadas
+    paquete->buffer->size = sizeof(uint32_t)  // PID
+                            + sizeof(uint32_t)  // Quantum
+                            + sizeof(uint32_t)  // PC
+                            + 4 * sizeof(uint8_t)  // Registros normales
+                            + 4 * sizeof(uint32_t)  // Registros extendidos
+                            + 2 * sizeof(uint32_t)  // SI y DI
+                            + sizeof(estado_proceso)  // Estado
+                            + sizeof(uint32_t) + tamanio_nombre_interfaz  // Nombre de la interfaz y su tamaño
+                            + sizeof(uint32_t) + tamanio_nombre_archivo;  // Nombre del archivo y su tamaño
+							+ sizeof(uint32_t) //Nuevo tamanio del archivo
+
+    paquete->buffer->stream = malloc(paquete->buffer->size);
+    if (paquete->buffer->stream == NULL) {
+        free(paquete->buffer);
+        free(paquete);
+        return NULL; // Error de memoria
+    }
+
+    return paquete;
+}
+
+void agregar_io_fs_truncate_a_paquete(t_paquete* paquete, t_io_fs_truncate* io_fs_truncate) {
+    int desplazamiento = 0;
+
+    // Copiar datos del PCB
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->pid), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->quantum), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->cpu_registers->pc), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+
+    // Copiar registros normales (AX, BX, CX, DX)
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->pcb->cpu_registers->normales, sizeof(uint8_t) * 4);
+    desplazamiento += sizeof(uint8_t) * 4;
+
+    // Copiar registros extendidos (EAX, EBX, ECX, EDX)
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->pcb->cpu_registers->extendidos, sizeof(uint32_t) * 4);
+    desplazamiento += sizeof(uint32_t) * 4;
+
+    // Copiar registros si y di
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->cpu_registers->si), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->cpu_registers->di), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+
+    // Copiar estado del proceso
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->estado), sizeof(estado_proceso));
+    desplazamiento += sizeof(estado_proceso);
+
+    // Copiar datos específicos de la solicitud
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->tamanio_nombre_interfaz), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->nombre_interfaz, io_fs_truncate->tamanio_nombre_interfaz);
+    desplazamiento += io_fs_truncate->tamanio_nombre_interfaz;
+
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->tamanio_nombre_archivo), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->nombre_archivo, io_fs_truncate->tamanio_nombre_archivo);
+    desplazamiento += io_fs_truncate->tamanio_nombre_archivo;
+
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->nuevo_tamanio), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+}
+
+void enviar_io_fs_truncate(int socket_cliente, t_io_fs_truncate* io_fs_truncate) {
+    // Obtener los tamaños de los nombres de interfaz y archivo
+    uint32_t tamanio_nombre_interfaz = strlen(io_fs_truncate->nombre_interfaz) + 1;
+    uint32_t tamanio_nombre_archivo = strlen(io_fs_truncate->nombre_archivo) + 1;
+
+    // Crear el paquete utilizando los tamaños calculados
+    t_paquete* paquete = crear_paquete_io_fs_truncate(tamanio_nombre_interfaz, tamanio_nombre_archivo);
+
+    // Agregar la información de IO_FS_TRUNCATE al paquete
+    agregar_io_fs_truncate_a_paquete(paquete, io_fs_truncate);
+
+    // Enviar el paquete al cliente
+    enviar_paquete(paquete, socket_cliente);
+
+    // Liberar el paquete después del envío
+    eliminar_paquete(paquete);
+}

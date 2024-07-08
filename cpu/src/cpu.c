@@ -371,11 +371,11 @@ void decode(t_pcb *pcb, char *instruccion)
     else if (strcmp("IO_FS_CREATE", operacion) == 0)
     {
         char nombre_interfaz[50];
-        char nombre_archivo[256]; // Asumimos que el nombre del archivo no superará los 256 caracteres
+        char nombre_archivo[256];
 
         sscanf(instruccion, "%s %s %s", operacion, nombre_interfaz, nombre_archivo);
 
-        // Aquí no necesitas convertir direcciones lógicas a físicas ni leer registros específicos
+        
         pcb->cpu_registers->pc++;
         log_info(logger, "PID: %i - Ejecutando: IO_FS_CREATE - %s %s", pcb->pid, nombre_interfaz, nombre_archivo);
 
@@ -384,15 +384,31 @@ void decode(t_pcb *pcb, char *instruccion)
     else if (strcmp("IO_FS_DELETE", operacion) == 0)
     {
         char nombre_interfaz[50];
-        char nombre_archivo[256]; // Asumimos que el nombre del archivo no superará los 256 caracteres
+        char nombre_archivo[256]; 
 
         sscanf(instruccion, "%s %s %s", operacion, nombre_interfaz, nombre_archivo);
 
-        // Aquí no necesitas convertir direcciones lógicas a físicas ni leer registros específicos
+        
         pcb->cpu_registers->pc++;
         log_info(logger, "PID: %i - Ejecutando: IO_FS_DELETE - %s %s", pcb->pid, nombre_interfaz, nombre_archivo);
 
         execute_io_fs_delete(pcb, nombre_interfaz, nombre_archivo);
+    }
+    else if (strcmp("IO_FS_TRUNCATE", operacion) == 0)
+    {
+        char nombre_interfaz[50];
+        char nombre_archivo[256]; 
+        char registro_tamano[10]; 
+
+        sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, nombre_archivo, registro_tamano);
+
+        // Convertir la dirección lógica a un tamaño usando el registro indicado
+        uint32_t tamanio = leer_registro(pcb, registro_tamano);
+
+        pcb->cpu_registers->pc++;
+        log_info(logger, "PID: %i - Ejecutando: IO_FS_TRUNCATE - %s %s nuevo tamaño: %u", pcb->pid, nombre_interfaz, nombre_archivo, tamanio);
+
+        execute_io_fs_truncate(pcb, nombre_interfaz, nombre_archivo, tamanio);
     }
     else if (strcmp("EXIT", operacion) == 0)
     {

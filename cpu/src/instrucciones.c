@@ -390,6 +390,28 @@ void execute_io_fs_delete(t_pcb *pcb, char *interfaz, char *nombre_archivo) {
     log_trace(logger, "Terminando instrucción de IO_FS_DELETE para el archivo %s", nombre_archivo);
 }
 
+void execute_io_fs_truncate(t_pcb *pcb, char *interfaz, char *nombre_archivo, uint32_t nuevo_tamano) {
+    log_info(logger, "PID: %i - Ejecutando: IO_FS_TRUNCATE para el archivo %s con nuevo tamaño %u", pcb->pid, nombre_archivo, nuevo_tamano);
+
+    // Crear la estructura para la solicitud
+    t_io_fs_truncate *io_fs_truncate = crear_io_fs_truncate(pcb, interfaz, nombre_archivo, nuevo_tamano);
+    if (io_fs_truncate == NULL) {
+        log_error(logger, "No se pudo crear la estructura para IO_FS_TRUNCATE");
+        return;  // Manejo de error
+    }
+
+    // Enviar la estructura al kernel dispatch
+    enviar_io_fs_truncate(socket_kernel_dispatch, io_fs_truncate);
+
+    // Liberar memoria
+    free(io_fs_truncate->nombre_interfaz);
+    free(io_fs_truncate->nombre_archivo);
+    free(io_fs_truncate);
+
+    continuar_ciclo = 0;
+    log_trace(logger, "Terminando instrucción de IO_FS_TRUNCATE para el archivo %s", nombre_archivo);
+}
+
 
 void execute_exit(t_pcb *pcb)
 {
