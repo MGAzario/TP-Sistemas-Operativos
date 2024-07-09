@@ -140,7 +140,10 @@ t_io_fs_delete* crear_io_fs_delete(t_pcb* pcb, char* nombre_interfaz, char* nomb
 t_paquete* crear_paquete_io_fs_delete(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo);
 void agregar_io_fs_delete_a_paquete(t_paquete* paquete, t_io_fs_delete* io_fs_delete);
 void enviar_io_fs_delete(int socket_cliente, t_io_fs_delete* io_fs_delete);
-
+t_io_fs_write* crear_io_fs_write(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
+t_paquete* crear_paquete_io_fs_write(t_io_fs_write* io_fs_write);
+void agregar_io_fs_write_a_paquete(t_paquete* paquete, t_io_fs_write* io_fs_write);
+void enviar_io_fs_write(int socket_cliente, t_io_fs_write* io_fs_write);
 
 
 #endif /* UTILS_CLIENTE_H_ */

@@ -425,7 +425,8 @@ void manejar_io_fs_create() {
     fseek(bitmap_file, 0, SEEK_SET);
     fwrite(bitarray->bitarray, sizeof(char), bitarray_get_max_bit(bitarray) / 8, bitmap_file);
     fflush(bitmap_file);
-
+    
+    //TODO, enviar confirmacion a Kernel
     // Liberar memoria
     free(solicitud);
 }
@@ -480,6 +481,8 @@ void manejar_io_fs_delete(int socket_kernel) {
 
     config_destroy(metadata_config); // Liberar la configuración del metadata
 
+    //TODO, enviar confirmacion a Kernel
+
     // Liberar estructura de solicitud después de su uso
     free(io_fs_delete->nombre_interfaz);
     free(io_fs_delete->nombre_archivo);
@@ -532,8 +535,60 @@ void manejar_io_fs_truncate() {
 }
 
 
-void manejar_io_fs_write(){
-    //TODO
+void manejar_io_fs_write() {
+    // Recibir la estructura t_io_fs_write desde el Kernel
+    t_io_fs_write *io_fs_write = recibir_io_fs_write(socket_kernel);
+
+    log_info(logger, "PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %u - Puntero Archivo: %u", 
+             io_fs_write->pcb->pid, io_fs_write->nombre_archivo, io_fs_write->tamanio, io_fs_write->puntero_archivo);
+
+    // Verificar que el archivo exista y pueda abrirse
+    char archivo_path[1024];
+    snprintf(archivo_path, sizeof(archivo_path), "%s/%s", path_base_dialfs, io_fs_write->nombre_archivo);
+    FILE *archivo = fopen(archivo_path, "r+");
+    if (!archivo) {
+        log_error(logger, "No se pudo abrir el archivo %s para escritura", io_fs_write->nombre_archivo);
+        enviar_error_al_kernel(io_fs_write->pcb, "Archivo no accesible");
+        return;
+    }
+
+    fseek(archivo, io_fs_write->puntero_archivo, SEEK_SET);
+    t_list_iterator *iterator = list_iterator_create(io_fs_write->direcciones_fisicas);
+    while (list_iterator_has_next(iterator)) {
+        uint32_t *direccion_fisica = list_iterator_next(iterator);
+
+        // Solicitar la lectura de memoria para cada dirección física
+        enviar_leer_memoria(socket_memoria, io_fs_write->pcb->pid, *direccion_fisica, io_fs_write->tamanio);
+
+        // Recibir los datos leídos de memoria
+        t_lectura *lectura = recibir_lectura(socket_memoria);
+        if (lectura && lectura->lectura) {
+            fwrite(lectura->lectura, sizeof(char), lectura->tamanio_lectura, archivo);
+
+            // Liberar recursos de lectura
+            free(lectura->lectura);
+            free(lectura);
+        } else {
+            log_error(logger, "Error al recibir datos de memoria para la dirección %u", *direccion_fisica);
+            break;
+        }
+    }
+    list_iterator_destroy(iterator);
+
+    fflush(archivo);
+    fclose(archivo);
+
+    //TODO Enviar confirmación de escritura completada al Kernel
+    //enviar_confirmacion_io_fs_write(socket_kernel, io_fs_write->pcb);
+
+    // Liberar recursos
+    free(io_fs_write->nombre_interfaz);
+    free(io_fs_write->nombre_archivo);
+    free(io_fs_write->pcb->cpu_registers);
+    free(io_fs_write->pcb);
+    free(io_fs_write);
+
+    log_trace(logger, "IO_FS_WRITE completado para el archivo %s", io_fs_write->nombre_archivo);
 }
 
 void manejar_io_fs_read(){

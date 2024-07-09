@@ -1120,9 +1120,61 @@ void pedido_io_fs_truncate() {
     free(io_fs_truncate);
 }
 
-void pedido_io_fs_write(){
-    //TODO
+void pedido_io_fs_write() {
+    log_debug(logger, "El CPU pidió un IO_FS_WRITE");
+
+    t_io_fs_write *io_fs_write = recibir_io_fs_write(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_write = NULL;
+
+    // Buscamos la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_write->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_write = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe mandamos el proceso a EXIT
+    if (interfaz_fs_write == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_write->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandamos el proceso a EXIT
+    if (interfaz_fs_write->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_write->pcb);
+        return;
+    }
+
+    io_fs_write->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_write->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificamos si la interfaz está ocupada
+    if (!interfaz_fs_write->ocupada) {
+        // Enviar la solicitud de IO_FS_WRITE a la interfaz
+        enviar_io_fs_write(interfaz_fs_write->socket, io_fs_write);
+        interfaz_fs_write->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_write
+    free(io_fs_write->nombre_interfaz);
+    free(io_fs_write->nombre_archivo);
+    free(io_fs_write->direcciones_fisicas);
+    free(io_fs_write->pcb->cpu_registers);
+    free(io_fs_write->pcb);
+    free(io_fs_write);
 }
+
 
 void pedido_io_fs_read(){
     //TODO
