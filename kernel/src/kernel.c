@@ -234,12 +234,15 @@ void *manejo_interfaces(void *interfaz_hilo)
         case STDIN:
             log_error(logger, "Falta implementar");
             fin_io_read(interfaz);
+            //TODO, hay que desbloquear segun el pedido
             break;
         case STDOUT:
             log_error(logger, "Falta implementar");
+            //TODO, hay que desbloquear segun el pedido
             break;
         case DialFS:
             log_error(logger, "Falta implementar");
+            //TODO, hay que desbloquear segun el pedido
             break;
         }
     }
@@ -323,47 +326,6 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
     }
 }
 
-// FUNCION DEPRECADA ??
-
-void *interfaz_generica(void *interfaz_sleep)
-{
-    bool sigue_conectado = true;
-    while (sigue_conectado)
-    {
-        t_interfaz *interfaz = interfaz_sleep;
-
-        op_code cod_op = recibir_operacion(interfaz->socket);
-        if (cod_op == DESCONEXION)
-        {
-            log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
-            sigue_conectado = false;
-            // TODO: Liberar estructuras
-        }
-        else if (cod_op != FIN_SLEEP)
-        {
-            log_error(logger, "El Kernel esperaba recibir el aviso de fin de sleep pero recibió otra cosa");
-        }
-        else
-        {
-            t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
-
-            // Buscamos el proceso en BLOCKED y lo mandamos a READY
-            for (int i = 0; i < list_size(lista_bloqueados); i++)
-            {
-                t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
-                if (pcb->pid == pcb_a_desbloquear->pid)
-                {
-                    list_remove(lista_bloqueados, i);
-                    pcb->estado = READY;
-
-                    sem_post(&sem_proceso_ready);
-                    interfaz->ocupada = false;
-                }
-            }
-        }
-    }
-    return NULL;
-}
 
 /*-----------------------------PROCESOS Y CPU--------------------------------------------------------------------*/
 

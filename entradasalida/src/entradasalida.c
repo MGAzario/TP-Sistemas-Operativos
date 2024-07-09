@@ -592,7 +592,6 @@ void manejar_io_fs_write() {
 }
 
 void manejar_io_fs_read() {
-    // Suponemos que la función recibir_io_fs_read() está definida para obtener la solicitud
     t_io_fs_read *solicitud = recibir_io_fs_read(socket_kernel);
 
     // Logear inicio de la operación con el formato específico
@@ -632,6 +631,8 @@ void manejar_io_fs_read() {
     free(solicitud->pcb->cpu_registers);
     free(solicitud->pcb);
     free(solicitud);
+    //TODO
+    //Enviar confirmacion a kernel de finalizacion
 }
 
 
