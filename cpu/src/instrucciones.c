@@ -436,6 +436,29 @@ void execute_io_fs_write(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_lis
     log_trace(logger, "Terminando instrucción de IO_FS_WRITE para el archivo %s", nombre_archivo);
 }
 
+void execute_io_fs_read(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo) {
+    log_info(logger, "PID: %i - Ejecutando: IO_FS_READ para el archivo %s, tamaño: %u, puntero archivo: %u", pcb->pid, nombre_archivo, tamanio, puntero_archivo);
+
+    // Crear la estructura para la solicitud
+    t_io_fs_read *io_fs_read = crear_io_fs_read(pcb, interfaz, nombre_archivo, direcciones_fisicas, tamanio, puntero_archivo);
+    if (io_fs_read == NULL) {
+        log_error(logger, "No se pudo crear la estructura para IO_FS_READ");
+        list_destroy(direcciones_fisicas);  // Asegurar limpieza de la lista
+        return;  // Manejo de error
+    }
+
+    // Enviar la estructura al kernel dispatch
+    enviar_io_fs_read(socket_kernel_dispatch, io_fs_read);
+
+    // Liberar memoria
+    free(io_fs_read->nombre_interfaz);
+    free(io_fs_read->nombre_archivo);
+    list_destroy_and_destroy_elements(io_fs_read->direcciones_fisicas, free);
+    free(io_fs_read);
+
+    continuar_ciclo = 0;
+    log_trace(logger, "Terminando instrucción de IO_FS_READ para el archivo %s", nombre_archivo);
+}
 
 void execute_exit(t_pcb *pcb)
 {

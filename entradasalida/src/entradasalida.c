@@ -425,7 +425,7 @@ void manejar_io_fs_create() {
     fseek(bitmap_file, 0, SEEK_SET);
     fwrite(bitarray->bitarray, sizeof(char), bitarray_get_max_bit(bitarray) / 8, bitmap_file);
     fflush(bitmap_file);
-    
+
     //TODO, enviar confirmacion a Kernel
     // Liberar memoria
     free(solicitud);
@@ -591,33 +591,67 @@ void manejar_io_fs_write() {
     log_trace(logger, "IO_FS_WRITE completado para el archivo %s", io_fs_write->nombre_archivo);
 }
 
-void manejar_io_fs_read(){
-    //TODO
+void manejar_io_fs_read() {
+    // Suponemos que la función recibir_io_fs_read() está definida para obtener la solicitud
+    t_io_fs_read *solicitud = recibir_io_fs_read(socket_kernel);
+
+    // Logear inicio de la operación con el formato específico
+    log_info(logger, "PID: %d - Leer Archivo: %s - Tamaño a Leer: %u - Puntero Archivo: %u",
+             solicitud->pcb->pid, solicitud->nombre_archivo, solicitud->tamanio, solicitud->puntero_archivo);
+
+    // Abrir el archivo para lectura
+    FILE* file = fopen(solicitud->nombre_archivo, "rb");
+    if (file == NULL) {
+        log_error(logger, "No se pudo abrir el archivo %s", solicitud->nombre_archivo);
+        return;
+    }
+
+    // Posicionarse en el archivo según el puntero_archivo
+    fseek(file, solicitud->puntero_archivo, SEEK_SET);
+    char* buffer = malloc(solicitud->tamanio);
+    size_t bytesRead = fread(buffer, 1, solicitud->tamanio, file);
+    fclose(file);
+
+    if (bytesRead != solicitud->tamanio) {
+        log_warning(logger, "Se leyeron %zu bytes en lugar de %u", bytesRead, solicitud->tamanio);
+    }
+
+    // Escribir los datos en memoria según las direcciones físicas
+    for (int i = 0; i < list_size(solicitud->direcciones_fisicas); i++) {
+        uint32_t* direccion_fisica = list_get(solicitud->direcciones_fisicas, i);
+        enviar_escribir_memoria(socket_memoria, solicitud->pcb->pid, *direccion_fisica, solicitud->tamanio, buffer);
+    }
+
+    free(buffer);
+    log_info(logger, "Escritura en memoria completada para el PID: %d", solicitud->pcb->pid);
+
+    // Liberar recursos de la estructura recibida
+    free(solicitud->nombre_interfaz);
+    free(solicitud->nombre_archivo);
+    list_destroy_and_destroy_elements(solicitud->direcciones_fisicas, free);
+    free(solicitud->pcb->cpu_registers);
+    free(solicitud->pcb);
+    free(solicitud);
 }
 
-void actualizar_estructura_bloques(int bloque_inicial, int tamanio_actual, int nuevo_tamanio) {
+
+void actualizar_estructura_bloques(int bloque_inicial, int tamanio_actual, int nuevo_tamanio, int pid) {
     int bloques_actuales = (tamanio_actual + block_size - 1) / block_size;
     int nuevos_bloques = (nuevo_tamanio + block_size - 1) / block_size;
 
-    //El nuevo tamaño es mayor que el que tenia. Peor caso
     if (nuevos_bloques > bloques_actuales) {
-        verificar_y_compactar_fs(bloque_inicial, bloques_actuales, nuevos_bloques);
-
-        // Ocupar nuevos bloques después de la compactación (si es necesaria)
+        verificar_y_compactar_fs(bloque_inicial, bloques_actuales, nuevos_bloques, pid);
         for (int i = bloques_actuales; i < nuevos_bloques; i++) {
             if (!bitarray_test_bit(bitarray, bloque_inicial + i)) {
                 bitarray_set_bit(bitarray, bloque_inicial + i);
             }
         }
-    //El nuevo tamaño es menor al que tenia. Mejor caso
     } else if (nuevos_bloques < bloques_actuales) {
-        // Liberar bloques no utilizados
         for (int i = nuevos_bloques; i < bloques_actuales; i++) {
             bitarray_clean_bit(bitarray, bloque_inicial + i);
         }
     }
 
-    // Actualizar archivo de bloques si es necesario
     if (nuevo_tamanio < tamanio_actual) {
         fseek(bloques->archivo, bloque_inicial * block_size + nuevo_tamanio, SEEK_SET);
         char* empty_data = calloc(block_size * (bloques_actuales - nuevos_bloques), 1);
@@ -625,16 +659,14 @@ void actualizar_estructura_bloques(int bloque_inicial, int tamanio_actual, int n
         free(empty_data);
     }
 
-    // Guardar cambios en el bitmap
     fseek(bitmap_file, 0, SEEK_SET);
     fwrite(bitarray->bitarray, sizeof(char), bitarray->size, bitmap_file);
     fflush(bitmap_file);
 
-    log_info(logger, "Estructura de bloques actualizada. Bloques usados ahora: %d", nuevos_bloques);
+    log_info(logger, "PID: %d - Estructura de bloques actualizada. Bloques usados ahora: %d", pid, nuevos_bloques);
 }
 
-void verificar_y_compactar_fs(int bloque_inicial, int bloques_actuales, int nuevos_bloques) {
-    // Revisar si hay suficientes bloques contiguos libres desde el bloque inicial
+void verificar_y_compactar_fs(int bloque_inicial, int bloques_actuales, int nuevos_bloques, int pid) {
     bool espacio_contiguo = true;
     for (int i = bloques_actuales; i < nuevos_bloques; i++) {
         if (bitarray_test_bit(bitarray, bloque_inicial + i)) {
@@ -644,10 +676,12 @@ void verificar_y_compactar_fs(int bloque_inicial, int bloques_actuales, int nuev
     }
 
     if (!espacio_contiguo) {
-        log_info(logger, "Espacio no contiguo detectado, iniciando compactación");
+        log_info(logger, "PID: %d - Espacio no contiguo detectado, iniciando compactación", pid);
         compactar_fs();
+        log_info(logger, "PID: %d - Compactación completada", pid);
     }
 }
+
 
 void compactar_fs() {
     log_info(logger, "Iniciando compactación del sistema de archivos");

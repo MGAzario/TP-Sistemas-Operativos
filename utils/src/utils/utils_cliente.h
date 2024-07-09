@@ -144,6 +144,9 @@ t_io_fs_write* crear_io_fs_write(t_pcb* pcb, char* nombre_interfaz, char* nombre
 t_paquete* crear_paquete_io_fs_write(t_io_fs_write* io_fs_write);
 void agregar_io_fs_write_a_paquete(t_paquete* paquete, t_io_fs_write* io_fs_write);
 void enviar_io_fs_write(int socket_cliente, t_io_fs_write* io_fs_write);
+t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read);
+void agregar_io_fs_read_a_paquete(t_paquete* paquete, t_io_fs_read* io_fs_read);
+void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read);
 
 
 #endif /* UTILS_CLIENTE_H_ */

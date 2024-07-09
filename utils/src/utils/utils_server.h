@@ -45,5 +45,6 @@ t_io_stdout_write* recibir_io_stdout_write(int socket_cliente);
 t_io_fs_create *recibir_io_fs_create(int socket_cliente);
 t_io_fs_delete *recibir_io_fs_delete(int socket_cliente);
 t_io_fs_write *recibir_io_fs_write(int socket_cliente);
+t_io_fs_read *recibir_io_fs_read(int socket_cliente);
 
 #endif /* UTILS_SERVER_SERVER_H_ */

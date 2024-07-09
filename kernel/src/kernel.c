@@ -1176,9 +1176,61 @@ void pedido_io_fs_write() {
 }
 
 
-void pedido_io_fs_read(){
-    //TODO
+void pedido_io_fs_read() {
+    log_debug(logger, "El CPU pidió un IO_FS_READ");
+
+    t_io_fs_read *io_fs_read = recibir_io_fs_read(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_read = NULL;
+
+    // Buscar la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_read->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_read = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe, mandar el proceso a EXIT
+    if (interfaz_fs_read == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_read->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
+    if (interfaz_fs_read->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_read->pcb);
+        return;
+    }
+
+    io_fs_read->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_read->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificar si la interfaz está ocupada
+    if (!interfaz_fs_read->ocupada) {
+        // Enviar la solicitud de IO_FS_READ a la interfaz
+        enviar_io_fs_read(interfaz_fs_read->socket, io_fs_read);
+        interfaz_fs_read->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_read
+    free(io_fs_read->nombre_interfaz);
+    free(io_fs_read->nombre_archivo);
+    list_destroy_and_destroy_elements(io_fs_read->direcciones_fisicas, free);
+    free(io_fs_read->pcb->cpu_registers);
+    free(io_fs_read->pcb);
+    free(io_fs_read);
 }
+
 
 void bloquear_proceso(t_pcb *pcb)
 {

@@ -146,6 +146,16 @@ typedef struct {
     uint32_t puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
 } t_io_fs_write;
 
+typedef struct {
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;
+    uint32_t tamanio_nombre_archivo;
+    t_list *direcciones_fisicas; // Lista de direcciones físicas
+    uint32_t tamanio;            // Tamaño de los datos a escribir
+    uint32_t puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
+} t_io_fs_read;
 
 
 
