@@ -49,6 +49,12 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
 void *manejo_interfaces(void *interfaz_hilo);
 void pedido_io_stdin_read();
 void pedido_io_stdout_write();
+void pedido_io_fs_read();
+void pedido_io_fs_write();
+void pedido_io_fs_truncate();
+void pedido_io_fs_delete();
+void pedido_io_fs_create();
+bool fin_io_fs(t_interfaz *interfaz);
 
 
 #endif /*KERNEL_H*/

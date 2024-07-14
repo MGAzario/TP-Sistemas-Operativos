@@ -42,6 +42,13 @@ typedef enum
 	IO_FS_READ,
 	FIN_SLEEP,
 	FIN_IO_READ,
+	FIN_IO_FS_CREATE,
+	FIN_IO_FS_DELETE,
+	FIN_IO_FS_TRUNCATE,
+	FIN_IO_FS_WRITE,
+	FIN_IO_FS_READ,
+	FIN_IO_FS,
+	ERROR_IO_FS,
 	RESIZE,
 	RESIZE_EXITOSO,
 	OUT_OF_MEMORY,
@@ -147,6 +154,7 @@ void enviar_io_fs_write(int socket_cliente, t_io_fs_write* io_fs_write);
 t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read);
 void agregar_io_fs_read_a_paquete(t_paquete* paquete, t_io_fs_read* io_fs_read);
 void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read);
+void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb);
 
 
 #endif /* UTILS_CLIENTE_H_ */

@@ -241,8 +241,7 @@ void *manejo_interfaces(void *interfaz_hilo)
             //TODO, hay que desbloquear segun el pedido
             break;
         case DialFS:
-            log_error(logger, "Falta implementar");
-            //TODO, hay que desbloquear segun el pedido
+            sigue_conectado = fin_io_fs(interfaz);
             break;
         }
     }
@@ -294,6 +293,26 @@ void fin_io_read(t_interfaz *interfaz)
     }
     desbloquear_proceso_io(interfaz);
 }
+
+//La finalizacion de procesos para File System es siempre igual, reutilizo el mismo codigo.
+bool fin_io_fs(t_interfaz *interfaz)
+{
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op == DESCONEXION)
+    {
+        log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        return false; //Desconecta la interfaz
+    }
+    else if (cod_op != FIN_IO_FS)
+    {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_FS pero recibió otra cosa");
+        return false; // False desconecta la interfaz
+    }
+    desbloquear_proceso_io(interfaz);
+    return true;
+}
+
+
 // Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
 void desbloquear_proceso_io(t_interfaz *interfaz)
 {
