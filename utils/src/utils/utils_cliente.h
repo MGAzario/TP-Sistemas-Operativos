@@ -42,6 +42,13 @@ typedef enum
 	IO_FS_READ,
 	FIN_SLEEP,
 	FIN_IO_READ,
+	FIN_IO_FS_CREATE,
+	FIN_IO_FS_DELETE,
+	FIN_IO_FS_TRUNCATE,
+	FIN_IO_FS_WRITE,
+	FIN_IO_FS_READ,
+	FIN_IO_FS,
+	ERROR_IO_FS,
 	RESIZE,
 	RESIZE_EXITOSO,
 	OUT_OF_MEMORY,
@@ -132,7 +139,22 @@ void agregar_io_stdout_write_a_paquete(t_paquete* paquete, t_io_stdout_write* io
 void enviar_io_stdout_write(int socket_cliente, t_io_stdout_write* io_stdout_write);
 t_io_stdin_read* crear_io_stdin_read(t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t tamanio_contenido, t_list* direcciones_fisicas);
 t_io_stdout_write* crear_io_stdout_write(t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t direccion_logica, uint32_t tamaño);
-
+t_paquete* crear_paquete_io_fs_create(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo);
+void agregar_io_fs_create_a_paquete(t_paquete* paquete, t_io_fs_create* io_fs_create);
+t_io_fs_create* crear_io_fs_create(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo);
+void enviar_io_fs_create(int socket_cliente, t_io_fs_create* io_fs_create);
+t_io_fs_delete* crear_io_fs_delete(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo);
+t_paquete* crear_paquete_io_fs_delete(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo);
+void agregar_io_fs_delete_a_paquete(t_paquete* paquete, t_io_fs_delete* io_fs_delete);
+void enviar_io_fs_delete(int socket_cliente, t_io_fs_delete* io_fs_delete);
+t_io_fs_write* crear_io_fs_write(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
+t_paquete* crear_paquete_io_fs_write(t_io_fs_write* io_fs_write);
+void agregar_io_fs_write_a_paquete(t_paquete* paquete, t_io_fs_write* io_fs_write);
+void enviar_io_fs_write(int socket_cliente, t_io_fs_write* io_fs_write);
+t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read);
+void agregar_io_fs_read_a_paquete(t_paquete* paquete, t_io_fs_read* io_fs_read);
+void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read);
+void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb);
 
 
 #endif /* UTILS_CLIENTE_H_ */
