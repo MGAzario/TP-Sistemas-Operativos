@@ -155,6 +155,7 @@ t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read);
 void agregar_io_fs_read_a_paquete(t_paquete* paquete, t_io_fs_read* io_fs_read);
 void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read);
 void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb);
+void enviar_io_fs_truncate(int socket_cliente, t_io_fs_truncate* io_fs_truncate);
 
 
 #endif /* UTILS_CLIENTE_H_ */
