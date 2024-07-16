@@ -410,58 +410,6 @@ void decode(t_pcb *pcb, char *instruccion)
 
         execute_io_fs_truncate(pcb, nombre_interfaz, nombre_archivo, tamanio);
     }
-    else if (strcmp("IO_FS_WRITE", operacion) == 0)
-    {
-        char nombre_interfaz[50];
-        char nombre_archivo[256];
-        char registro_direccion[10];
-        char registro_tamano[10];
-        char registro_puntero[10];
-
-        // Parsear la instrucción para obtener los nombres y registros
-        sscanf(instruccion, "%s %s %s %s %s %s", operacion, nombre_interfaz, nombre_archivo, registro_direccion, registro_tamano, registro_puntero);
-
-        // Convertir los registros a los valores correspondientes
-        uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
-        uint32_t tamanio = leer_registro(pcb, registro_tamano);
-        uint32_t puntero_archivo = leer_registro(pcb, registro_puntero);
-
-        // Asumiendo que mmu() devuelve una lista de direcciones físicas para el rango especificado
-        t_list *direcciones_fisicas = mmu(direccion_logica, tamanio, pcb->pid);
-
-        pcb->cpu_registers->pc++;
-        log_info(logger, "PID: %i - Ejecutando: IO_FS_WRITE - %s %s dirección: %u, tamaño: %u, puntero archivo: %u",
-                 pcb->pid, nombre_interfaz, nombre_archivo, direccion_logica, tamanio, puntero_archivo);
-
-        // Llamar a la función de ejecución para IO_FS_WRITE
-        execute_io_fs_write(pcb, nombre_interfaz, nombre_archivo, direcciones_fisicas, tamanio, puntero_archivo);
-    }
-    else if (strcmp("IO_FS_READ", operacion) == 0)
-    {
-        char nombre_interfaz[50];
-        char nombre_archivo[256];
-        char registro_direccion[10];
-        char registro_tamano[10];
-        char registro_puntero[10];
-
-        // Parsear la instrucción para obtener los nombres y registros
-        sscanf(instruccion, "%s %s %s %s %s %s", operacion, nombre_interfaz, nombre_archivo, registro_direccion, registro_tamano, registro_puntero);
-
-        // Convertir los registros a los valores correspondientes
-        uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
-        uint32_t tamanio = leer_registro(pcb, registro_tamano);
-        uint32_t puntero_archivo = leer_registro(pcb, registro_puntero);
-
-        // Asumiendo que mmu() devuelve una lista de direcciones físicas para el rango especificado
-        t_list *direcciones_fisicas = mmu(direccion_logica, tamanio, pcb->pid);
-
-        pcb->cpu_registers->pc++;
-        log_info(logger, "PID: %i - Ejecutando: IO_FS_READ - %s %s dirección: %u, tamaño: %u, puntero archivo: %u",
-                 pcb->pid, nombre_interfaz, nombre_archivo, direccion_logica, tamanio, puntero_archivo);
-
-        // Llamar a la función de ejecución para IO_FS_READ
-        execute_io_fs_read(pcb, nombre_interfaz, nombre_archivo, direcciones_fisicas, tamanio, puntero_archivo);
-    }
     else if (strcmp("EXIT", operacion) == 0)
     {
         pcb->cpu_registers->pc++;

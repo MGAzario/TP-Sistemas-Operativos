@@ -35,13 +35,6 @@ void bloquear_proceso(t_pcb *pcb);
 void desbloquear_proceso(t_pcb *pcb);
 void eliminar_proceso(t_pcb *pcb);
 void consola();
-void script(char *path);
-void detener_planificacion();
-void iniciar_planificacion();
-void comprobar_planificacion();
-void modificar_grado_multiprogramacion(int nuevo_valor);
-void procesos_por_estado();
-void listar_procesos(int cantidad_filas);
 void planificar_round_robin();
 void planificar_vrr();
 void quantum_count();
@@ -56,12 +49,6 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
 void *manejo_interfaces(void *interfaz_hilo);
 void pedido_io_stdin_read();
 void pedido_io_stdout_write();
-void pedido_io_fs_read();
-void pedido_io_fs_write();
-void pedido_io_fs_truncate();
-void pedido_io_fs_delete();
-void pedido_io_fs_create();
-bool fin_io_fs(t_interfaz *interfaz);
 
 
 #endif /*KERNEL_H*/
