@@ -11,6 +11,7 @@ void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen);
 void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen);
 void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter);
 void execute_resize(t_pcb *pcb, int nuevo_tamanio_del_proceso);
+void execute_copy_string(t_pcb *pcb, int tamanio_texto);
 void execute_wait(t_pcb *pcb, char *nombre_recurso);
 void execute_signal(t_pcb *pcb, char *nombre_recurso);
 void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_de_trabajo);

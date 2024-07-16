@@ -302,6 +302,15 @@ void decode(t_pcb *pcb, char *instruccion)
         pcb->cpu_registers->pc++;
         execute_resize(pcb, nuevo_tamanio_del_proceso);
     }
+    else if (strcmp("COPY_STRING", operacion) == 0)
+    {
+        int tamanio_texto;
+
+        sscanf(instruccion, "%s %i", operacion, &tamanio_texto);
+
+        pcb->cpu_registers->pc++;
+        execute_copy_string(pcb, tamanio_texto);
+    }
     else if (strcmp("WAIT", operacion) == 0)
     {
         char nombre_recurso[50];
@@ -448,6 +457,14 @@ uint32_t leer_registro(t_pcb *pcb, char *registro)
     else if (strcmp(registro, "EDX") == 0)
     {
         return pcb->cpu_registers->extendidos[EDX];
+    }
+    else if (strcmp(registro, "SI") == 0)
+    {
+        return pcb->cpu_registers->si;
+    }
+    else if (strcmp(registro, "DI") == 0)
+    {
+        return pcb->cpu_registers->di;
     }
     else
     {

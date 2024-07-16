@@ -20,6 +20,10 @@ void execute_set(t_pcb *pcb, char *registro, uint32_t valor)
         pcb->cpu_registers->extendidos[2] = valor;
     } else if (strcmp("EDX", registro) == 0){
         pcb->cpu_registers->extendidos[3] = valor;
+    } else if (strcmp("SI", registro) == 0){
+        pcb->cpu_registers->si = valor;
+    } else if (strcmp("DI", registro) == 0){
+        pcb->cpu_registers->di = valor;
     } else {
         log_error(logger, "Registro %s desconocido en SET", registro);
     }
@@ -275,6 +279,47 @@ void execute_resize(t_pcb *pcb, int nuevo_tamanio_del_proceso)
     {
         recibir_ok(socket_memoria);
         log_error(logger, "Respuesta desconocida de la memoria luego de pedirle un RESIZE");
+    }
+}
+
+void execute_copy_string(t_pcb *pcb, int tamanio_texto)
+{
+    log_info(logger, "PID: %i - Ejecutando: COPY_STRING - %i", pcb->pid, tamanio_texto);
+
+    t_list *direcciones_fisicas_si = mmu(leer_registro(pcb, "SI"), tamanio_texto, pcb->pid);
+    t_list *direcciones_fisicas_di = mmu(leer_registro(pcb, "DI"), tamanio_texto, pcb->pid);
+
+    char *texto_completo = string_new();
+    for (int i = 0; i < list_size(direcciones_fisicas_si); i++)
+    {
+        t_direccion_y_tamanio *direccion_fisica = list_get(direcciones_fisicas_si, i);
+        enviar_leer_memoria(socket_memoria, pcb->pid, direccion_fisica->direccion, direccion_fisica->tamanio);
+        op_code cod_op = recibir_operacion(socket_memoria);
+        if (cod_op != MEMORIA_LEIDA)
+        {
+            log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_LEIDA de la Memoria pero recibió otra operación");
+        }
+        t_lectura *leido = recibir_lectura(socket_memoria);
+        char *texto_parcial = string_new();
+        string_n_append_con_strnlen(&texto_parcial, leido->lectura, leido->tamanio_lectura);
+        string_n_append_con_strnlen(&texto_completo, leido->lectura, leido->tamanio_lectura);
+        log_info(logger, "PID: %i - Acción: LEER - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, texto_parcial);
+    }
+
+    int indice = 0;
+    for (int i = 0; i < list_size(direcciones_fisicas_di); i++)
+    {
+        t_direccion_y_tamanio *direccion_fisica = list_get(direcciones_fisicas_di, i);
+        char *texto = string_substring(texto_completo, indice, direccion_fisica->tamanio);
+        enviar_escribir_memoria(socket_memoria, pcb->pid, direccion_fisica->direccion, direccion_fisica->tamanio, texto);
+        indice += direccion_fisica->tamanio;
+        op_code cod_op = recibir_operacion(socket_memoria);
+        if (cod_op != MEMORIA_ESCRITA)
+        {
+            log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
+        }
+        recibir_ok(socket_memoria);
+        log_info(logger, "PID: %i - Acción: ESCRIBIR - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, texto);
     }
 }
 

@@ -176,19 +176,10 @@ void crear_interfaz_stdin()
         log_info(logger, "PID: %i - Operacion: STDIN_READ", io_stdin_read->pcb->pid);
 
         // Leer texto desde el teclado solo si es IO_STDIN_READ
-        // char buffer[io_stdin_read->tamanio_contenido];
         char *linea;
         printf("Ingrese el texto (máximo %d caracteres): ", io_stdin_read->tamanio_contenido);
-        // fgets(buffer, io_stdin_read->tamanio_contenido, stdin);
         linea = readline("> ");
         log_trace(logger, "Tamaño del texto ingresado: %i", string_length(linea));
-
-        // Eliminar el salto de línea final generado por fgets
-        // buffer[strcspn(buffer, "\n")] = '\0';
-
-        // Convertir el texto a un buffer de bytes para enviar a memoria
-        // void *buffer_bytes = malloc(io_stdin_read->tamanio_contenido);
-        // memcpy(buffer_bytes, buffer, io_stdin_read->tamanio_contenido);
 
         int indice = 0;
         // Enviar datos a la memoria a partir de la dirección lógica especificada
@@ -202,13 +193,10 @@ void crear_interfaz_stdin()
             op_code cod_op = recibir_operacion(socket_memoria);
             if (cod_op != MEMORIA_ESCRITA)
             {
-            log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
+                log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
             }
             recibir_ok(socket_memoria);
         }
-
-        // Liberar memoria del buffer de bytes
-        // free(buffer_bytes);
 
         // Enviar confirmación de lectura completada al kernel
         enviar_fin_io_read(socket_kernel, io_stdin_read->pcb);
@@ -249,10 +237,8 @@ void crear_interfaz_stdout() {
         log_info(logger, "PID: %i - Operacion: STDOUT_WRITE", io_stdout_write->pcb->pid);
 
         // Leer desde memoria la información solicitada
-        // enviar_leer_memoria(socket_memoria, io_stdout_write->pcb->pid, io_stdout_write->direccion_logica, io_stdout_write->tamaño);
         char *texto = string_new();
-        // void *puntero_texto = &texto;
-        // int desplazamiento_puntero = 0;
+
         for (int i = 0; i < list_size(io_stdout_write->direcciones_fisicas); i++)
         {
             t_direccion_y_tamanio *direccion_fisica = list_get(io_stdout_write->direcciones_fisicas, i);
@@ -260,11 +246,9 @@ void crear_interfaz_stdout() {
             op_code cod_op = recibir_operacion(socket_memoria);
             if (cod_op != MEMORIA_LEIDA)
             {
-            log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
+                log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_LEIDA de la Memoria pero recibió otra operación");
             }
             t_lectura *leido = recibir_lectura(socket_memoria);
-            // memcpy(texto + desplazamiento_puntero, leido->lectura, leido->tamanio_lectura);
-            // desplazamiento_puntero += leido->tamanio_lectura;
             string_n_append_con_strnlen(&texto, leido->lectura, leido->tamanio_lectura);
         }
 
