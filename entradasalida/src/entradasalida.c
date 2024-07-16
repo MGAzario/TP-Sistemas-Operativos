@@ -15,10 +15,10 @@ int socket_memoria;
 
 int main(int argc, char *argv[])
 {
-    // nombre = argv[1];
-    // archivo_configuracion = argv[2];
-    nombre = "nombre";
-    archivo_configuracion = "./entradasalida.config";
+    nombre = argv[1];
+    archivo_configuracion = argv[2];
+    // nombre = "nombre";
+    // archivo_configuracion = "./entradasalida.config";
     crear_logger();
     create_config();
 
@@ -27,15 +27,6 @@ int main(int argc, char *argv[])
     conectar_kernel();
 
     crear_interfaz();
-
-    conectar_memoria();
-    // Prueba inicio
-    enviar_mensaje_simple(socket_memoria, MENSAJE);
-    sleep(2);
-    enviar_mensaje_simple(socket_memoria, MENSAJE);
-    // Prueba fin
-    crear_interfaz_generica("PruebaIO");
-
 
     log_info(logger, "Terminó\n");
     liberar_conexion(socket_kernel);
@@ -84,18 +75,22 @@ void crear_interfaz()
     char *tipo_interfaz = config_get_string_value(config, "TIPO_INTERFAZ");
     if (strcmp(tipo_interfaz, "GENERICA") == 0)
     {
+        log_trace(logger, "Interfaz genérica");
         crear_interfaz_generica();
     }
     else if (strcmp(tipo_interfaz, "STDIN") == 0)
     {
+        log_trace(logger, "Interfaz STDIN");
         crear_interfaz_stdin();
     }
     else if (strcmp(tipo_interfaz, "STDOUT") == 0)
     {
+        log_trace(logger, "Interfaz STDOUT");
         crear_interfaz_stdout();
     }
     else if (strcmp(tipo_interfaz, "DialFS") == 0)
     {
+        log_trace(logger, "Interfaz DialFS");
         crear_interfaz_dialfs();
     }
     else
@@ -130,8 +125,11 @@ void crear_interfaz_generica()
         if (cod_op != IO_GEN_SLEEP)
         {
             log_error(logger, "La interfaz esperaba recibir una operación IO_GEN_SLEEP del Kernel pero recibió otra operación");
+            continue; // Vuelve a esperar la próxima operación del Kernel
         }
+        
         t_sleep *sleep = recibir_sleep(socket_kernel);
+        log_info(logger, "PID: %i - Operacion: SLEEP", sleep->pcb->pid);
         u_int32_t unidades_de_trabajo = sleep->unidades_de_trabajo;
 
         log_trace(logger, "El TdUdT es %i", tiempo_unidad_trabajo);
@@ -151,6 +149,10 @@ void crear_interfaz_generica()
 void crear_interfaz_stdin()
 {
     conectar_memoria(); // Conectar con la memoria
+    // Prueba inicio
+    enviar_mensaje_simple(socket_memoria, MENSAJE);
+    // Prueba fin
+
     enviar_nombre_y_tipo(socket_kernel, nombre, STDIN);
     while (true)
     {
@@ -158,95 +160,126 @@ void crear_interfaz_stdin()
         op_code cod_op = recibir_operacion(socket_kernel);
         log_trace(logger, "Llegó un pedido del Kernel");
 
+        if(cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó el Kernel");
+            while(1);
+        }
         if (cod_op != IO_STDIN_READ)
         {
             log_error(logger, "La interfaz esperaba recibir una operación IO_STDIN_READ del Kernel pero recibió otra operación");
             continue; // Vuelve a esperar la próxima operación del Kernel
         }
 
-        // Recibir la estructura t_io_stdin_read desde el kernel
-        t_io_stdin_read *io_stdin_read = recibir_io_stdin_read(socket_kernel);
+        // Recibir la estructura t_io_std desde el kernel
+        t_io_std *io_stdin_read = recibir_io_std(socket_kernel);
+        log_info(logger, "PID: %i - Operacion: STDIN_READ", io_stdin_read->pcb->pid);
 
         // Leer texto desde el teclado solo si es IO_STDIN_READ
-        char buffer[io_stdin_read->tamanio_contenido];
-        printf("Ingrese el texto (máximo %d caracteres): ", io_stdin_read->tamanio_contenido - 1);
-        fgets(buffer, io_stdin_read->tamanio_contenido, stdin);
+        // char buffer[io_stdin_read->tamanio_contenido];
+        char *linea;
+        printf("Ingrese el texto (máximo %d caracteres): ", io_stdin_read->tamanio_contenido);
+        // fgets(buffer, io_stdin_read->tamanio_contenido, stdin);
+        linea = readline("> ");
+        log_trace(logger, "Tamaño del texto ingresado: %i", string_length(linea));
 
         // Eliminar el salto de línea final generado por fgets
-        buffer[strcspn(buffer, "\n")] = '\0';
+        // buffer[strcspn(buffer, "\n")] = '\0';
 
         // Convertir el texto a un buffer de bytes para enviar a memoria
-        void *buffer_bytes = malloc(io_stdin_read->tamanio_contenido);
-        memcpy(buffer_bytes, buffer, io_stdin_read->tamanio_contenido);
+        // void *buffer_bytes = malloc(io_stdin_read->tamanio_contenido);
+        // memcpy(buffer_bytes, buffer, io_stdin_read->tamanio_contenido);
 
+        int indice = 0;
         // Enviar datos a la memoria a partir de la dirección lógica especificada
         // Iterar sobre la lista de direcciones físicas
         for (int i = 0; i < list_size(io_stdin_read->direcciones_fisicas); i++)
         {
-            int *direccion_fisica = list_get(io_stdin_read->direcciones_fisicas, i);
-
-            // Enviar la solicitud de escribir en memoria para cada dirección física
-            enviar_escribir_memoria(socket_memoria, io_stdin_read->pcb->pid, *direccion_fisica, io_stdin_read->tamanio_contenido, buffer_bytes);
+            t_direccion_y_tamanio *direccion_fisica = list_get(io_stdin_read->direcciones_fisicas, i);
+            char *texto = string_substring(linea, indice, direccion_fisica->tamanio);
+            enviar_escribir_memoria(socket_memoria, io_stdin_read->pcb->pid, direccion_fisica->direccion, direccion_fisica->tamanio, texto);
+            indice += direccion_fisica->tamanio;
+            op_code cod_op = recibir_operacion(socket_memoria);
+            if (cod_op != MEMORIA_ESCRITA)
+            {
+            log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
+            }
+            recibir_ok(socket_memoria);
         }
+
         // Liberar memoria del buffer de bytes
-        free(buffer_bytes);
+        // free(buffer_bytes);
 
         // Enviar confirmación de lectura completada al kernel
-        enviar_fin_io_stdin_read(socket_kernel, io_stdin_read->pcb);
+        enviar_fin_io_read(socket_kernel, io_stdin_read->pcb);
 
         // Liberar memoria de las estructuras utilizadas
         free(io_stdin_read->nombre_interfaz);
-        list_destroy_and_destroy_elements(io_stdin_read->direcciones_fisicas, free);
+        list_destroy_and_destroy_elements(io_stdin_read->direcciones_fisicas, destruir_direccion);
         free(io_stdin_read->pcb->cpu_registers);
         free(io_stdin_read->pcb);
         free(io_stdin_read);
     }
-
-    liberar_conexion(socket_memoria); // Cerrar conexión con la memoria
 }
 
 void crear_interfaz_stdout() {
     conectar_memoria(); // Conectar con la memoria
+    // Prueba inicio
+    enviar_mensaje_simple(socket_memoria, MENSAJE);
+    // Prueba fin
+    
     enviar_nombre_y_tipo(socket_kernel, nombre, STDOUT);
     while (true) {
         log_trace(logger, "Esperando pedido del Kernel");
         op_code cod_op = recibir_operacion(socket_kernel);
         log_trace(logger, "Llegó un pedido del Kernel");
 
+        if(cod_op == DESCONEXION)
+        {
+            log_warning(logger, "Se desconectó el Kernel");
+            while(1);
+        }
         if (cod_op != IO_STDOUT_WRITE) {
             log_error(logger, "La interfaz esperaba recibir una operación IO_STDOUT_WRITE del Kernel pero recibió otra operación");
             continue; // Vuelve a esperar la próxima operación del Kernel
         }
 
-        // Recibir la estructura t_io_stdout_write desde el kernel
-        t_io_stdout_write *io_stdout_write = recibir_io_stdout_write(socket_kernel);
+        // Recibir la estructura t_io_std desde el kernel
+        t_io_std *io_stdout_write = recibir_io_std(socket_kernel);
+        log_info(logger, "PID: %i - Operacion: STDOUT_WRITE", io_stdout_write->pcb->pid);
 
         // Leer desde memoria la información solicitada
-        enviar_leer_memoria(socket_memoria, io_stdout_write->pcb->pid, io_stdout_write->direccion_logica, io_stdout_write->tamaño);
-
-        // Recibir la respuesta de lectura desde memoria
-        t_lectura *lectura = recibir_lectura(socket_memoria);
-        op_code cod_lectura = recibir_operacion(socket_memoria);
-        while (true)
+        // enviar_leer_memoria(socket_memoria, io_stdout_write->pcb->pid, io_stdout_write->direccion_logica, io_stdout_write->tamaño);
+        char *texto = string_new();
+        // void *puntero_texto = &texto;
+        // int desplazamiento_puntero = 0;
+        for (int i = 0; i < list_size(io_stdout_write->direcciones_fisicas); i++)
         {
-            if (cod_lectura != MEMORIA_LEIDA) {
-            log_error(logger, "La interfaz esperaba recibir una lectura de memoria");
-            continue; // Vuelve a esperar que le llegue lo que pidio de memoria
+            t_direccion_y_tamanio *direccion_fisica = list_get(io_stdout_write->direcciones_fisicas, i);
+            enviar_leer_memoria(socket_memoria, io_stdout_write->pcb->pid, direccion_fisica->direccion, direccion_fisica->tamanio);
+            op_code cod_op = recibir_operacion(socket_memoria);
+            if (cod_op != MEMORIA_LEIDA)
+            {
+            log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
+            }
+            t_lectura *leido = recibir_lectura(socket_memoria);
+            // memcpy(texto + desplazamiento_puntero, leido->lectura, leido->tamanio_lectura);
+            // desplazamiento_puntero += leido->tamanio_lectura;
+            string_n_append_con_strnlen(&texto, leido->lectura, leido->tamanio_lectura);
         }
-        // Imprimir por pantalla la lectura obtenida
-        printf("Contenido leído desde la dirección lógica %u:\n%s\n", io_stdout_write->direccion_logica, (char*)lectura->lectura);
-        // Liberar memoria de la lectura obtenida
-        free(lectura->lectura);
-        free(lectura);
-        break;
-        }
-        // Enviar confirmación de lectura completada al kernel
-        enviar_fin_io_stdout_write(socket_kernel, io_stdout_write->pcb);
+
+        printf("%s\n", texto);
+
+        // Enviar confirmación de escritura completada al kernel
+        enviar_fin_io_write(socket_kernel, io_stdout_write->pcb);
+
         // Liberar memoria de las estructuras utilizadas
+        free(io_stdout_write->nombre_interfaz);
+        list_destroy_and_destroy_elements(io_stdout_write->direcciones_fisicas, destruir_direccion);
+        free(io_stdout_write->pcb->cpu_registers);
         free(io_stdout_write->pcb);
         free(io_stdout_write);
     }
-    liberar_conexion(socket_memoria); // Cerrar conexión con la memoria
 }
 
 void crear_interfaz_dialfs()

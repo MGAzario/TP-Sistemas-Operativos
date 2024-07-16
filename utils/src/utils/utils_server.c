@@ -549,18 +549,18 @@ t_recurso *recibir_recurso(int socket_cliente)
 	return recurso;
 }
 
-t_io_stdin_read *recibir_io_stdin_read(int socket_cliente)
+t_io_std *recibir_io_std(int socket_cliente)
 {
     int size;
     void *buffer = recibir_buffer(&size, socket_cliente);
     
-    t_io_stdin_read *io_stdin_read = malloc(sizeof(t_io_stdin_read));
+    t_io_std *io_stdin_read = malloc(sizeof(t_io_std));
     t_pcb *pcb = malloc(sizeof(t_pcb));
     t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
     pcb->cpu_registers = registros;
     io_stdin_read->pcb = pcb;
 
-    // Copiar datos del buffer a la estructura t_io_stdin_read
+    // Copiar datos del buffer a la estructura t_io_std
     memcpy(&(io_stdin_read->pcb->pid), buffer, sizeof(int));
     buffer += sizeof(int);
     memcpy(&(io_stdin_read->pcb->quantum), buffer, sizeof(int));
@@ -602,76 +602,27 @@ t_io_stdin_read *recibir_io_stdin_read(int socket_cliente)
     memcpy(io_stdin_read->nombre_interfaz, buffer, io_stdin_read->tamanio_nombre_interfaz);
     buffer += io_stdin_read->tamanio_nombre_interfaz;
 
-    memcpy(&(io_stdin_read->tamanio_contenido), buffer, sizeof(uint32_t));
+	uint32_t num_direcciones;
+	memcpy(&num_direcciones, buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
     // Implementación para copiar las direcciones físicas de `buffer` a `t_list`
     io_stdin_read->direcciones_fisicas = list_create();
-    int num_direcciones = size / sizeof(uint32_t); // Suponiendo que las direcciones son de tamaño uint32_t
+    // int num_direcciones = size / sizeof(uint32_t); // Suponiendo que las direcciones son de tamaño uint32_t
     for (int i = 0; i < num_direcciones; i++) {
-        uint32_t *direccion = malloc(sizeof(uint32_t));
-        memcpy(direccion, buffer, sizeof(uint32_t));
+        t_direccion_y_tamanio *direccion = malloc(sizeof(t_direccion_y_tamanio));
+        memcpy(&(direccion->direccion), buffer, sizeof(int));
+		buffer += sizeof(int);
+		memcpy(&(direccion->tamanio), buffer, sizeof(int));
+		buffer += sizeof(int);
         list_add(io_stdin_read->direcciones_fisicas, direccion);
-        buffer += sizeof(uint32_t);
     }
 
-    free(buffer - size); // Liberar buffer original
+	memcpy(&(io_stdin_read->tamanio_contenido), buffer, sizeof(uint32_t));
+
+	buffer = buffer - 2 * sizeof(int) - 9 * sizeof(uint32_t) - 4 * sizeof(uint8_t) - sizeof(estado_proceso) -
+	io_stdin_read->tamanio_nombre_interfaz - num_direcciones * 2 * sizeof(int);
+	free(buffer);
+    // free(buffer - size - sizeof(uint32_t)); // Liberar buffer original
     return io_stdin_read;
-}
-
-t_io_stdout_write* recibir_io_stdout_write(int socket_cliente) {
-    int size;
-    void *buffer = recibir_buffer(&size, socket_cliente);
-    t_io_stdout_write *io_stdout_write = malloc(sizeof(t_io_stdout_write));
-    int desplazamiento = 0;
-
-    // Recibir datos del PCB
-    io_stdout_write->pcb = malloc(sizeof(t_pcb));
-    io_stdout_write->pcb->cpu_registers = malloc(sizeof(t_cpu_registers));
-    memcpy(&(io_stdout_write->pcb->pid), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->quantum), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->pc), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->normales[AX]), buffer + desplazamiento, sizeof(uint8_t));
-    desplazamiento += sizeof(uint8_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->normales[BX]), buffer + desplazamiento, sizeof(uint8_t));
-    desplazamiento += sizeof(uint8_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->normales[CX]), buffer + desplazamiento, sizeof(uint8_t));
-    desplazamiento += sizeof(uint8_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->normales[DX]), buffer + desplazamiento, sizeof(uint8_t));
-    desplazamiento += sizeof(uint8_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->extendidos[EAX]), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->extendidos[EBX]), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->extendidos[ECX]), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->extendidos[EDX]), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->si), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->cpu_registers->di), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    memcpy(&(io_stdout_write->pcb->estado), buffer + desplazamiento, sizeof(estado_proceso));
-    desplazamiento += sizeof(estado_proceso);
-
-    // Recibir datos de la interfaz y tamaño de nombre de interfaz
-    memcpy(&(io_stdout_write->tamanio_nombre_interfaz), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-    io_stdout_write->nombre_interfaz = malloc(io_stdout_write->tamanio_nombre_interfaz);
-    memcpy(io_stdout_write->nombre_interfaz, buffer + desplazamiento, io_stdout_write->tamanio_nombre_interfaz);
-    desplazamiento += io_stdout_write->tamanio_nombre_interfaz;
-
-    // Recibir dirección lógica
-    memcpy(&(io_stdout_write->direccion_logica), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-
-    // Recibir tamaño
-    memcpy(&(io_stdout_write->tamaño), buffer + desplazamiento, sizeof(uint32_t));
-    desplazamiento += sizeof(uint32_t);
-
-    free(buffer);
-    return io_stdout_write;
 }

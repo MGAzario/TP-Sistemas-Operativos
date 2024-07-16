@@ -117,12 +117,6 @@ void execute_mov_out(t_pcb *pcb, t_list *direcciones, char *registro_datos)
     list_destroy_and_destroy_elements(direcciones, destruir_direccion);
 }
 
-void destruir_direccion(void *elem)
-{
-    t_direccion_y_tamanio *direccion_y_tamanio = (t_direccion_y_tamanio *)elem;
-    free(direccion_y_tamanio);
-}
-
 void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
     uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
@@ -309,17 +303,17 @@ void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_d
     log_trace(logger, "Terminando instrucción de sleep");
 }
 
-void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamaño) {
-    log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ", pcb->pid);
+void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamanio) {
+    log_debug(logger, "PID: %i - Ejecutando: IO_STDIN_READ", pcb->pid);
 
-    // Crear la estructura t_io_stdin_read
+    // Crear la estructura t_io_std
     uint32_t tamanio_nombre_interfaz = strlen(interfaz) + 1;
-    t_io_stdin_read *io_stdin_read = crear_io_stdin_read(pcb, interfaz, tamanio_nombre_interfaz, tamaño, direcciones_fisicas);
+    t_io_std *io_stdin_read = crear_io_std(pcb, interfaz, tamanio_nombre_interfaz, tamanio, direcciones_fisicas);
 
-    // Enviar la estructura t_io_stdin_read al kernel dispatch
+    // Enviar la estructura t_io_std al kernel dispatch
     enviar_io_stdin_read(socket_kernel_dispatch, io_stdin_read);
 
-    // Liberar memoria de la estructura t_io_stdin_read
+    // Liberar memoria de la estructura t_io_std
     free(io_stdin_read->nombre_interfaz);
     free(io_stdin_read);
     
@@ -328,12 +322,12 @@ void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisic
 }
 
 
-void execute_io_stdout_write(t_pcb *pcb, char *interfaz, uint32_t direccion_logica, uint32_t tamaño) {
-    log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE", pcb->pid);
+void execute_io_stdout_write(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamanio) {
+    log_debug(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE", pcb->pid);
 
     // Crear la estructura t_io_stdout_write
     uint32_t tamanio_nombre_interfaz = strlen(interfaz) + 1;
-    t_io_stdout_write *io_stdout_write = crear_io_stdout_write(pcb, interfaz, tamanio_nombre_interfaz, direccion_logica, tamaño);
+    t_io_std *io_stdout_write = crear_io_std(pcb, interfaz, tamanio_nombre_interfaz, tamanio, direcciones_fisicas);
 
     // Enviar la estructura t_io_stdout_write al kernel dispatch
     enviar_io_stdout_write(socket_kernel_dispatch, io_stdout_write);

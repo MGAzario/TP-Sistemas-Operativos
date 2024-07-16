@@ -140,38 +140,39 @@ void iniciar_servidor_memoria() {
 
 void *interfaz(void *socket)
 {
+    int socket_interfaz = *(int *) socket;
     bool sigue_conectado = true;
     while(sigue_conectado)
     {
-        op_code cod_op = recibir_operacion(*(int *) socket);
+        op_code cod_op = recibir_operacion(socket_interfaz);
 
         switch (cod_op)
         {
             case MENSAJE:
-                recibir_ok(*(int *) socket);
-                log_debug(logger, "Mensaje recibido exitosamente de la interfaz de socket %i", *(int *) socket);
+                recibir_ok(socket_interfaz);
+                log_debug(logger, "Mensaje recibido exitosamente de la interfaz de socket %i", socket_interfaz);
                 break;
             case LEER_MEMORIA:
                 log_trace(logger, "Recibí una solicitud de una interfaz para leer de Memoria");
                 usleep(retardo * 1000);
-                t_leer_memoria *leer_memoria = recibir_leer_memoria(*(int *) socket);
+                t_leer_memoria *leer_memoria = recibir_leer_memoria(socket_interfaz);
                 void *lectura = leer(leer_memoria->direccion, leer_memoria->tamanio);
                 log_info(logger, "PID: %i - Accion: LEER - Direccion fisica: %i - Tamaño: %i",
                     leer_memoria->pid,
                     leer_memoria->direccion,
                     leer_memoria->tamanio);
-                enviar_lectura(*(int *) socket, lectura, leer_memoria->tamanio);
+                enviar_lectura(socket_interfaz, lectura, leer_memoria->tamanio);
                 break;
             case ESCRIBIR_MEMORIA:
                 log_trace(logger, "Recibí una solicitud de una interfaz para escribir en Memoria");
                 usleep(retardo * 1000);
-                t_escribir_memoria *escribir_memoria = recibir_escribir_memoria(*(int *) socket);
+                t_escribir_memoria *escribir_memoria = recibir_escribir_memoria(socket_interfaz);
                 escribir(escribir_memoria->direccion, escribir_memoria->tamanio, escribir_memoria->valor);
                 log_info(logger, "PID: %i - Accion: ESCRIBIR - Direccion fisica: %i - Tamaño: %i",
                     escribir_memoria->pid,
                     escribir_memoria->direccion,
                     escribir_memoria->tamanio);
-                enviar_mensaje_simple(*(int *) socket, MEMORIA_ESCRITA);
+                enviar_mensaje_simple(socket_interfaz, MEMORIA_ESCRITA);
                 break;
             case DESCONEXION:
                 log_warning(logger, "Se desconectó una interfaz");

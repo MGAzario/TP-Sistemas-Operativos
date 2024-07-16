@@ -50,8 +50,9 @@ void crear_diccionario();
 char *recibir_wait(); //a diseñar
 char *recibir_signal(); //a diseñar
 void desbloquear_proceso_io(t_interfaz *interfaz);
-void fin_io_read(t_interfaz *interfaz);
 bool fin_sleep(t_interfaz *interfaz);
+bool fin_io_read(t_interfaz *interfaz);
+bool fin_io_write(t_interfaz *interfaz);
 void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, char *nombre, tipo_interfaz tipo);
 void *manejo_interfaces(void *interfaz_hilo);
 void pedido_io_stdin_read();

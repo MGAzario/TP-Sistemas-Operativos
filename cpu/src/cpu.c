@@ -332,41 +332,41 @@ void decode(t_pcb *pcb, char *instruccion)
     }
     else if (strcmp("IO_STDIN_READ", operacion) == 0)
     {
-    char nombre_interfaz[50];
-    char registro_direccion[10];
-    char registro_tamaño[10];
+        char nombre_interfaz[50];
+        char registro_direccion[10];
+        char registro_tamanio[10];
 
-    sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, registro_direccion, registro_tamaño);
+        sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, registro_direccion, registro_tamanio);
 
-    uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
-    uint32_t tamaño = leer_registro(pcb, registro_tamaño);
+        uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
+        uint32_t tamanio = leer_registro(pcb, registro_tamanio);
 
-    // Convertir la dirección lógica a direcciones físicas
-    t_list *direcciones_fisicas = mmu(direccion_logica, tamaño, pcb->pid);
+        // Convertir la dirección lógica a direcciones físicas
+        t_list *direcciones_fisicas = mmu(direccion_logica, tamanio, pcb->pid);
 
-    pcb->cpu_registers->pc++;
-    log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamaño);
+        pcb->cpu_registers->pc++;
+        log_info(logger, "PID: %i - Ejecutando: IO_STDIN_READ - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamanio);
 
-    execute_io_stdin_read(pcb, nombre_interfaz, direcciones_fisicas, tamaño);
+        execute_io_stdin_read(pcb, nombre_interfaz, direcciones_fisicas, tamanio);
     }
     else if (strcmp("IO_STDOUT_WRITE", operacion) == 0)
     {
-    char nombre_interfaz[50];
-    char registro_direccion[10];
-    char registro_tamaño[10];
+        char nombre_interfaz[50];
+        char registro_direccion[10];
+        char registro_tamanio[10];
 
-    sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, registro_direccion, registro_tamaño);
+        sscanf(instruccion, "%s %s %s %s", operacion, nombre_interfaz, registro_direccion, registro_tamanio);
 
-    uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
-    uint32_t tamaño = leer_registro(pcb, registro_tamaño);
+        uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
+        uint32_t tamanio = leer_registro(pcb, registro_tamanio);
 
-    // Convertir la dirección lógica a direcciones físicas (en este caso no necesitamos mmu)
-    t_list *direcciones_fisicas = mmu(direccion_logica, tamaño, pcb->pid);
+        // Convertir la dirección lógica a direcciones físicas
+        t_list *direcciones_fisicas = mmu(direccion_logica, tamanio, pcb->pid);
 
-    pcb->cpu_registers->pc++;
-    log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamaño);
+        pcb->cpu_registers->pc++;
+        log_info(logger, "PID: %i - Ejecutando: IO_STDOUT_WRITE - %s %s %s", pcb->pid, nombre_interfaz, registro_direccion, registro_tamanio);
 
-    execute_io_stdout_write(pcb, nombre_interfaz, direcciones_fisicas, tamaño);
+        execute_io_stdout_write(pcb, nombre_interfaz, direcciones_fisicas, tamanio);
     }
     else if (strcmp("EXIT", operacion) == 0)
     {
@@ -480,15 +480,15 @@ void escribir_registro(t_pcb *pcb, char *registro, uint32_t valor)
     }
     else if (strcmp(registro, "EBX") == 0)
     {
-        pcb->cpu_registers->extendidos[EAX] = valor;
+        pcb->cpu_registers->extendidos[EBX] = valor;
     }
     else if (strcmp(registro, "ECX") == 0)
     {
-        pcb->cpu_registers->extendidos[EAX] = valor;
+        pcb->cpu_registers->extendidos[ECX] = valor;
     }
     else if (strcmp(registro, "EDX") == 0)
     {
-        pcb->cpu_registers->extendidos[EAX] = valor;
+        pcb->cpu_registers->extendidos[EDX] = valor;
     }
     else
     {

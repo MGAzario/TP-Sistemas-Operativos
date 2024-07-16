@@ -100,16 +100,7 @@ typedef struct {
     uint32_t tamanio_nombre_interfaz;
     uint32_t tamanio_contenido;
     t_list *direcciones_fisicas;
-} t_io_stdin_read;
-
-typedef struct {
-    t_pcb *pcb;
-    char *nombre_interfaz;
-    uint32_t tamanio_nombre_interfaz;
-    uint32_t direccion_logica;
-    uint32_t tamaño;
-} t_io_stdout_write;
-
+} t_io_std;
 
 typedef struct
 {

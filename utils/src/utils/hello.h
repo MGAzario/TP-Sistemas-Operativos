@@ -5,6 +5,7 @@
 #include<stdlib.h>
 #include<commons/log.h>
 #include<commons/string.h>
+#include<string.h>
 
 
 extern t_log* logger;
@@ -16,5 +17,6 @@ extern t_log* logger;
 void decir_hola(char* quien);
 
 char *string_itoa_hasta_tres_cifras(int numero);
+void string_n_append_con_strnlen(char** original, char* string_to_add, int n);
 
 #endif

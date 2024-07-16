@@ -245,11 +245,10 @@ void *manejo_interfaces(void *interfaz_hilo)
             sigue_conectado = fin_sleep(interfaz);
             break;
         case STDIN:
-            log_error(logger, "Falta implementar");
-            fin_io_read(interfaz);
+            sigue_conectado = fin_io_read(interfaz);
             break;
         case STDOUT:
-            log_error(logger, "Falta implementar");
+            sigue_conectado = fin_io_write(interfaz);
             break;
         case DialFS:
             log_error(logger, "Falta implementar");
@@ -289,21 +288,48 @@ bool fin_sleep(t_interfaz *interfaz)
     }
 }
 
-void fin_io_read(t_interfaz *interfaz)
+bool fin_io_read(t_interfaz *interfaz)
 {
     op_code cod_op = recibir_operacion(interfaz->socket);
     if (cod_op == DESCONEXION)
     {
         log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        return false;
         // TODO: Liberar estructuras
     }
     else if (cod_op != FIN_IO_READ)
     {
         log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_READ pero recibió otra cosa");
-        return; // Abortamos la función si no recibimos el código esperado
+        return false;
     }
-    desbloquear_proceso_io(interfaz);
+    else
+    {
+        desbloquear_proceso_io(interfaz);
+        return true;
+    }
 }
+
+bool fin_io_write(t_interfaz *interfaz)
+{
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op == DESCONEXION)
+    {
+        log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        return false;
+        // TODO: Liberar estructuras
+    }
+    else if (cod_op != FIN_IO_WRITE)
+    {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_WRITE pero recibió otra cosa");
+        return false;
+    }
+    else
+    {
+        desbloquear_proceso_io(interfaz);
+        return true;
+    }
+}
+
 // Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
 void desbloquear_proceso_io(t_interfaz *interfaz)
 {
@@ -759,36 +785,71 @@ void esperar_cpu()
         }
 
         // Si la interfaz no es del tipo "Interfaz Genérica" mandamos el proceso a EXIT
-        if (interfaz_sleep->tipo != GENERICA)
+        else if (interfaz_sleep->tipo != GENERICA)
         {
             log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
             eliminar_proceso(sleep->pcb);
         }
 
-        sleep->pcb->estado = BLOCKED;
-        list_add(lista_bloqueados, sleep->pcb);
-        if (strcmp(algoritmo_planificacion, "VRR") == 0)
-        {
-            sem_post(&sem_vrr_block);
-        }
-        // Verficamos si la interfaz está ocupada
-        if (interfaz_sleep->ocupada == false)
-        {
-            enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
-        }
         else
         {
-            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+            sleep->pcb->estado = BLOCKED;
+            list_add(lista_bloqueados, sleep->pcb);
+            if (strcmp(algoritmo_planificacion, "VRR") == 0)
+            {
+                sem_post(&sem_vrr_block);
+            }
+            // Verficamos si la interfaz está ocupada
+            if (!interfaz_sleep->ocupada)
+            {
+                enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
+                interfaz_sleep->ocupada = true;
+            }
+            else
+            {
+                log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+            }
         }
-
-        interfaz_sleep->ocupada = true;
 
         // free(sleep->pcb->cpu_registers);
         // free(sleep->pcb);
         // free(sleep);
 
+
         break;
     case IO_STDIN_READ:
+        // t_io_std *io_stdin_read = recibir_io_std(socket_cpu_dispatch);
+
+        // log_debug(logger, "PID: %i", io_stdin_read->pcb->pid);
+        // log_debug(logger, "program counter: %i", io_stdin_read->pcb->cpu_registers->pc);
+        // log_debug(logger, "quantum: %i", io_stdin_read->pcb->quantum);
+        // log_debug(logger, "estado: %i", io_stdin_read->pcb->estado);
+        // log_debug(logger, "SI: %i", io_stdin_read->pcb->cpu_registers->si);
+        // log_debug(logger, "DI: %i", io_stdin_read->pcb->cpu_registers->di);
+        // log_debug(logger, "AX: %i", io_stdin_read->pcb->cpu_registers->normales[AX]);
+        // log_debug(logger, "BX: %i", io_stdin_read->pcb->cpu_registers->normales[BX]);
+        // log_debug(logger, "CX: %i", io_stdin_read->pcb->cpu_registers->normales[CX]);
+        // log_debug(logger, "DX: %i", io_stdin_read->pcb->cpu_registers->normales[DX]);
+        // log_debug(logger, "EAX: %i", io_stdin_read->pcb->cpu_registers->extendidos[EAX]);
+        // log_debug(logger, "EBX: %i", io_stdin_read->pcb->cpu_registers->extendidos[EBX]);
+        // log_debug(logger, "ECX: %i", io_stdin_read->pcb->cpu_registers->extendidos[ECX]);
+        // log_debug(logger, "EDX: %i", io_stdin_read->pcb->cpu_registers->extendidos[EDX]);
+
+        // log_debug(logger, "Nombre de la interfaz: %s", io_stdin_read->nombre_interfaz);
+        
+        // log_debug(logger, "Tamaño de la interfaz: %i", io_stdin_read->tamanio_nombre_interfaz);
+
+        // log_debug(logger, "Tamaño del contenido: %i", io_stdin_read->tamanio_contenido);
+
+        // t_direccion_y_tamanio *primera_direccion = list_get(io_stdin_read->direcciones_fisicas, 0);
+        // t_direccion_y_tamanio *segunda_direccion = list_get(io_stdin_read->direcciones_fisicas, 1);
+        // t_direccion_y_tamanio *tercera_direccion = list_get(io_stdin_read->direcciones_fisicas, 2);
+
+        // log_debug(logger, "Primera dirección: %i; Tamaño: %i", primera_direccion->direccion, primera_direccion->tamanio);
+        // log_debug(logger, "Segunda dirección: %i; Tamaño: %i", segunda_direccion->direccion, segunda_direccion->tamanio);
+        // log_debug(logger, "Segunda dirección: %i; Tamaño: %i", tercera_direccion->direccion, tercera_direccion->tamanio);
+
+        // while(1);
         pedido_io_stdin_read();
         break;
     case IO_STDOUT_WRITE:
@@ -885,7 +946,7 @@ void pedido_io_stdin_read()
 {
     log_debug(logger, "El CPU pidió un IO_STDIN_READ");
 
-    t_io_stdin_read *io_stdin_read = recibir_io_stdin_read(socket_cpu_dispatch);
+    t_io_std *io_stdin_read = recibir_io_std(socket_cpu_dispatch);
 
     t_interfaz *interfaz_stdin_read = NULL;
 
@@ -895,8 +956,7 @@ void pedido_io_stdin_read()
         t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
         if (strcmp(io_stdin_read->nombre_interfaz, interfaz_en_lista->nombre) == 0)
         {
-            interfaz_stdin_read = interfaz_en_lista;
-            break;
+            interfaz_stdin_read = list_get(lista_interfaces, i);
         }
     }
 
@@ -905,48 +965,49 @@ void pedido_io_stdin_read()
     {
         log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
         eliminar_proceso(io_stdin_read->pcb);
-        return;
     }
 
     // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
-    if (interfaz_stdin_read->tipo != STDIN)
+    else if (interfaz_stdin_read->tipo != STDIN)
     {
         log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
         eliminar_proceso(io_stdin_read->pcb);
-        return;
     }
 
-    io_stdin_read->pcb->estado = BLOCKED;
-    list_add(lista_bloqueados, io_stdin_read->pcb);
-
-    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-    {
-        sem_post(&sem_vrr_block);
-    }
-
-    // Verificamos si la interfaz está ocupada
-    if (!interfaz_stdin_read->ocupada)
-    {
-        // Enviar la solicitud de IO_STDIN_READ a la interfaz
-        enviar_io_stdin_read(interfaz_stdin_read->socket, io_stdin_read);
-        interfaz_stdin_read->ocupada = true;
-    }
     else
     {
-        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        io_stdin_read->pcb->estado = BLOCKED;
+        list_add(lista_bloqueados, io_stdin_read->pcb);
+
+        if (strcmp(algoritmo_planificacion, "VRR") == 0)
+        {
+            sem_post(&sem_vrr_block);
+        }
+
+        // Verificamos si la interfaz está ocupada
+        if (!interfaz_stdin_read->ocupada)
+        {
+            // Enviar la solicitud de IO_STDIN_READ a la interfaz
+            enviar_io_stdin_read(interfaz_stdin_read->socket, io_stdin_read);
+            interfaz_stdin_read->ocupada = true;
+        }
+        else
+        {
+            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        }
     }
 
-    // Liberar memoria de la estructura t_io_stdin_read
-    free(io_stdin_read->nombre_interfaz);
-    free(io_stdin_read->pcb->cpu_registers);
-    free(io_stdin_read->pcb);
-    free(io_stdin_read);
+    // Liberar memoria de la estructura t_io_std
+    // free(io_stdin_read->nombre_interfaz);
+    // free(io_stdin_read->pcb->cpu_registers);
+    // free(io_stdin_read->pcb);
+    // free(io_stdin_read);
 }
 
 void pedido_io_stdout_write() {
     log_debug(logger, "El CPU pidió un IO_STDOUT_WRITE");
 
-    t_io_stdout_write *io_stdout_write = recibir_io_stdout_write(socket_cpu_dispatch);
+    t_io_std *io_stdout_write = recibir_io_std(socket_cpu_dispatch);
 
     t_interfaz *interfaz_stdout_write = NULL;
 
@@ -954,8 +1015,7 @@ void pedido_io_stdout_write() {
     for (int i = 0; i < list_size(lista_interfaces); i++) {
         t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
         if (strcmp(io_stdout_write->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
-            interfaz_stdout_write = interfaz_en_lista;
-            break;
+            interfaz_stdout_write = list_get(lista_interfaces, i);
         }
     }
 
@@ -963,39 +1023,40 @@ void pedido_io_stdout_write() {
     if (interfaz_stdout_write == NULL) {
         log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
         eliminar_proceso(io_stdout_write->pcb);
-        return;
     }
 
     // Si la interfaz no es del tipo "STDOUT" mandamos el proceso a EXIT
-    if (interfaz_stdout_write->tipo != STDOUT) {
+    else if (interfaz_stdout_write->tipo != STDOUT) {
         log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
         eliminar_proceso(io_stdout_write->pcb);
-        return;
     }
 
-    io_stdout_write->pcb->estado = BLOCKED;
-    list_add(lista_bloqueados, io_stdout_write->pcb);
+    else
+    {
+        io_stdout_write->pcb->estado = BLOCKED;
+        list_add(lista_bloqueados, io_stdout_write->pcb);
 
-    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-        sem_post(&sem_vrr_block);
+        if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+            sem_post(&sem_vrr_block);
+        }
+
+        // Verificamos si la interfaz está ocupada
+        if (!interfaz_stdout_write->ocupada) {
+            // Enviar la solicitud de IO_STDOUT_WRITE a la interfaz
+            enviar_io_stdout_write(interfaz_stdout_write->socket, io_stdout_write);
+            interfaz_stdout_write->ocupada = true;
+        }
+        else
+        {
+            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        }
     }
-
-    // Verificamos si la interfaz está ocupada
-    if (!interfaz_stdout_write->ocupada) {
-        // Enviar la solicitud de IO_STDOUT_WRITE a la interfaz
-        enviar_io_stdout_write(interfaz_stdout_write->socket, io_stdout_write);
-        interfaz_stdout_write->ocupada = true;
-    } else {
-        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
-    }
-
-    
 
     // Liberar memoria de la estructura t_io_stdout_write
-    free(io_stdout_write->nombre_interfaz);
-    free(io_stdout_write->pcb->cpu_registers);
-    free(io_stdout_write->pcb);
-    free(io_stdout_write);
+    // free(io_stdout_write->nombre_interfaz);
+    // free(io_stdout_write->pcb->cpu_registers);
+    // free(io_stdout_write->pcb);
+    // free(io_stdout_write);
 }
 
 void bloquear_proceso(t_pcb *pcb)
