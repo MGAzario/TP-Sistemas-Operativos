@@ -827,7 +827,7 @@ t_io_fs_truncate *recibir_io_fs_truncate(int socket_cliente) {
     memcpy(io_fs_truncate->nombre_archivo, buffer, io_fs_truncate->tamanio_nombre_archivo);
     buffer += io_fs_truncate->tamanio_nombre_archivo;
 
-    memcpy(&(io_fs_truncate->tamanio), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_truncate->nuevo_tamanio), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
     // Liberar el buffer original
@@ -879,21 +879,21 @@ t_io_fs_write *recibir_io_fs_write(int socket_cliente) {
     memcpy(io_fs_write->nombre_archivo, buffer, io_fs_write->tamanio_nombre_archivo);
     buffer += io_fs_write->tamanio_nombre_archivo;
 
-    / Deserializar direcciones físicas, tamaño y puntero archivo
+    // Deserializar direcciones físicas, tamaño y puntero archivo
     // Nota: Suponiendo que se recibe un listado de direcciones físicas.
     // Esta parte puede variar según cómo se decide manejar las direcciones físicas.
     int cantidad_direcciones = 0;  // Obtener esto de algún lado o modificar la estructura de la trama
-    io_fs_read->direcciones_fisicas = list_create();
+    io_fs_write->direcciones_fisicas = list_create();
     for (int i = 0; i < cantidad_direcciones; i++) {
         uint32_t direccion;
         memcpy(&direccion, buffer, sizeof(uint32_t));
-        list_add(io_fs_read->direcciones_fisicas, (void*)(uintptr_t)direccion);  // Guardar como valor entero
+        list_add(io_fs_write->direcciones_fisicas, (void*)(uintptr_t)direccion);  // Guardar como valor entero
         buffer += sizeof(uint32_t);
     }
 
-    memcpy(&(io_fs_read->tamanio), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_write->tamanio), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_read->puntero_archivo), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_write->puntero_archivo), buffer, sizeof(uint32_t));
 
     // Liberar el buffer original
     free(buffer - size);

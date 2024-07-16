@@ -21,6 +21,8 @@ t_bitarray *bitarray;
 FILE *bitmap_file;
 t_bitarray *bitarray;
 char bitmap_path[256];
+int retraso_compactacion;
+t_fs_bloques *bloques;
 
 int main(int argc, char *argv[])
 {
@@ -269,7 +271,7 @@ void crear_interfaz_dialfs()
     char *path_base_dialfs = config_get_string_value(config, "PATH_BASE_DIALFS");
     int block_size = config_get_int_value(config, "BLOCK_SIZE");
     int block_count = config_get_int_value(config, "BLOCK_COUNT");
-    int retraso_compactacion = config_get_int_value(config, "RETRASO_COMPACTACION");
+    retraso_compactacion = config_get_int_value(config, "RETRASO_COMPACTACION");
     enviar_nombre_y_tipo(socket_kernel, nombre, DialFS);
     conectar_memoria();
 
@@ -325,10 +327,7 @@ void crear_interfaz_dialfs()
     char *bitmap_data = malloc(block_count);
     fread(bitmap_data, sizeof(char), block_count, bitmap_file);
     bitarray = bitarray_create_with_mode(bitmap_data, block_count, LSB_FIRST);
-
-    // Ejemplo de creación de archivo de metadata
-    t_metadata_archivo metadata = {25, 1024};
-    crear_metadata_archivo("notas.txt", metadata);
+    
     while (true)
     {
         log_trace(logger, "Esperando pedido del Kernel");
@@ -521,7 +520,7 @@ void manejar_io_fs_truncate()
     log_debug(logger, "Recibiendo pedido de IO_FS_TRUNCATE");
 
     // Recibir la solicitud de IO_FS_TRUNCATE
-    t_io_fs_truncate *io_fs_truncate = recibir_io_fs_truncate(socket_entrada_salida);
+    t_io_fs_truncate *io_fs_truncate = recibir_io_fs_truncate(socket_kernel);
 
     // Buscar si el archivo existe en el sistema de archivos DialFS
     char metadata_path[256];
@@ -531,7 +530,7 @@ void manejar_io_fs_truncate()
     if (metadata == NULL)
     {
         log_warning(logger, "Archivo %s no existe. No se puede truncar.", io_fs_truncate->nombre_archivo);
-        enviar_error_truncate(io_fs_truncate->pcb); // Asumiendo que esta función maneja la respuesta de error
+        //enviar_error_truncate(io_fs_truncate->pcb);
         return;
     }
 
@@ -549,7 +548,7 @@ void manejar_io_fs_truncate()
         log_info(logger, "Archivo %s truncado a %d bytes.", io_fs_truncate->nombre_archivo, nuevo_tamanio);
 
         // Actualizar el bitmap y archivo de bloques si necesario
-        actualizar_estructura_bloques(bloque_inicial, tamanio_actual, nuevo_tamanio);
+        actualizar_estructura_bloques(bloque_inicial, tamanio_actual, nuevo_tamanio,io_fs_truncate->pcb->pid);
     }
 
     // TODO Asumiendo que hay alguna función que maneje la respuesta de éxito
@@ -579,7 +578,7 @@ void manejar_io_fs_write()
     if (!archivo)
     {
         log_error(logger, "No se pudo abrir el archivo %s para escritura", io_fs_write->nombre_archivo);
-        enviar_error_al_kernel(io_fs_write->pcb, "Archivo no accesible");
+        //enviar_error_al_kernel(io_fs_write->pcb, "Archivo no accesible");
         return;
     }
 

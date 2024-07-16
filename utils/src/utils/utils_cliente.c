@@ -1274,8 +1274,8 @@ t_paquete* crear_paquete_io_fs_truncate(uint32_t tamanio_nombre_interfaz, uint32
                             + 2 * sizeof(uint32_t)  // SI y DI
                             + sizeof(estado_proceso)  // Estado
                             + sizeof(uint32_t) + tamanio_nombre_interfaz  // Nombre de la interfaz y su tamaño
-                            + sizeof(uint32_t) + tamanio_nombre_archivo;  // Nombre del archivo y su tamaño
-							+ sizeof(uint32_t) //Nuevo tamanio del archivo
+                            + sizeof(uint32_t) + tamanio_nombre_archivo  // Nombre del archivo y su tamaño
+							+ sizeof(uint32_t); //Nuevo tamanio del archivo
 
     paquete->buffer->stream = malloc(paquete->buffer->size);
     if (paquete->buffer->stream == NULL) {
@@ -1383,6 +1383,7 @@ t_paquete* crear_paquete_io_fs_write(t_io_fs_write* io_fs_write) {
                             sizeof(uint32_t) * 2 + // PID y Quantum
                             sizeof(uint32_t) + // Tamaño y Puntero
                             sizeof(t_cpu_registers) + // Tamaño de los registros de CPU
+                            + direcciones_size +
                             io_fs_write->tamanio_nombre_interfaz +
                             io_fs_write->tamanio_nombre_archivo;
 
@@ -1396,19 +1397,19 @@ void agregar_io_fs_write_a_paquete(t_paquete* paquete, t_io_fs_write* io_fs_writ
     int desplazamiento = 0;
 
     // Copiar datos del PCB
-    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->pid), sizeof(uint32_t));
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->pcb->pid), sizeof(uint32_t));
     desplazamiento += sizeof(uint32_t);
-    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->quantum), sizeof(uint32_t));
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->pcb->quantum), sizeof(uint32_t));
     desplazamiento += sizeof(uint32_t);
-    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->cpu_registers->pc), sizeof(uint32_t));
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->pcb->cpu_registers->pc), sizeof(uint32_t));
     desplazamiento += sizeof(uint32_t);
 
     // Copiar registros normales (AX, BX, CX, DX)
-    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->pcb->cpu_registers->normales, sizeof(uint8_t) * 4);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_write->pcb->cpu_registers->normales, sizeof(uint8_t) * 4);
     desplazamiento += sizeof(uint8_t) * 4;
 
     // Copiar registros extendidos (EAX, EBX, ECX, EDX)
-    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->pcb->cpu_registers->extendidos, sizeof(uint32_t) * 4);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_write->pcb->cpu_registers->extendidos, sizeof(uint32_t) * 4);
     desplazamiento += sizeof(uint32_t) * 4;
 
 
@@ -1480,7 +1481,8 @@ t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read) {
                             sizeof(uint32_t) + // Tamaño y Puntero
                             sizeof(t_cpu_registers) + // Tamaño de los registros de CPU
                             io_fs_read->tamanio_nombre_interfaz +
-                            io_fs_read->tamanio_nombre_archivo;
+                            io_fs_read->tamanio_nombre_archivo +
+                            direcciones_size;
 
     // Asignar memoria para el stream de datos del buffer
     paquete->buffer->stream = malloc(paquete->buffer->size);
