@@ -781,6 +781,15 @@ void enviar_fin_io_read(int socket_cliente, t_pcb *pcb)
 	enviar_paquete(paquete, socket_cliente);
 }
 
+void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb)
+{
+	t_paquete* paquete = crear_paquete_pcb(FIN_IO_FS);
+
+	agregar_pcb_a_paquete(paquete, pcb);
+
+	enviar_paquete(paquete, socket_cliente);
+}
+
 void enviar_resize(int socket_cliente, t_pcb *pcb, int tamanio)
 {
 	t_paquete* paquete = crear_paquete_resize();
@@ -1337,5 +1346,196 @@ void enviar_io_fs_truncate(int socket_cliente, t_io_fs_truncate* io_fs_truncate)
     enviar_paquete(paquete, socket_cliente);
 
     // Liberar el paquete después del envío
+    eliminar_paquete(paquete);
+}
+
+t_io_fs_write* crear_io_fs_write(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo) {
+    t_io_fs_write* io_fs_write = malloc(sizeof(t_io_fs_write));
+    if (io_fs_write == NULL) {
+        return NULL; // Manejo de error: no se pudo asignar memoria
+    }
+
+    // Asignar el PCB
+    io_fs_write->pcb = pcb;
+    // Asignar y duplicar el nombre de la interfaz
+    io_fs_write->nombre_interfaz = strdup(nombre_interfaz);
+    io_fs_write->tamanio_nombre_interfaz = strlen(io_fs_write->nombre_interfaz) + 1;
+    // Asignar y duplicar el nombre del archivo
+    io_fs_write->nombre_archivo = strdup(nombre_archivo);
+    io_fs_write->tamanio_nombre_archivo = strlen(io_fs_write->nombre_archivo) + 1;
+    // Asignar las direcciones físicas
+    io_fs_write->direcciones_fisicas = direcciones_fisicas;
+    // Asignar tamaño y puntero del archivo
+    io_fs_write->tamanio = tamanio;
+    io_fs_write->puntero_archivo = puntero_archivo;
+
+    return io_fs_write;
+}
+
+t_paquete* crear_paquete_io_fs_write(t_io_fs_write* io_fs_write) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = IO_FS_WRITE;
+    crear_buffer(paquete);
+
+    // Calcular el tamaño total del paquete
+    uint32_t direcciones_size = list_size(io_fs_write->direcciones_fisicas) * sizeof(uint32_t);
+    paquete->buffer->size = sizeof(uint32_t) * (6 + list_size(io_fs_write->direcciones_fisicas)) + // Por cada dirección física
+                            sizeof(uint32_t) * 2 + // PID y Quantum
+                            sizeof(uint32_t) + // Tamaño y Puntero
+                            sizeof(t_cpu_registers) + // Tamaño de los registros de CPU
+                            io_fs_write->tamanio_nombre_interfaz +
+                            io_fs_write->tamanio_nombre_archivo;
+
+    // Asignar memoria para el stream de datos del buffer
+    paquete->buffer->stream = malloc(paquete->buffer->size);
+
+    return paquete;
+}
+
+void agregar_io_fs_write_a_paquete(t_paquete* paquete, t_io_fs_write* io_fs_write) {
+    int desplazamiento = 0;
+
+    // Copiar datos del PCB
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->pid), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->quantum), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_truncate->pcb->cpu_registers->pc), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+
+    // Copiar registros normales (AX, BX, CX, DX)
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->pcb->cpu_registers->normales, sizeof(uint8_t) * 4);
+    desplazamiento += sizeof(uint8_t) * 4;
+
+    // Copiar registros extendidos (EAX, EBX, ECX, EDX)
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_truncate->pcb->cpu_registers->extendidos, sizeof(uint32_t) * 4);
+    desplazamiento += sizeof(uint32_t) * 4;
+
+
+    // Copiar nombre de la interfaz y su tamaño
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->tamanio_nombre_interfaz), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_write->nombre_interfaz, io_fs_write->tamanio_nombre_interfaz);
+    desplazamiento += io_fs_write->tamanio_nombre_interfaz;
+
+    // Copiar nombre del archivo y su tamaño
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->tamanio_nombre_archivo), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_write->nombre_archivo, io_fs_write->tamanio_nombre_archivo);
+    desplazamiento += io_fs_write->tamanio_nombre_archivo;
+
+    // Copiar tamaño y puntero del archivo
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->tamanio), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_write->puntero_archivo), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+
+    // Copiar direcciones físicas
+    for (int i = 0; i < list_size(io_fs_write->direcciones_fisicas); i++) {
+        uint32_t* direccion = list_get(io_fs_write->direcciones_fisicas, i);
+        memcpy(paquete->buffer->stream + desplazamiento, direccion, sizeof(uint32_t));
+        desplazamiento += sizeof(uint32_t);
+    }
+}
+
+void enviar_io_fs_write(int socket_cliente, t_io_fs_write* io_fs_write) {
+    t_paquete* paquete = crear_paquete_io_fs_write(io_fs_write);
+    agregar_io_fs_write_a_paquete(paquete, io_fs_write);
+    enviar_paquete(paquete, socket_cliente);
+    eliminar_paquete(paquete);
+}
+
+t_io_fs_read* crear_io_fs_read(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo) {
+    t_io_fs_read* io_fs_read = malloc(sizeof(t_io_fs_read));
+    if (io_fs_read == NULL) {
+        return NULL; // Manejo de error: no se pudo asignar memoria
+    }
+
+    // Asignar el PCB
+    io_fs_read->pcb = pcb;
+    // Asignar y duplicar el nombre de la interfaz
+    io_fs_read->nombre_interfaz = strdup(nombre_interfaz);
+    io_fs_read->tamanio_nombre_interfaz = strlen(io_fs_read->nombre_interfaz) + 1;
+    // Asignar y duplicar el nombre del archivo
+    io_fs_read->nombre_archivo = strdup(nombre_archivo);
+    io_fs_read->tamanio_nombre_archivo = strlen(io_fs_read->nombre_archivo) + 1;
+    // Asignar las direcciones físicas
+    io_fs_read->direcciones_fisicas = direcciones_fisicas;
+    // Asignar tamaño y puntero del archivo
+    io_fs_read->tamanio = tamanio;
+    io_fs_read->puntero_archivo = puntero_archivo;
+
+    return io_fs_read;
+}
+
+t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read) {
+    t_paquete* paquete = malloc(sizeof(t_paquete));
+    paquete->codigo_operacion = IO_FS_READ;
+    crear_buffer(paquete);
+
+    // Calcular el tamaño total del paquete
+    uint32_t direcciones_size = list_size(io_fs_read->direcciones_fisicas) * sizeof(uint32_t);
+    paquete->buffer->size = sizeof(uint32_t) * (6 + list_size(io_fs_read->direcciones_fisicas)) + // Por cada dirección física
+                            sizeof(uint32_t) * 2 + // PID y Quantum
+                            sizeof(uint32_t) + // Tamaño y Puntero
+                            sizeof(t_cpu_registers) + // Tamaño de los registros de CPU
+                            io_fs_read->tamanio_nombre_interfaz +
+                            io_fs_read->tamanio_nombre_archivo;
+
+    // Asignar memoria para el stream de datos del buffer
+    paquete->buffer->stream = malloc(paquete->buffer->size);
+
+    return paquete;
+}
+
+void agregar_io_fs_read_a_paquete(t_paquete* paquete, t_io_fs_read* io_fs_read) {
+    int desplazamiento = 0;
+
+    // Copiar datos del PCB
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->pcb->pid), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->pcb->quantum), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->pcb->cpu_registers->pc), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+
+    // Copiar registros normales (AX, BX, CX, DX)
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_read->pcb->cpu_registers->normales, sizeof(uint8_t) * 4);
+    desplazamiento += sizeof(uint8_t) * 4;
+
+    // Copiar registros extendidos (EAX, EBX, ECX, EDX)
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_read->pcb->cpu_registers->extendidos, sizeof(uint32_t) * 4);
+    desplazamiento += sizeof(uint32_t) * 4;
+
+    // Copiar nombre de la interfaz y su tamaño
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->tamanio_nombre_interfaz), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_read->nombre_interfaz, io_fs_read->tamanio_nombre_interfaz);
+    desplazamiento += io_fs_read->tamanio_nombre_interfaz;
+
+    // Copiar nombre del archivo y su tamaño
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->tamanio_nombre_archivo), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, io_fs_read->nombre_archivo, io_fs_read->tamanio_nombre_archivo);
+    desplazamiento += io_fs_read->tamanio_nombre_archivo;
+
+    // Copiar tamaño y puntero del archivo
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->tamanio), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+    memcpy(paquete->buffer->stream + desplazamiento, &(io_fs_read->puntero_archivo), sizeof(uint32_t));
+    desplazamiento += sizeof(uint32_t);
+
+    // Copiar direcciones físicas
+    for (int i = 0; i < list_size(io_fs_read->direcciones_fisicas); i++) {
+        uint32_t* direccion = list_get(io_fs_read->direcciones_fisicas, i);
+        memcpy(paquete->buffer->stream + desplazamiento, direccion, sizeof(uint32_t));
+        desplazamiento += sizeof(uint32_t);
+    }
+}
+
+void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read) {
+    t_paquete* paquete = crear_paquete_io_fs_read(io_fs_read);
+    agregar_io_fs_read_a_paquete(paquete, io_fs_read);
+    enviar_paquete(paquete, socket_cliente);
     eliminar_paquete(paquete);
 }

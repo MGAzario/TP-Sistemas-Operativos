@@ -4,6 +4,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<commons/log.h>
+#include<commons/string.h>
 
 
 extern t_log* logger;
@@ -13,5 +14,7 @@ extern t_log* logger;
 * @brief Imprime un saludo al nombre que se pase por parámetro por consola.
 */
 void decir_hola(char* quien);
+
+char *string_itoa_hasta_tres_cifras(int numero);
 
 #endif
