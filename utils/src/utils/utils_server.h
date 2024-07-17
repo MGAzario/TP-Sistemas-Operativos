@@ -41,5 +41,10 @@ t_lectura *recibir_lectura(int socket_cliente);
 t_escribir_memoria *recibir_escribir_memoria(int socket_cliente);
 t_recurso *recibir_recurso(int socket_cliente);
 t_io_std *recibir_io_std(int socket_cliente);
+t_io_fs_create *recibir_io_fs_create(int socket_cliente);
+t_io_fs_delete *recibir_io_fs_delete(int socket_cliente);
+t_io_fs_write *recibir_io_fs_write(int socket_cliente);
+t_io_fs_read *recibir_io_fs_read(int socket_cliente);
+t_io_fs_truncate *recibir_io_fs_truncate(int socket_cliente);
 
 #endif /* UTILS_SERVER_SERVER_H_ */

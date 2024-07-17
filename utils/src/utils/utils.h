@@ -102,6 +102,53 @@ typedef struct {
     t_list *direcciones_fisicas;
 } t_io_std;
 
+typedef struct {
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;
+    uint32_t tamanio_nombre_archivo;
+} t_io_fs_create;
+
+typedef struct {
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;
+    uint32_t tamanio_nombre_archivo;
+} t_io_fs_delete;
+
+typedef struct {
+    t_pcb *pcb;                      
+    char *nombre_interfaz;           
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;            
+    uint32_t tamanio_nombre_archivo; 
+    uint32_t nuevo_tamanio;           
+} t_io_fs_truncate;
+
+typedef struct {
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;
+    uint32_t tamanio_nombre_archivo;
+    t_list *direcciones_fisicas; // Lista de direcciones físicas
+    uint32_t tamanio;            // Tamaño de los datos a escribir
+    uint32_t puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
+} t_io_fs_write;
+
+typedef struct {
+    t_pcb *pcb;
+    char *nombre_interfaz;
+    uint32_t tamanio_nombre_interfaz;
+    char *nombre_archivo;
+    uint32_t tamanio_nombre_archivo;
+    t_list *direcciones_fisicas; // Lista de direcciones físicas
+    uint32_t tamanio;            // Tamaño de los datos a escribir
+    uint32_t puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
+} t_io_fs_read;
+
 typedef struct
 {
     int socket;

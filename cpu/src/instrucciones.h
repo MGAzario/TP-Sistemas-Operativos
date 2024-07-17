@@ -18,5 +18,11 @@ void execute_io_gen_sleep(t_pcb *pcb, char *nombre_interfaz, uint32_t unidades_d
 void execute_exit(t_pcb *pcb);
 void execute_io_stdout_write(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamanio);
 void execute_io_stdin_read(t_pcb *pcb, char *interfaz, t_list *direcciones_fisicas, uint32_t tamanio);
+void destruir_direccion(void *elem);
+void execute_io_fs_create(t_pcb *pcb, char *interfaz, char *nombre_archivo);
+void execute_io_fs_delete(t_pcb *pcb, char *interfaz, char *nombre_archivo);
+void execute_io_fs_truncate(t_pcb *pcb, char *interfaz, char *nombre_archivo, uint32_t nuevo_tamano);
+void execute_io_fs_write(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
+void execute_io_fs_read(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
 
 #endif /*INSTRUCCIONES_H*/
