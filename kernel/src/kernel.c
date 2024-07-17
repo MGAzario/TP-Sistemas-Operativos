@@ -51,7 +51,6 @@ pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
 pthread_t hilo_recibir_entradasalida;
 pthread_t hilo_entradasalida[100];
-pthread_t hilo_quantum_rr;
 pthread_t hilo_quantum_vrr;
 
 int main(int argc, char *argv[])
@@ -625,7 +624,7 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-    
+    pthread_t hilo_quantum_rr;
     log_trace(logger, "Inicia ciclo");
     sem_wait(&sem_round_robin);
     
@@ -654,7 +653,9 @@ void planificar_round_robin()
         pthread_create(&hilo_quantum_rr, NULL, (void *)quantum_count,NULL);
         pcb_ejecutandose = proceso_a_ejecutar;
         esperar_cpu();
+        log_trace(logger, "MATÉ A MI PROCESO");
         pthread_kill(hilo_quantum_rr, SIGKILL);
+        log_trace(logger, "Pero sobrevivió");
         
         log_trace(logger, "Termino ciclo");
         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
@@ -859,9 +860,10 @@ void esperar_cpu()
         log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
         t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
         log_info(logger, "Finaliza el proceso %i - Motivo: EXIT", pcb_exit->pid);
-        /*if(strcmp(algoritmo_planificacion,"RR") == 0 ){
-            pthread_kill(hilo_quantum_rr,SIGKILL);
-        }
+        if(strcmp(algoritmo_planificacion,"RR") == 0 ){
+            sem_post(&sem_round_robin);
+            //pthread_kill(hilo_quantum_rr,SIGKILL);
+        }/*
         if(strcmp(algoritmo_planificacion,"VRR")== 0){
             pthread_kill(hilo_quantum_vrr,SIGKILL);
         }*/
