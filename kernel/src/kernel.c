@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
     sem_init(&mutex_cola_new, 0, 1);
     sem_init(&sem_proceso_ready, 0, 0);
     sem_init(&sem_round_robin, 0, 1);
+    sem_init(&sem_vrr_block, 0, 0);
     sem_init(&sem_planificacion, 0, 0);
     sem_init(&mutex_memoria, 0, 1);
 
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     // Creo las colas que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
+    cola_prio = queue_create();
     lista_bloqueados = list_create();
 
     // Usan la misma IP, se las paso por parametro.
@@ -543,13 +545,15 @@ void *planificador_largo_plazo()
         sem_wait(&mutex_cola_new);
         t_pcb *proceso_nuevo = queue_pop(cola_new);
         sem_post(&mutex_cola_new);
-
         // Cambiar el estado del proceso a READY
         proceso_nuevo->estado = READY;
 
         // Agregar el proceso a la cola de READY
+
         queue_push(cola_ready, proceso_nuevo);
+
         sem_post(&sem_proceso_ready);
+        
         log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
 
         // Reducir la cantidad de procesos en la cola de NEW
@@ -649,13 +653,12 @@ void planificar_round_robin()
         proceso_a_ejecutar->estado = EXEC;
 
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-        log_trace(logger, "PCBenviado");
+        log_trace(logger, "PCB enviado");
         pthread_create(&hilo_quantum_rr, NULL, (void *)quantum_count,NULL);
         pcb_ejecutandose = proceso_a_ejecutar;
         esperar_cpu();
-        log_trace(logger, "MATÉ A MI PROCESO");
-        pthread_kill(hilo_quantum_rr, SIGKILL);
-        log_trace(logger, "Pero sobrevivió");
+
+        //pthread_kill(hilo_quantum_rr, SIGKILL);
         
         log_trace(logger, "Termino ciclo");
         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
@@ -667,42 +670,54 @@ void planificar_round_robin()
 
 void planificar_vrr()
 {
-    t_pcb *proceso_a_ejecutar;
-
     sem_wait(&sem_round_robin);
+    log_trace(logger, "Ya no waiteo RR");
 
-    if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
+    if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
     {
+        t_pcb *proceso_a_ejecutar;
         // Obtener el proceso listo para ejecutarse de la cola
-
+        
         if (!queue_is_empty(cola_prio))
         {
+            log_trace(logger, "Entro cola prio");
             proceso_a_ejecutar = queue_pop(cola_prio);
         }
-        else
+        else if (!queue_is_empty(cola_ready))
         {
+            log_trace(logger, "Entro cola ready");
             proceso_a_ejecutar = queue_pop(cola_ready);
         }
-    }
+    
     // sem_mutex_interrupt
     // sem_wait(sem_mutex_interrupt);
     //enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
     //esperar_cpu();
     // sem_post(sem_mutex_interrupt);
     //  Cambiar el estado del proceso a EXEC
+    log_trace(logger, "Exploto PCB");
     proceso_a_ejecutar->estado = EXEC;
-
+    log_trace(logger, "Exploto PCB");
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    log_trace(logger, "Envio PCB");
     cron_quant_vrr = temporal_create();
     pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count,NULL);
     pcb_ejecutandose = proceso_a_ejecutar;
     esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
+
+    log_trace(logger, "Termino ciclo");
+    }
+
+    log_trace(logger, "Despues del if algo :)");
+    
+    //pthread_kill(hilo_quantum_vrr, SIGKILL);
     //faltaria hacer que los hilos mueran
 }
 
 void quantum_block()
 {
     sem_wait(&sem_vrr_block);
+    log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
     pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
     temporal_destroy(cron_quant_vrr);
     pthread_kill(hilo_quantum_vrr, SIGKILL);
