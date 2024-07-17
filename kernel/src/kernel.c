@@ -51,7 +51,6 @@ pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
 pthread_t hilo_recibir_entradasalida;
 pthread_t hilo_entradasalida[100];
-pthread_t hilo_quantum_rr;
 pthread_t hilo_quantum_vrr;
 
 int main(int argc, char *argv[])
@@ -625,7 +624,7 @@ void planificar_fifo()
 
 void planificar_round_robin()
 {
-    
+    pthread_t hilo_quantum_rr;
     log_trace(logger, "Inicia ciclo");
     sem_wait(&sem_round_robin);
     
@@ -650,11 +649,13 @@ void planificar_round_robin()
         proceso_a_ejecutar->estado = EXEC;
 
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-        log_trace(logger, "PCBenviado");
-        pthread_create(&hilo_quantum_rr, NULL, (void *)quantum_count,NULL);
         pcb_ejecutandose = proceso_a_ejecutar;
+        proceso_en_ejecucion = true;
+        log_trace(logger, "PCBenviado");
+        pthread_create(&hilo_quantum_rr, NULL, (void *)quantum_count, proceso_a_ejecutar);
+        pthread_detach(hilo_quantum_rr);
+        
         esperar_cpu();
-        pthread_kill(hilo_quantum_rr, SIGKILL);
         
         log_trace(logger, "Termino ciclo");
         // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
@@ -693,7 +694,7 @@ void planificar_vrr()
 
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
     cron_quant_vrr = temporal_create();
-    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count,NULL);
+    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     pcb_ejecutandose = proceso_a_ejecutar;
     esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
     //faltaria hacer que los hilos mueran
@@ -711,14 +712,18 @@ void quantum_block()
 // en caso de que muera el proceso, se resetea cron_quant_vrr y se mata a quantumcount y se agrega a queue_prio
 //  valor del timer en el pcb, se manda sempostvrr
 
-void quantum_count()
+void quantum_count(void *proceso_con_quantum)
 {
+    t_pcb *pcb = proceso_con_quantum;
     usleep(quantum * 1000);
     if (strcmp(algoritmo_planificacion, "VRR") == 0)
     {
         temporal_destroy(cron_quant_vrr);
     }
-    enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    if(proceso_en_ejecucion)
+    {
+        enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+    }
     log_trace(logger, "Esperando CPU");
     
     sem_post(&sem_round_robin);
@@ -859,12 +864,6 @@ void esperar_cpu()
         log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
         t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
         log_info(logger, "Finaliza el proceso %i - Motivo: EXIT", pcb_exit->pid);
-        /*if(strcmp(algoritmo_planificacion,"RR") == 0 ){
-            pthread_kill(hilo_quantum_rr,SIGKILL);
-        }
-        if(strcmp(algoritmo_planificacion,"VRR")== 0){
-            pthread_kill(hilo_quantum_vrr,SIGKILL);
-        }*/
         eliminar_proceso(pcb_exit);
         break;
     case INTERRUPCION:

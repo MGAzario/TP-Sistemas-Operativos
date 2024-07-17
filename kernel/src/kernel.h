@@ -44,7 +44,7 @@ void procesos_por_estado();
 void listar_procesos(int cantidad_filas);
 void planificar_round_robin();
 void planificar_vrr();
-void quantum_count();
+void quantum_count(void *proceso_con_quantum);
 void quantum_block();
 void crear_diccionario();
 char *recibir_wait(); //a diseñar

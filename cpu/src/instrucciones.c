@@ -24,7 +24,10 @@ void execute_set(t_pcb *pcb, char *registro, uint32_t valor)
         pcb->cpu_registers->si = valor;
     } else if (strcmp("DI", registro) == 0){
         pcb->cpu_registers->di = valor;
-    } else {
+    } else if (strcmp("PC", registro) == 0){
+        pcb->cpu_registers->pc = valor;
+    }  
+    else {
         log_error(logger, "Registro %s desconocido en SET", registro);
     }
 }

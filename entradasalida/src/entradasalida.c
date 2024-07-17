@@ -15,10 +15,10 @@ int socket_memoria;
 
 int main(int argc, char *argv[])
 {
-    nombre = argv[1];
-    archivo_configuracion = argv[2];
-    // nombre = "nombre";
-    // archivo_configuracion = "./entradasalida.config";
+    // nombre = argv[1];
+    // archivo_configuracion = argv[2];
+    nombre = "SLP1";
+    archivo_configuracion = "./entradasalida.config";
     crear_logger();
     create_config();
 
