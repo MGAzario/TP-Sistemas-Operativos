@@ -55,7 +55,8 @@ typedef enum
 	ESCRIBIR_MEMORIA,
 	MEMORIA_ESCRITA,
 	WAIT,
-	SIGNAL
+	SIGNAL,
+	FIN_IO_FS
 } op_code;
 
 typedef struct
