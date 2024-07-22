@@ -46,7 +46,7 @@ void planificar_round_robin();
 void planificar_vrr();
 void quantum_count(void *proceso_con_quantum);
 void quantum_block();
-void crear_diccionario();
+void obtener_recursos();
 char *recibir_wait(); //a diseñar
 char *recibir_signal(); //a diseñar
 void desbloquear_proceso_io(t_interfaz *interfaz);

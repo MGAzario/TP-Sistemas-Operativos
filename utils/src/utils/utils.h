@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <semaphore.h>
+#include <commons/collections/queue.h>
 
 #define AX 0
 #define BX 1
@@ -167,6 +168,13 @@ typedef struct
     char *nombre;
     uint32_t tamanio_nombre;
 } t_recurso;
+
+typedef struct
+{
+    char *nombre;
+    int instancias;
+    t_queue *procesos_esperando;
+} t_manejo_de_recurso;
 
 typedef struct
 {

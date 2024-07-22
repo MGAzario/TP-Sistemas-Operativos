@@ -13,7 +13,7 @@ t_list *lista_bloqueados;
 
 t_temporal *cron_quant_vrr;
 
-t_dictionary *dic_recursos;
+t_list *lista_recursos;
 
 /*-----------------------------VARIABLES GLOBALES--------------------------------------------------------------------*/
 
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
     decir_hola("Kernel");
 
-    crear_diccionario();
+    obtener_recursos();
 
     // El grado de multiprogramacion va a ser una variable global, que van a manejar entre CPU y Kernel
     grado_multiprogramacion_max = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
@@ -179,22 +179,31 @@ void conectar_interrupt_cpu(char *ip_cpu)
     socket_cpu_interrupt = conectar_modulo(ip_cpu, puerto_cpu_interrupt);
 }
 
-void crear_diccionario()
+void obtener_recursos()
 {
-    // char **recursos;
-    // char **instancias_recursos;
-    // recursos = config_get_array_value(config, "RECURSOS");
-    // instancias_recursos = config_get_array_value(config, "INSTANCIAS_RECURSOS");
+    lista_recursos = list_create();
 
-    // dic_recursos = dictionary_create();
-    // int i = 0;
-    // int i_rec;
-    // while (recursos[i] != NULL)
-    // {
-    //     i_rec = atoi(instancias_recursos[i]);
-    //     dictionary_put(dic_recursos, recursos[i], (int)i_rec);
-    //     i++;
-    // }
+    char **recursos;
+    char **instancias_recursos;
+    recursos = config_get_array_value(config, "RECURSOS");
+    instancias_recursos = config_get_array_value(config, "INSTANCIAS_RECURSOS");
+
+    int i = 0;
+    while (recursos[i] != NULL)
+    {
+        t_manejo_de_recurso *recurso = malloc(sizeof(t_manejo_de_recurso));
+        recurso->nombre = recursos[i];
+        recurso->instancias = atoi(instancias_recursos[i]);
+        recurso->procesos_esperando = queue_create();
+        list_add(lista_recursos, recurso);
+        i++;
+    }
+
+    for (int i = 0; i < list_size(lista_recursos); i++)
+    {
+        t_manejo_de_recurso *recurso_a_mostrar = (t_manejo_de_recurso *)list_get(lista_recursos, i);
+        log_debug(logger, "El recurso %s tiene %i instancias", recurso_a_mostrar->nombre, recurso_a_mostrar->instancias);
+    }
 }
 
 /*-----------------------------ENTRADA SALIDA--------------------------------------------------------------------*/
@@ -282,8 +291,8 @@ bool fin_sleep(t_interfaz *interfaz)
     }
     else
     {
-    desbloquear_proceso_io(interfaz);
-    return true;
+        desbloquear_proceso_io(interfaz);
+        return true;
     }
 }
 
@@ -336,6 +345,7 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
     interfaz->ocupada = false;
     // Recibir el PCB que se desbloqueará
     t_pcb *pcb_a_desbloquear = recibir_pcb(interfaz->socket);
+    log_trace(logger, "Una interfaz le avisó al kernel que ya puede desbloquear el proceso %i", pcb_a_desbloquear->pid);
 
     // Buscamos el proceso en BLOCKED y lo mandamos a READY
     for (int i = 0; i < list_size(lista_bloqueados); i++)
@@ -735,8 +745,12 @@ void esperar_cpu()
     op_code cod_op = recibir_operacion(socket_cpu_dispatch);
     log_trace(logger, "PCP: Llegó una respuesta del CPU");
 
-    proceso_en_ejecucion = false;
-
+    if (cod_op != WAIT &&
+        cod_op != SIGNAL)
+    {
+        proceso_en_ejecucion = false;
+    }
+    
     // Verificamos que la planificación no esté pausada
     comprobar_planificacion();
     
@@ -893,48 +907,97 @@ void esperar_cpu()
                 sem_post(&sem_proceso_ready);
             }
         }
-        // TODO PROCESAR WAIT Y SIGNAL DE CPU
-        // if(interrupcion->motivo == WAIT){}
-        // if(interrupcion->motivo == SIGNAL){}
+
         break;
     case WAIT:
-        // t_recurso *recurso_wait = recibir_recurso(socket_cpu_dispatch);
-        // t_pcb *pcb_wait = recurso_wait->pcb;
-        // char *recurso_solicitado = recurso_wait->nombre;
-        // if (dictionary_has_key(dic_recursos, recurso_solicitado))
-        // {
-        //     int cant_inst = dictionary_get(dic_recursos, recurso_solicitado);
-        //     cant_inst--;
-        //     dictionary_put(dic_recursos,recurso_solicitado,cant_inst);
-        //     if (cant_inst < 0)
-        //     {
-        //         bloquear_proceso(pcb_wait);
-        //     }
-        // }
-        // else
-        // {
-        //     // enviar proceso a exit
-        //     eliminar_proceso(pcb_wait);
-        // }
+        log_debug(logger, "El CPU informa que le llegó una instrucción WAIT");
+        t_recurso *recurso_wait = recibir_recurso(socket_cpu_dispatch);
+        t_manejo_de_recurso *recurso_a_asignar = NULL;
+        for (int i = 0; i < list_size(lista_recursos); i++)
+        {
+            t_manejo_de_recurso *recurso_buscado = (t_manejo_de_recurso *)list_get(lista_recursos, i);
+            if (strcmp(recurso_buscado->nombre, recurso_wait->nombre) == 0)
+            {
+                recurso_a_asignar = recurso_buscado;
+            }
+        }
+
+        if (recurso_a_asignar == NULL)
+        {
+            log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_RESOURCE", recurso_wait->pcb->pid);
+            proceso_en_ejecucion = false;
+            eliminar_proceso(recurso_wait->pcb);
+        }
+        else
+        {
+            if (recurso_a_asignar->instancias > 0)
+            {
+                recurso_a_asignar->instancias--;
+                enviar_pcb(socket_cpu_dispatch, recurso_wait->pcb);
+                esperar_cpu();
+            }
+            else
+            {
+                log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", recurso_wait->pcb->pid);
+                log_info(logger, "PID: %i - Bloqueado por: %s", recurso_wait->pcb->pid, recurso_wait->nombre);
+                recurso_wait->pcb->estado = BLOCKED;
+                proceso_en_ejecucion = false;
+                list_add(lista_bloqueados, recurso_wait->pcb);
+                t_numero *pid = malloc(sizeof(t_numero));
+                pid->numero = recurso_wait->pcb->pid;
+                queue_push(recurso_a_asignar->procesos_esperando, pid);
+            }
+        }
+
         break;
     case SIGNAL:
-        // t_recurso *recurso_signal = recibir_recurso(socket_cpu_dispatch);
-        // t_pcb *pcb_signal = recurso_signal->pcb;
-        // char *recurso_liberado = recurso_signal->nombre;
-        // if (dictionary_has_key(dic_recursos, recurso_liberado))
-        // {
-        //     int cant_inst = dictionary_get(dic_recursos, recurso_liberado);
-        //     cant_inst++;
-        //     dictionary_put(dic_recursos, recurso_liberado,cant_inst);
-        //     if (cant_inst >= 0)
-        //     {
-        //         desbloquear_proceso(pcb_signal);
-        //     }
-        // }
-        // else
-        // {
-        //     eliminar_proceso(pcb_signal);
-        // }
+        log_debug(logger, "El CPU informa que le llegó una instrucción SIGNAL");
+        t_recurso *recurso_signal = recibir_recurso(socket_cpu_dispatch);
+        t_manejo_de_recurso *recurso_a_liberar = NULL;
+        for (int i = 0; i < list_size(lista_recursos); i++)
+        {
+            t_manejo_de_recurso *recurso_buscado = (t_manejo_de_recurso *)list_get(lista_recursos, i);
+            if (strcmp(recurso_buscado->nombre, recurso_signal->nombre) == 0)
+            {
+                recurso_a_liberar = recurso_buscado;
+            }
+        }
+
+        if (recurso_a_liberar == NULL)
+        {
+            log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_RESOURCE", recurso_signal->pcb->pid);
+            proceso_en_ejecucion = false;
+            eliminar_proceso(recurso_signal->pcb);
+        }
+        else
+        {
+            if (list_is_empty(recurso_a_liberar->procesos_esperando->elements))
+            {
+                recurso_a_liberar->instancias++;
+                enviar_pcb(socket_cpu_dispatch, recurso_signal->pcb);
+                esperar_cpu();
+            }
+            else
+            {
+                t_numero *proceso = queue_pop(recurso_a_liberar->procesos_esperando);
+                for (int i = 0; i < list_size(lista_bloqueados); i++)
+                {
+                    t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+                    if (pcb->pid == proceso->numero)
+                    {
+                        log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
+                        pcb->estado = READY;
+                        list_remove(lista_bloqueados, i);
+                        queue_push(cola_ready, pcb);
+                        sem_post(&sem_proceso_ready);
+                    }
+                }
+                free(proceso);
+                enviar_pcb(socket_cpu_dispatch, recurso_signal->pcb);
+                esperar_cpu();
+            }
+        }
+
         break;
     default:
         log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
