@@ -1487,3 +1487,33 @@ void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read) {
     enviar_paquete(paquete, socket_cliente);
     eliminar_paquete(paquete);
 }
+
+t_io_fs_truncate* crear_io_fs_truncate(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, uint32_t nuevo_tamanio) {
+    // Crear y asignar memoria para la nueva estructura
+    t_io_fs_truncate* io_fs_truncate = malloc(sizeof(t_io_fs_truncate));
+    if (io_fs_truncate == NULL) {
+        return NULL; // Manejo de error: no se pudo asignar memoria
+    }
+    // Asignar el PCB
+    io_fs_truncate->pcb = pcb;
+    // Asignar y duplicar el nombre de la interfaz
+    io_fs_truncate->nombre_interfaz = strdup(nombre_interfaz);
+    if (io_fs_truncate->nombre_interfaz == NULL) {
+        free(io_fs_truncate);
+        return NULL; // Manejo de error: no se pudo duplicar la cadena
+    }
+    io_fs_truncate->tamanio_nombre_interfaz = strlen(io_fs_truncate->nombre_interfaz) + 1;
+    // Asignar y duplicar el nombre del archivo
+    io_fs_truncate->nombre_archivo = strdup(nombre_archivo);
+    if (io_fs_truncate->nombre_archivo == NULL) {
+        free(io_fs_truncate->nombre_interfaz);
+        free(io_fs_truncate);
+        return NULL; // Manejo de error: no se pudo duplicar la cadena
+    }
+    io_fs_truncate->tamanio_nombre_archivo = strlen(io_fs_truncate->nombre_archivo) + 1;
+    // Asignar el nuevo tamaño
+    io_fs_truncate->nuevo_tamanio = nuevo_tamanio;
+
+    return io_fs_truncate;
+}
+
