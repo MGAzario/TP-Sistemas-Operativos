@@ -1517,3 +1517,11 @@ t_io_fs_truncate* crear_io_fs_truncate(t_pcb* pcb, char* nombre_interfaz, char* 
     return io_fs_truncate;
 }
 
+void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb)
+{
+	t_paquete* paquete = crear_paquete_pcb(FIN_IO_FS);
+
+	agregar_pcb_a_paquete(paquete, pcb);
+
+	enviar_paquete(paquete, socket_cliente);
+}
