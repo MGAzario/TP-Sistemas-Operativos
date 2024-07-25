@@ -725,8 +725,9 @@ void planificar_vrr()
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
     log_trace(logger, "Envio PCB");
     cron_quant_vrr = temporal_create();
-    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     pcb_ejecutandose = proceso_a_ejecutar;
+    proceso_en_ejecucion = true;
+    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
 
     log_trace(logger, "Termino ciclo");
