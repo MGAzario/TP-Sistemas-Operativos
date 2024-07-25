@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
     sem_init(&mutex_cola_new, 0, 1);
     sem_init(&sem_proceso_ready, 0, 0);
     sem_init(&sem_round_robin, 0, 1);
+    sem_init(&sem_vrr_block, 0, 0);
     sem_init(&sem_planificacion, 0, 0);
     sem_init(&mutex_memoria, 0, 1);
 
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     // Creo las colas que voy a usar para guardar mis PCBs
     cola_new = queue_create();
     cola_ready = queue_create();
+    cola_prio = queue_create();
     lista_bloqueados = list_create();
 
     // Usan la misma IP, se las paso por parametro.
@@ -259,7 +261,7 @@ void *manejo_interfaces(void *interfaz_hilo)
             sigue_conectado = fin_io_write(interfaz);
             break;
         case DialFS:
-            log_error(logger, "Falta implementar");
+            sigue_conectado = fin_io_fs(interfaz);
             break;
         }
     }
@@ -336,6 +338,24 @@ bool fin_io_write(t_interfaz *interfaz)
         desbloquear_proceso_io(interfaz);
         return true;
     }
+}
+
+//La finalizacion de procesos para File System es siempre igual, reutilizo el mismo codigo.
+bool fin_io_fs(t_interfaz *interfaz)
+{
+    op_code cod_op = recibir_operacion(interfaz->socket);
+    if (cod_op == DESCONEXION)
+    {
+        log_warning(logger, "Se desconectó la interfaz %s", interfaz->nombre);
+        return false; //Desconecta la interfaz
+    }
+    else if (cod_op != FIN_IO_FS)
+    {
+        log_error(logger, "El Kernel esperaba recibir el aviso de fin de IO_FS pero recibió otra cosa");
+        return false; // False desconecta la interfaz
+    }
+    desbloquear_proceso_io(interfaz);
+    return true;
 }
 
 // Genero desbloquear procesos IO para no repetir codigo, los desbloqueos van a ser siempre iguales para todas las interfaces
@@ -553,13 +573,15 @@ void *planificador_largo_plazo()
         sem_wait(&mutex_cola_new);
         t_pcb *proceso_nuevo = queue_pop(cola_new);
         sem_post(&mutex_cola_new);
-
         // Cambiar el estado del proceso a READY
         proceso_nuevo->estado = READY;
 
         // Agregar el proceso a la cola de READY
+
         queue_push(cola_ready, proceso_nuevo);
+
         sem_post(&sem_proceso_ready);
+        
         log_debug(logger, "Hay %i procesos en READY", queue_size(cola_ready));
 
         // Reducir la cantidad de procesos en la cola de NEW
@@ -637,11 +659,6 @@ void planificar_round_robin()
     pthread_t hilo_quantum_rr;
     log_trace(logger, "Inicia ciclo");
     sem_wait(&sem_round_robin);
-    
-
-    // desalojo de CPU
-    //  pensar si sería mejor un semáforo que controle las colas TEORÍA DE SINCRO
-
 
     // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
     if (!queue_is_empty(cola_ready))
@@ -677,42 +694,54 @@ void planificar_round_robin()
 
 void planificar_vrr()
 {
-    t_pcb *proceso_a_ejecutar;
-
     sem_wait(&sem_round_robin);
+    log_trace(logger, "Ya no waiteo RR");
 
-    if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
+    if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
     {
+        t_pcb *proceso_a_ejecutar;
         // Obtener el proceso listo para ejecutarse de la cola
-
+        
         if (!queue_is_empty(cola_prio))
         {
+            log_trace(logger, "Entro cola prio");
             proceso_a_ejecutar = queue_pop(cola_prio);
         }
-        else
+        else if (!queue_is_empty(cola_ready))
         {
+            log_trace(logger, "Entro cola ready");
             proceso_a_ejecutar = queue_pop(cola_ready);
         }
-    }
+    
     // sem_mutex_interrupt
     // sem_wait(sem_mutex_interrupt);
     //enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
     //esperar_cpu();
     // sem_post(sem_mutex_interrupt);
     //  Cambiar el estado del proceso a EXEC
+    log_trace(logger, "Exploto PCB");
     proceso_a_ejecutar->estado = EXEC;
-
+    log_trace(logger, "Exploto PCB");
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    log_trace(logger, "Envio PCB");
     cron_quant_vrr = temporal_create();
     pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     pcb_ejecutandose = proceso_a_ejecutar;
     esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
+
+    log_trace(logger, "Termino ciclo");
+    }
+
+    log_trace(logger, "Despues del if algo :)");
+    
+    //pthread_kill(hilo_quantum_vrr, SIGKILL);
     //faltaria hacer que los hilos mueran
 }
 
 void quantum_block()
 {
     sem_wait(&sem_vrr_block);
+    log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
     pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
     temporal_destroy(cron_quant_vrr);
     pthread_kill(hilo_quantum_vrr, SIGKILL);
@@ -999,6 +1028,21 @@ void esperar_cpu()
         }
 
         break;
+    case IO_FS_CREATE:
+        pedido_io_fs_create();
+        break;
+    case IO_FS_DELETE:
+        pedido_io_fs_delete();
+        break;
+    case IO_FS_TRUNCATE:
+        pedido_io_fs_truncate();
+        break;
+    case IO_FS_WRITE:
+        pedido_io_fs_write();
+        break;
+    case IO_FS_READ:
+        pedido_io_fs_read();
+        break;
     default:
         log_warning(logger, "Mensaje desconocido del CPU: %i", cod_op);
         break;
@@ -1119,6 +1163,279 @@ void pedido_io_stdout_write() {
     // free(io_stdout_write->pcb->cpu_registers);
     // free(io_stdout_write->pcb);
     // free(io_stdout_write);
+}
+
+void pedido_io_fs_create() {
+    log_debug(logger, "El CPU pidió un IO_FS_CREATE");
+
+    t_io_fs_create *io_fs_create = recibir_io_fs_create(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_create = NULL;
+
+    // Buscamos la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_create->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_create = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe mandamos el proceso a EXIT
+    if (interfaz_fs_create == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_create->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS" mandamos el proceso a EXIT
+    if (interfaz_fs_create->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_create->pcb);
+        return;
+    }
+
+    io_fs_create->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_create->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificamos si la interfaz está ocupada
+    if (!interfaz_fs_create->ocupada) {
+        // Enviar la solicitud de IO_FS_CREATE a la interfaz
+        enviar_io_fs_create(interfaz_fs_create->socket, io_fs_create);
+        interfaz_fs_create->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_create
+    free(io_fs_create->nombre_interfaz);
+    free(io_fs_create->nombre_archivo);
+    free(io_fs_create->pcb->cpu_registers);
+    free(io_fs_create->pcb);
+    free(io_fs_create);
+}
+
+void pedido_io_fs_delete() {
+    log_debug(logger, "El CPU pidió un IO_FS_DELETE");
+
+    t_io_fs_delete *io_fs_delete = recibir_io_fs_delete(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_delete = NULL;
+
+    // Buscar la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_delete->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_delete = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe, mandar el proceso a EXIT
+    if (interfaz_fs_delete == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_delete->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
+    if (interfaz_fs_delete->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_delete->pcb);
+        return;
+    }
+
+    io_fs_delete->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_delete->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificar si la interfaz está ocupada
+    if (!interfaz_fs_delete->ocupada) {
+        // Enviar la solicitud de IO_FS_DELETE a la interfaz
+        enviar_io_fs_delete(interfaz_fs_delete->socket, io_fs_delete);
+        interfaz_fs_delete->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_delete
+    free(io_fs_delete->nombre_interfaz);
+    free(io_fs_delete->nombre_archivo);
+    free(io_fs_delete->pcb->cpu_registers);
+    free(io_fs_delete->pcb);
+    free(io_fs_delete);
+}
+
+void pedido_io_fs_truncate() {
+    log_debug(logger, "El CPU pidió un IO_FS_TRUNCATE");
+
+    t_io_fs_truncate *io_fs_truncate = recibir_io_fs_truncate(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_truncate = NULL;
+
+    // Buscar la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_truncate->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_truncate = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe, mandar el proceso a EXIT
+    if (interfaz_fs_truncate == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_truncate->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
+    if (interfaz_fs_truncate->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_truncate->pcb);
+        return;
+    }
+
+    io_fs_truncate->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_truncate->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificar si la interfaz está ocupada
+    if (!interfaz_fs_truncate->ocupada) {
+        // Enviar la solicitud de IO_FS_TRUNCATE a la interfaz
+        enviar_io_fs_truncate(interfaz_fs_truncate->socket, io_fs_truncate);
+        interfaz_fs_truncate->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_truncate
+    free(io_fs_truncate->nombre_interfaz);
+    free(io_fs_truncate->nombre_archivo);
+    free(io_fs_truncate->pcb->cpu_registers);
+    free(io_fs_truncate->pcb);
+    free(io_fs_truncate);
+}
+
+void pedido_io_fs_write() {
+    log_debug(logger, "El CPU pidió un IO_FS_WRITE");
+
+    t_io_fs_write *io_fs_write = recibir_io_fs_write(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_write = NULL;
+
+    // Buscamos la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_write->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_write = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe mandamos el proceso a EXIT
+    if (interfaz_fs_write == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_write->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandamos el proceso a EXIT
+    if (interfaz_fs_write->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_write->pcb);
+        return;
+    }
+
+    io_fs_write->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_write->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificamos si la interfaz está ocupada
+    if (!interfaz_fs_write->ocupada) {
+        // Enviar la solicitud de IO_FS_WRITE a la interfaz
+        enviar_io_fs_write(interfaz_fs_write->socket, io_fs_write);
+        interfaz_fs_write->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_write
+    free(io_fs_write->nombre_interfaz);
+    free(io_fs_write->nombre_archivo);
+    free(io_fs_write->direcciones_fisicas);
+    free(io_fs_write->pcb->cpu_registers);
+    free(io_fs_write->pcb);
+    free(io_fs_write);
+}
+
+
+void pedido_io_fs_read() {
+    log_debug(logger, "El CPU pidió un IO_FS_READ");
+
+    t_io_fs_read *io_fs_read = recibir_io_fs_read(socket_cpu_dispatch);
+
+    t_interfaz *interfaz_fs_read = NULL;
+
+    // Buscar la interfaz por su nombre
+    for (int i = 0; i < list_size(lista_interfaces); i++) {
+        t_interfaz *interfaz_en_lista = list_get(lista_interfaces, i);
+        if (strcmp(io_fs_read->nombre_interfaz, interfaz_en_lista->nombre) == 0) {
+            interfaz_fs_read = interfaz_en_lista;
+            break;
+        }
+    }
+
+    // Si la interfaz no existe, mandar el proceso a EXIT
+    if (interfaz_fs_read == NULL) {
+        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_read->pcb);
+        return;
+    }
+
+    // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
+    if (interfaz_fs_read->tipo != DialFS) {
+        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        eliminar_proceso(io_fs_read->pcb);
+        return;
+    }
+
+    io_fs_read->pcb->estado = BLOCKED;
+    list_add(lista_bloqueados, io_fs_read->pcb);
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0) {
+        sem_post(&sem_vrr_block);
+    }
+
+    // Verificar si la interfaz está ocupada
+    if (!interfaz_fs_read->ocupada) {
+        // Enviar la solicitud de IO_FS_READ a la interfaz
+        enviar_io_fs_read(interfaz_fs_read->socket, io_fs_read);
+        interfaz_fs_read->ocupada = true;
+    } else {
+        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+    }
+
+    // Liberar memoria de la estructura t_io_fs_read
+    free(io_fs_read->nombre_interfaz);
+    free(io_fs_read->nombre_archivo);
+    list_destroy_and_destroy_elements(io_fs_read->direcciones_fisicas, free);
+    free(io_fs_read->pcb->cpu_registers);
+    free(io_fs_read->pcb);
+    free(io_fs_read);
 }
 
 void bloquear_proceso(t_pcb *pcb)
