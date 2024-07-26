@@ -27,10 +27,12 @@ t_bitarray *bitmap_de_bloques_libres;
 
 int main(int argc, char *argv[])
 {
-    nombre = argv[1];
-    archivo_configuracion = argv[2];
-    // nombre = "A";
-    // archivo_configuracion = "./entradasalida.config";
+    //nombre = argv[1];
+    //archivo_configuracion = argv[2];
+    nombre= malloc(10);
+    archivo_configuracion = 20;
+    nombre = "SLP1";
+    archivo_configuracion = "./entradasalida.config";
     crear_logger();
     create_config();
 

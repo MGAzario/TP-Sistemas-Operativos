@@ -11,8 +11,6 @@ t_queue *cola_prio;
 
 t_list *lista_bloqueados;
 
-t_temporal *cron_quant_vrr;
-
 t_list *lista_recursos;
 
 /*-----------------------------VARIABLES GLOBALES--------------------------------------------------------------------*/
@@ -598,12 +596,7 @@ void *planificador_largo_plazo()
 // Planificador corto plazo
 void *planificador_corto_plazo()
 {
-    pthread_t hilo_quantum_block;
     quantum = config_get_int_value(config, "QUANTUM");
-    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-    {
-        pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, NULL);
-    }
     
     while (1)
     {
@@ -700,6 +693,7 @@ void planificar_round_robin()
 
 void planificar_vrr()
 {
+    pthread_t hilo_quantum_block;
     sem_wait(&sem_round_robin);
 
     if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
@@ -729,11 +723,12 @@ void planificar_vrr()
 
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
     log_trace(logger, "Envio PCB");
-    cron_quant_vrr = temporal_create();
     pcb_ejecutandose = proceso_a_ejecutar;
-    free(proceso_a_ejecutar);
-    free(proceso_a_ejecutar->cpu_registers);
+
     proceso_en_ejecucion = true;
+    
+    pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, pcb_ejecutandose);
+    pthread_detach(hilo_quantum_block);
     pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     pthread_detach(hilo_quantum_vrr);
     esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
@@ -743,21 +738,26 @@ void planificar_vrr()
 
 }
 
-void quantum_block()
+void quantum_block(void *proceso_con_quantum)
 {
-    while(1)
+    t_temporal *cron_quant_vrr;
+    t_pcb* pcb = proceso_con_quantum;
+    cron_quant_vrr = temporal_create();
+    sem_wait(&sem_vrr_block);
+    //sem_wait(&mutex_quantum);
+    pcb->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
+
+    if(pcb->quantum >= 2750)
     {
-        sem_wait(&sem_vrr_block);
-        log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
-        sem_wait(&mutex_quantum);
-        pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
-        log_trace(logger, "Emapanda? %d", pcb_ejecutandose->quantum);
-        sem_post(&mutex_quantum);
-        temporal_destroy(cron_quant_vrr);
-        pthread_cancel(hilo_quantum_vrr);
-        //pthread_kill(hilo_quantum_vrr, SIGKILL);
-        sem_post(&sem_round_robin);
+        pcb->quantum = 0;
     }
+
+    log_trace(logger, "Emapanda? %d", pcb->quantum);
+    //sem_post(&mutex_quantum);
+    temporal_destroy(cron_quant_vrr);
+    pthread_cancel(hilo_quantum_vrr);
+    //pthread_kill(hilo_quantum_vrr, SIGKILL);
+    sem_post(&sem_round_robin);
 }
 
 // en caso de que muera el proceso, se resetea cron_quant_vrr y se mata a quantumcount y se agrega a queue_prio
@@ -765,19 +765,19 @@ void quantum_block()
 
 void quantum_count(void *proceso_con_quantum)
 {
-    /*
     //propuesta solucion vrr facu/martin
     t_pcb *pcb = proceso_con_quantum;
 
-    sem_wait(&mutex_quantum); 
-    log_trace(logger, "A ver flaco? %d", pcb_ejecutandose->quantum);
+    //sem_wait(&mutex_quantum); 
+    
+    log_trace(logger, "A ver flaco? %d pero emapanda: %d", pcb_ejecutandose->quantum, pcb->quantum);
     usleep((quantum - pcb_ejecutandose->quantum) * 1000);
     pcb_ejecutandose->quantum = 0;
-    sem_post(&mutex_quantum);
+    //sem_post(&mutex_quantum);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0)
     {
-        temporal_destroy(cron_quant_vrr);
+        sem_post(&sem_vrr_block);
     }
     if(proceso_en_ejecucion)
     {
@@ -786,7 +786,7 @@ void quantum_count(void *proceso_con_quantum)
     log_trace(logger, "Esperando CPU");
     
     sem_post(&sem_round_robin);
-    */
+    /*
     t_pcb *pcb = proceso_con_quantum;
     
     usleep(quantum * 1000);
@@ -800,7 +800,7 @@ void quantum_count(void *proceso_con_quantum)
     }
     log_trace(logger, "Esperando CPU");
     
-    sem_post(&sem_round_robin);
+    sem_post(&sem_round_robin);*/
 }
 
 void esperar_cpu()
