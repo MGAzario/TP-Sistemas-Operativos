@@ -45,6 +45,7 @@ sem_t sem_round_robin;
 sem_t sem_vrr_block;
 sem_t sem_planificacion;
 sem_t mutex_memoria;
+sem_t mutex_quantum;
 
 /*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
@@ -62,6 +63,7 @@ int main(int argc, char *argv[])
     sem_init(&sem_vrr_block, 0, 0);
     sem_init(&sem_planificacion, 0, 0);
     sem_init(&mutex_memoria, 0, 1);
+    sem_init(&mutex_quantum,0,1);
 
     planificar = false;
 
@@ -695,7 +697,6 @@ void planificar_round_robin()
 void planificar_vrr()
 {
     sem_wait(&sem_round_robin);
-    log_trace(logger, "Ya no waiteo RR");
 
     if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
     {
@@ -719,34 +720,38 @@ void planificar_vrr()
     //esperar_cpu();
     // sem_post(sem_mutex_interrupt);
     //  Cambiar el estado del proceso a EXEC
-    log_trace(logger, "Exploto PCB");
+
     proceso_a_ejecutar->estado = EXEC;
-    log_trace(logger, "Exploto PCB");
+
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
     log_trace(logger, "Envio PCB");
     cron_quant_vrr = temporal_create();
     pcb_ejecutandose = proceso_a_ejecutar;
     proceso_en_ejecucion = true;
     pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
+    pthread_detach(hilo_quantum_vrr);
     esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
 
     log_trace(logger, "Termino ciclo");
     }
 
-    log_trace(logger, "Despues del if algo :)");
-    
-    //pthread_kill(hilo_quantum_vrr, SIGKILL);
-    //faltaria hacer que los hilos mueran
 }
 
 void quantum_block()
 {
-    sem_wait(&sem_vrr_block);
-    log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
-    pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
-    temporal_destroy(cron_quant_vrr);
-    pthread_kill(hilo_quantum_vrr, SIGKILL);
-    sem_post(&sem_round_robin);
+    while(1)
+    {
+        sem_wait(&sem_vrr_block);
+        log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
+        sem_wait(&mutex_quantum);
+        pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
+        log_trace(logger, "Emapanda? %d", pcb_ejecutandose->quantum);
+        sem_post(&mutex_quantum);
+        temporal_destroy(cron_quant_vrr);
+        pthread_cancel(hilo_quantum_vrr);
+        //pthread_kill(hilo_quantum_vrr, SIGKILL);
+        sem_post(&sem_round_robin);
+    }
 }
 
 // en caso de que muera el proceso, se resetea cron_quant_vrr y se mata a quantumcount y se agrega a queue_prio
@@ -755,7 +760,13 @@ void quantum_block()
 void quantum_count(void *proceso_con_quantum)
 {
     t_pcb *pcb = proceso_con_quantum;
-    usleep(quantum * 1000);
+
+    sem_wait(&mutex_quantum); 
+    log_trace(logger, "A ver flaco? %d", pcb_ejecutandose->quantum);
+    usleep((quantum - pcb_ejecutandose->quantum) * 1000);
+    pcb_ejecutandose->quantum = 0;
+    sem_post(&mutex_quantum);
+
     if (strcmp(algoritmo_planificacion, "VRR") == 0)
     {
         temporal_destroy(cron_quant_vrr);
@@ -1672,7 +1683,7 @@ void script(char *path)
         {
             char path_instrucciones[300];
             sscanf(linea, "%s %s", comando, path_instrucciones);
-
+            log_trace("El proceso que quiero ejecutar es: ",path_instrucciones);
             crear_pcb(path_instrucciones);
         }
         else if(strcmp("FINALIZAR_PROCESO", comando) == 0)
