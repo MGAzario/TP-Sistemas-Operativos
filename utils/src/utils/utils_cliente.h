@@ -133,24 +133,21 @@ t_paquete* crear_paquete_io_stdout_write(uint32_t tamanio_interfaz, uint32_t can
 void enviar_io_stdout_write(int socket_cliente, t_io_std* io_stdout_write);
 t_io_std* crear_io_std(t_pcb* pcb, char* nombre_interfaz, uint32_t tamanio_nombre_interfaz, uint32_t tamanio_contenido, t_list* direcciones_fisicas);
 void destruir_direccion(void *elem);
-t_paquete* crear_paquete_io_fs_create(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo);
-void agregar_io_fs_create_a_paquete(t_paquete* paquete, t_io_fs_create* io_fs_create);
-t_io_fs_create* crear_io_fs_create(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo);
-void enviar_io_fs_create(int socket_cliente, t_io_fs_create* io_fs_create);
-t_io_fs_delete* crear_io_fs_delete(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo);
-t_paquete* crear_paquete_io_fs_delete(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo);
-void agregar_io_fs_delete_a_paquete(t_paquete* paquete, t_io_fs_delete* io_fs_delete);
-void enviar_io_fs_delete(int socket_cliente, t_io_fs_delete* io_fs_delete);
-t_io_fs_write* crear_io_fs_write(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
-t_paquete* crear_paquete_io_fs_write(t_io_fs_write* io_fs_write);
-void agregar_io_fs_write_a_paquete(t_paquete* paquete, t_io_fs_write* io_fs_write);
-void enviar_io_fs_write(int socket_cliente, t_io_fs_write* io_fs_write);
-t_paquete* crear_paquete_io_fs_read(t_io_fs_read* io_fs_read);
-void agregar_io_fs_read_a_paquete(t_paquete* paquete, t_io_fs_read* io_fs_read);
-void enviar_io_fs_read(int socket_cliente, t_io_fs_read* io_fs_read);
-void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb);
+t_paquete* crear_paquete_io_fs_archivo(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo, op_code cod_op);
+void agregar_io_fs_archivo_a_paquete(t_paquete* paquete, t_io_fs_archivo* io_fs_create);
+t_io_fs_archivo* crear_io_fs_archivo(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo);
+void enviar_io_fs_create(int socket_cliente, t_io_fs_archivo* io_fs_create);
+void enviar_io_fs_delete(int socket_cliente, t_io_fs_archivo* io_fs_delete);
+t_io_fs_rw* crear_io_fs_rw(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, int puntero_archivo);
+t_paquete* crear_paquete_io_fs_rw(t_io_fs_rw* io_fs_write, op_code cod_op);
+void agregar_io_fs_rw_a_paquete(t_paquete* paquete, t_io_fs_rw* io_fs_rw);
+void enviar_io_fs_write(int socket_cliente, t_io_fs_rw* io_fs_write);
+void enviar_io_fs_read(int socket_cliente, t_io_fs_rw* io_fs_read);
+t_io_fs_truncate* crear_io_fs_truncate(t_pcb* pcb, char* nombre_interfaz, char* nombre_archivo, uint32_t tamanio);
+t_paquete* crear_paquete_io_fs_truncate(uint32_t tamanio_nombre_interfaz, uint32_t tamanio_nombre_archivo);
+void agregar_io_fs_truncate_a_paquete(t_paquete* paquete, t_io_fs_truncate* io_fs_truncate);
 void enviar_io_fs_truncate(int socket_cliente, t_io_fs_truncate* io_fs_truncate);
-
+void enviar_fin_io_fs(int socket_cliente, t_pcb *pcb);
 
 
 #endif /* UTILS_CLIENTE_H_ */

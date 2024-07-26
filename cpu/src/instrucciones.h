@@ -22,7 +22,7 @@ void destruir_direccion(void *elem);
 void execute_io_fs_create(t_pcb *pcb, char *interfaz, char *nombre_archivo);
 void execute_io_fs_delete(t_pcb *pcb, char *interfaz, char *nombre_archivo);
 void execute_io_fs_truncate(t_pcb *pcb, char *interfaz, char *nombre_archivo, uint32_t nuevo_tamano);
-void execute_io_fs_write(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
-void execute_io_fs_read(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, uint32_t puntero_archivo);
+void execute_io_fs_write(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, int puntero_archivo);
+void execute_io_fs_read(t_pcb *pcb, char *interfaz, char *nombre_archivo, t_list *direcciones_fisicas, uint32_t tamanio, int puntero_archivo);
 
 #endif /*INSTRUCCIONES_H*/

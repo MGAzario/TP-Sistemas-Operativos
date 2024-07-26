@@ -627,108 +627,56 @@ t_io_std *recibir_io_std(int socket_cliente)
     return io_stdin_read;
 }
 
-t_io_fs_create *recibir_io_fs_create(int socket_cliente) {
+t_io_fs_archivo *recibir_io_fs_archivo(int socket_cliente) {
     int size;
     void *buffer = recibir_buffer(&size, socket_cliente);
 
-    t_io_fs_create *io_fs_create = malloc(sizeof(t_io_fs_create));
+    t_io_fs_archivo *io_fs_archivo = malloc(sizeof(t_io_fs_archivo));
     t_pcb *pcb = malloc(sizeof(t_pcb));
     t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
     pcb->cpu_registers = registros;
-    io_fs_create->pcb = pcb;
+    io_fs_archivo->pcb = pcb;
 
     // Copiar datos del PCB desde el buffer
-    memcpy(&(io_fs_create->pcb->pid), buffer, sizeof(int));
+    memcpy(&(io_fs_archivo->pcb->pid), buffer, sizeof(int));
     buffer += sizeof(int);
-    memcpy(&(io_fs_create->pcb->quantum), buffer, sizeof(int));
+    memcpy(&(io_fs_archivo->pcb->quantum), buffer, sizeof(int));
     buffer += sizeof(int);
 
     // Copiar registros de la CPU
-    memcpy(&(io_fs_create->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_archivo->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
-    memcpy(io_fs_create->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
+    memcpy(io_fs_archivo->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
     buffer += sizeof(uint8_t) * 4;
 
-    memcpy(io_fs_create->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
+    memcpy(io_fs_archivo->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
     buffer += sizeof(uint32_t) * 4;
 
-    memcpy(&(io_fs_create->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_archivo->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_create->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_archivo->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
-    memcpy(&(io_fs_create->pcb->estado), buffer, sizeof(estado_proceso));
+    memcpy(&(io_fs_archivo->pcb->estado), buffer, sizeof(estado_proceso));
     buffer += sizeof(estado_proceso);
 
     // Deserializar datos de interfaz y nombre de archivo
-    memcpy(&(io_fs_create->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_archivo->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
-    io_fs_create->nombre_interfaz = malloc(io_fs_create->tamanio_nombre_interfaz);
-    memcpy(io_fs_create->nombre_interfaz, buffer, io_fs_create->tamanio_nombre_interfaz);
-    buffer += io_fs_create->tamanio_nombre_interfaz;
+    io_fs_archivo->nombre_interfaz = malloc(io_fs_archivo->tamanio_nombre_interfaz);
+    memcpy(io_fs_archivo->nombre_interfaz, buffer, io_fs_archivo->tamanio_nombre_interfaz);
+    buffer += io_fs_archivo->tamanio_nombre_interfaz;
 
-    memcpy(&(io_fs_create->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_archivo->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
-    io_fs_create->nombre_archivo = malloc(io_fs_create->tamanio_nombre_archivo);
-    memcpy(io_fs_create->nombre_archivo, buffer, io_fs_create->tamanio_nombre_archivo);
-    buffer += io_fs_create->tamanio_nombre_archivo;
+    io_fs_archivo->nombre_archivo = malloc(io_fs_archivo->tamanio_nombre_archivo);
+    memcpy(io_fs_archivo->nombre_archivo, buffer, io_fs_archivo->tamanio_nombre_archivo);
+    buffer += io_fs_archivo->tamanio_nombre_archivo;
 
     // Liberar el buffer original
     free(buffer - size);
-    return io_fs_create;
-}
-
-t_io_fs_delete *recibir_io_fs_delete(int socket_cliente) {
-    int size;
-    void *buffer = recibir_buffer(&size, socket_cliente);
-
-    t_io_fs_delete *io_fs_delete = malloc(sizeof(t_io_fs_delete));
-    t_pcb *pcb = malloc(sizeof(t_pcb));
-    t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
-    pcb->cpu_registers = registros;
-    io_fs_delete->pcb = pcb;
-
-    // Copiar datos del PCB desde el buffer
-    memcpy(&(io_fs_delete->pcb->pid), buffer, sizeof(int));
-    buffer += sizeof(int);
-    memcpy(&(io_fs_delete->pcb->quantum), buffer, sizeof(int));
-    buffer += sizeof(int);
-
-    // Copiar registros de la CPU
-    memcpy(&(io_fs_delete->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-
-    memcpy(io_fs_delete->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
-    buffer += sizeof(uint8_t) * 4;
-
-    memcpy(io_fs_delete->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
-    buffer += sizeof(uint32_t) * 4;
-
-    memcpy(&(io_fs_delete->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_delete->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-
-    memcpy(&(io_fs_delete->pcb->estado), buffer, sizeof(estado_proceso));
-    buffer += sizeof(estado_proceso);
-
-    // Deserializar datos de interfaz y nombre de archivo
-    memcpy(&(io_fs_delete->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    io_fs_delete->nombre_interfaz = malloc(io_fs_delete->tamanio_nombre_interfaz);
-    memcpy(io_fs_delete->nombre_interfaz, buffer, io_fs_delete->tamanio_nombre_interfaz);
-    buffer += io_fs_delete->tamanio_nombre_interfaz;
-
-    memcpy(&(io_fs_delete->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    io_fs_delete->nombre_archivo = malloc(io_fs_delete->tamanio_nombre_archivo);
-    memcpy(io_fs_delete->nombre_archivo, buffer, io_fs_delete->tamanio_nombre_archivo);
-    buffer += io_fs_delete->tamanio_nombre_archivo;
-
-    // Liberar el buffer original
-    free(buffer - size);
-    return io_fs_delete;
+    return io_fs_archivo;
 }
 
 t_io_fs_truncate *recibir_io_fs_truncate(int socket_cliente) {
@@ -778,7 +726,7 @@ t_io_fs_truncate *recibir_io_fs_truncate(int socket_cliente) {
     memcpy(io_fs_truncate->nombre_archivo, buffer, io_fs_truncate->tamanio_nombre_archivo);
     buffer += io_fs_truncate->tamanio_nombre_archivo;
 
-    memcpy(&(io_fs_truncate->nuevo_tamanio), buffer, sizeof(uint32_t));
+	memcpy(&(io_fs_truncate->nuevo_tamanio), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
     // Liberar el buffer original
@@ -786,132 +734,86 @@ t_io_fs_truncate *recibir_io_fs_truncate(int socket_cliente) {
     return io_fs_truncate;
 }
 
-t_io_fs_write *recibir_io_fs_write(int socket_cliente) {
-    int size;
+t_io_fs_rw *recibir_io_fs_rw(int socket_cliente)
+{
+	int size;
     void *buffer = recibir_buffer(&size, socket_cliente);
-
-    t_io_fs_write *io_fs_write = malloc(sizeof(t_io_fs_write));
+    
+    t_io_fs_rw *io_fs_rw = malloc(sizeof(t_io_fs_rw));
     t_pcb *pcb = malloc(sizeof(t_pcb));
     t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
     pcb->cpu_registers = registros;
-    io_fs_write->pcb = pcb;
+    io_fs_rw->pcb = pcb;
 
-    // Copiar datos del PCB desde el buffer
-    memcpy(&(io_fs_write->pcb->pid), buffer, sizeof(int));
+    // Copiar datos del buffer a la estructura t_io_fs_rw
+    memcpy(&(io_fs_rw->pcb->pid), buffer, sizeof(int));
     buffer += sizeof(int);
-    memcpy(&(io_fs_write->pcb->quantum), buffer, sizeof(int));
+    memcpy(&(io_fs_rw->pcb->quantum), buffer, sizeof(int));
     buffer += sizeof(int);
 
-    // Copiar registros de la CPU
-    memcpy(&(io_fs_write->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(io_fs_write->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
-    buffer += sizeof(uint8_t) * 4;
-    memcpy(io_fs_write->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
-    buffer += sizeof(uint32_t) * 4;
-    memcpy(&(io_fs_write->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_write->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_rw->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
-    memcpy(&(io_fs_write->pcb->estado), buffer, sizeof(estado_proceso));
+    memcpy(&(io_fs_rw->pcb->cpu_registers->normales[AX]), buffer, sizeof(uint8_t));
+    buffer += sizeof(uint8_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->normales[BX]), buffer, sizeof(uint8_t));
+    buffer += sizeof(uint8_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->normales[CX]), buffer, sizeof(uint8_t));
+    buffer += sizeof(uint8_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->normales[DX]), buffer, sizeof(uint8_t));
+    buffer += sizeof(uint8_t);
+
+    memcpy(&(io_fs_rw->pcb->cpu_registers->extendidos[EAX]), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->extendidos[EBX]), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->extendidos[ECX]), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->extendidos[EDX]), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+
+    memcpy(&(io_fs_rw->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+    memcpy(&(io_fs_rw->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+    buffer += sizeof(uint32_t);
+
+    memcpy(&(io_fs_rw->pcb->estado), buffer, sizeof(estado_proceso));
     buffer += sizeof(estado_proceso);
 
-    // Deserializar datos de interfaz y nombre de archivo
-    memcpy(&(io_fs_write->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
+    memcpy(&(io_fs_rw->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
-    io_fs_write->nombre_interfaz = malloc(io_fs_write->tamanio_nombre_interfaz);
-    memcpy(io_fs_write->nombre_interfaz, buffer, io_fs_write->tamanio_nombre_interfaz);
-    buffer += io_fs_write->tamanio_nombre_interfaz;
+    io_fs_rw->nombre_interfaz = malloc(io_fs_rw->tamanio_nombre_interfaz);
+    memcpy(io_fs_rw->nombre_interfaz, buffer, io_fs_rw->tamanio_nombre_interfaz);
+    buffer += io_fs_rw->tamanio_nombre_interfaz;
 
-    memcpy(&(io_fs_write->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
+	memcpy(&(io_fs_rw->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
-    io_fs_write->nombre_archivo = malloc(io_fs_write->tamanio_nombre_archivo);
-    memcpy(io_fs_write->nombre_archivo, buffer, io_fs_write->tamanio_nombre_archivo);
-    buffer += io_fs_write->tamanio_nombre_archivo;
+	io_fs_rw->nombre_archivo = malloc(io_fs_rw->tamanio_nombre_archivo);
+    memcpy(io_fs_rw->nombre_archivo, buffer, io_fs_rw->tamanio_nombre_archivo);
+    buffer += io_fs_rw->tamanio_nombre_archivo;
 
-    // Deserializar direcciones físicas, tamaño y puntero archivo
-    // Nota: Suponiendo que se recibe un listado de direcciones físicas.
-    // Esta parte puede variar según cómo se decide manejar las direcciones físicas.
-    int cantidad_direcciones = 0;  // Obtener esto de algún lado o modificar la estructura de la trama
-    io_fs_write->direcciones_fisicas = list_create();
-    for (int i = 0; i < cantidad_direcciones; i++) {
-        uint32_t direccion;
-        memcpy(&direccion, buffer, sizeof(uint32_t));
-        list_add(io_fs_write->direcciones_fisicas, (void*)(uintptr_t)direccion);  // Guardar como valor entero
-        buffer += sizeof(uint32_t);
-    }
-
-    memcpy(&(io_fs_write->tamanio), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_write->puntero_archivo), buffer, sizeof(uint32_t));
-
-    // Liberar el buffer original
-    free(buffer - size);
-    return io_fs_write;
-}
-
-t_io_fs_read *recibir_io_fs_read(int socket_cliente) {
-    int size;
-    void *buffer = recibir_buffer(&size, socket_cliente);
-
-    t_io_fs_read *io_fs_read = malloc(sizeof(t_io_fs_read));
-    t_pcb *pcb = malloc(sizeof(t_pcb));
-    t_cpu_registers *registros = malloc(sizeof(t_cpu_registers));
-    pcb->cpu_registers = registros;
-    io_fs_read->pcb = pcb;
-
-    // Copiar datos del PCB desde el buffer
-    memcpy(&(io_fs_read->pcb->pid), buffer, sizeof(int));
-    buffer += sizeof(int);
-    memcpy(&(io_fs_read->pcb->quantum), buffer, sizeof(int));
+	memcpy(&(io_fs_rw->puntero_archivo), buffer, sizeof(int));
     buffer += sizeof(int);
 
-    // Copiar registros de la CPU
-    memcpy(&(io_fs_read->pcb->cpu_registers->pc), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(io_fs_read->pcb->cpu_registers->normales, buffer, sizeof(uint8_t) * 4);
-    buffer += sizeof(uint8_t) * 4;
-    memcpy(io_fs_read->pcb->cpu_registers->extendidos, buffer, sizeof(uint32_t) * 4);
-    buffer += sizeof(uint32_t) * 4;
-    memcpy(&(io_fs_read->pcb->cpu_registers->si), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_read->pcb->cpu_registers->di), buffer, sizeof(uint32_t));
+	uint32_t num_direcciones;
+	memcpy(&num_direcciones, buffer, sizeof(uint32_t));
     buffer += sizeof(uint32_t);
 
-    memcpy(&(io_fs_read->pcb->estado), buffer, sizeof(estado_proceso));
-    buffer += sizeof(estado_proceso);
-
-    // Deserializar datos de interfaz y nombre de archivo
-    memcpy(&(io_fs_read->tamanio_nombre_interfaz), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    io_fs_read->nombre_interfaz = malloc(io_fs_read->tamanio_nombre_interfaz);
-    memcpy(io_fs_read->nombre_interfaz, buffer, io_fs_read->tamanio_nombre_interfaz);
-    buffer += io_fs_read->tamanio_nombre_interfaz;
-
-    memcpy(&(io_fs_read->tamanio_nombre_archivo), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    io_fs_read->nombre_archivo = malloc(io_fs_read->tamanio_nombre_archivo);
-    memcpy(io_fs_read->nombre_archivo, buffer, io_fs_read->tamanio_nombre_archivo);
-    buffer += io_fs_read->tamanio_nombre_archivo;
-
-    // Deserializar direcciones físicas, tamaño y puntero archivo
-    // Nota: Suponiendo que se recibe un listado de direcciones físicas.
-    // Esta parte puede variar según cómo se decide manejar las direcciones físicas.
-    int cantidad_direcciones = 0;  // Obtener esto de algún lado o modificar la estructura de la trama
-    io_fs_read->direcciones_fisicas = list_create();
-    for (int i = 0; i < cantidad_direcciones; i++) {
-        uint32_t direccion;
-        memcpy(&direccion, buffer, sizeof(uint32_t));
-        list_add(io_fs_read->direcciones_fisicas, (void*)(uintptr_t)direccion);  // Guardar como valor entero
-        buffer += sizeof(uint32_t);
+    io_fs_rw->direcciones_fisicas = list_create();
+    for (int i = 0; i < num_direcciones; i++) {
+        t_direccion_y_tamanio *direccion = malloc(sizeof(t_direccion_y_tamanio));
+        memcpy(&(direccion->direccion), buffer, sizeof(int));
+		buffer += sizeof(int);
+		memcpy(&(direccion->tamanio), buffer, sizeof(int));
+		buffer += sizeof(int);
+        list_add(io_fs_rw->direcciones_fisicas, direccion);
     }
 
-    memcpy(&(io_fs_read->tamanio), buffer, sizeof(uint32_t));
-    buffer += sizeof(uint32_t);
-    memcpy(&(io_fs_read->puntero_archivo), buffer, sizeof(uint32_t));
+	memcpy(&(io_fs_rw->tamanio), buffer, sizeof(uint32_t));
 
-    // Liberar el buffer original
-    free(buffer - size);
-    return io_fs_read;
+	buffer = buffer - 3 * sizeof(int) - 10 * sizeof(uint32_t) - 4 * sizeof(uint8_t) - sizeof(estado_proceso) -
+	io_fs_rw->tamanio_nombre_interfaz - io_fs_rw->tamanio_nombre_archivo - num_direcciones * 2 * sizeof(int);
+	free(buffer);
+
+    return io_fs_rw;
 }

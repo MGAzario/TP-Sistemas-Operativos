@@ -219,8 +219,6 @@ void decode(t_pcb *pcb, char *instruccion)
         log_debug(logger, "ECX: %i", pcb->cpu_registers->extendidos[ECX]);
         log_debug(logger, "EDX: %i", pcb->cpu_registers->extendidos[EDX]);
 
-        pcb->cpu_registers->normales[AX] = 124;
-
         // free(pcb->cpu_registers);
         // free(pcb);
 
@@ -383,8 +381,7 @@ void decode(t_pcb *pcb, char *instruccion)
         char nombre_archivo[256];
 
         sscanf(instruccion, "%s %s %s", operacion, nombre_interfaz, nombre_archivo);
-
-        
+    
         pcb->cpu_registers->pc++;
         log_info(logger, "PID: %i - Ejecutando: IO_FS_CREATE - %s %s", pcb->pid, nombre_interfaz, nombre_archivo);
 
@@ -396,7 +393,6 @@ void decode(t_pcb *pcb, char *instruccion)
         char nombre_archivo[256]; 
 
         sscanf(instruccion, "%s %s %s", operacion, nombre_interfaz, nombre_archivo);
-
         
         pcb->cpu_registers->pc++;
         log_info(logger, "PID: %i - Ejecutando: IO_FS_DELETE - %s %s", pcb->pid, nombre_interfaz, nombre_archivo);
@@ -415,7 +411,7 @@ void decode(t_pcb *pcb, char *instruccion)
         uint32_t tamanio = leer_registro(pcb, registro_tamano);
 
         pcb->cpu_registers->pc++;
-        log_info(logger, "PID: %i - Ejecutando: IO_FS_TRUNCATE - %s %s nuevo tamaño: %u", pcb->pid, nombre_interfaz, nombre_archivo, tamanio);
+        log_info(logger, "PID: %i - Ejecutando: IO_FS_TRUNCATE - %s %s %u", pcb->pid, nombre_interfaz, nombre_archivo, tamanio);
 
         execute_io_fs_truncate(pcb, nombre_interfaz, nombre_archivo, tamanio);
     }
@@ -433,13 +429,13 @@ void decode(t_pcb *pcb, char *instruccion)
         // Convertir los registros a los valores correspondientes
         uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
         uint32_t tamanio = leer_registro(pcb, registro_tamano);
-        uint32_t puntero_archivo = leer_registro(pcb, registro_puntero);
+        int puntero_archivo = (int) leer_registro(pcb, registro_puntero);
 
         // Asumiendo que mmu() devuelve una lista de direcciones físicas para el rango especificado
         t_list *direcciones_fisicas = mmu(direccion_logica, tamanio, pcb->pid);
 
         pcb->cpu_registers->pc++;
-        log_info(logger, "PID: %i - Ejecutando: IO_FS_WRITE - %s %s dirección: %u, tamaño: %u, puntero archivo: %u",
+        log_info(logger, "PID: %i - Ejecutando: IO_FS_WRITE - %s %s %u %u %i",
                  pcb->pid, nombre_interfaz, nombre_archivo, direccion_logica, tamanio, puntero_archivo);
 
         // Llamar a la función de ejecución para IO_FS_WRITE
@@ -459,13 +455,13 @@ void decode(t_pcb *pcb, char *instruccion)
         // Convertir los registros a los valores correspondientes
         uint32_t direccion_logica = leer_registro(pcb, registro_direccion);
         uint32_t tamanio = leer_registro(pcb, registro_tamano);
-        uint32_t puntero_archivo = leer_registro(pcb, registro_puntero);
+        int puntero_archivo = (int) leer_registro(pcb, registro_puntero);
 
         // Asumiendo que mmu() devuelve una lista de direcciones físicas para el rango especificado
         t_list *direcciones_fisicas = mmu(direccion_logica, tamanio, pcb->pid);
 
         pcb->cpu_registers->pc++;
-        log_info(logger, "PID: %i - Ejecutando: IO_FS_READ - %s %s dirección: %u, tamaño: %u, puntero archivo: %u",
+        log_info(logger, "PID: %i - Ejecutando: IO_FS_READ - %s %s %u %u %i",
                  pcb->pid, nombre_interfaz, nombre_archivo, direccion_logica, tamanio, puntero_archivo);
 
         // Llamar a la función de ejecución para IO_FS_READ
