@@ -19,14 +19,8 @@ int block_count;
 int tamanio_del_archivo_de_bloques;
 int tamanio_del_archivo_del_bitmap;
 t_list *lista_archivos_por_bloque_inicial;
-// Inicializar archivos de bitmap
-t_bitarray *bitarray;
-FILE *bitmap_file;
-t_bitarray *bitarray;
-char bitmap_path[256];
 int tiempo_unidad_trabajo;
 int retraso_compactacion;
-t_fs_bloques *bloques;
 void *archivo_de_bloques;
 void *archivo_del_bitmap;
 t_bitarray *bitmap_de_bloques_libres;
@@ -769,7 +763,7 @@ void compactar_fs(int bloque_inicial, int bloques_actuales, char *archivo_nombre
 
 int mover_archivo(int bloque_origen, int bloque_destino)
 {
-    char *nombre_archivo_a_mover = archivo_por_bloque_inicial(bloque_origen);
+    char *nombre_archivo_a_mover = list_get(lista_archivos_por_bloque_inicial, bloque_origen);
     t_metadata_archivo *metadata_archivo_a_mover = archivo(nombre_archivo_a_mover);
 
     int tamanio_archivo_a_mover = metadata_archivo_a_mover->tamanio_archivo;
@@ -816,12 +810,6 @@ t_metadata_archivo *archivo(char *nombre)
     config_destroy(config_metadata);
 
     return metadata;
-}
-
-char *archivo_por_bloque_inicial(int bloque_inicial)
-{
-    char *nombre_archivo = list_get(lista_archivos_por_bloque_inicial, bloque_inicial);
-    return nombre_archivo;
 }
 
 void escribir_archivo(char *nombre_archivo, int puntero, void *valor, uint32_t tamanio)

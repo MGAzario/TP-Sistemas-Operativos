@@ -14,12 +14,6 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-//Estructrua para bloques.dat
-typedef struct {
-    FILE *archivo;
-    uint32_t block_size;
-    uint32_t block_count;
-} t_fs_bloques;
 
 typedef struct {
     int bloque_inicial;
@@ -50,9 +44,6 @@ void escribir_archivo(char *nombre_archivo, int puntero, void *valor, uint32_t t
 void *leer_archivo(char *nombre_archivo, int puntero, uint32_t tamanio);
 void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, void *valor);
 void *leer_archivo_compactacion(char *nombre_archivo);
-char *archivo_por_bloque_inicial(int bloque_inicial);
-
-
 
 
 #endif /*ENTRADASALIDA_H*/
