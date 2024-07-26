@@ -221,7 +221,14 @@ typedef struct
     char *nombre;
     int instancias;
     t_queue *procesos_esperando;
+    t_list *procesos_asignados;
 } t_manejo_de_recurso;
+
+typedef struct
+{
+    int pid;
+    int instancias;
+} t_instancias_por_procesos;
 
 typedef struct
 {

@@ -199,6 +199,7 @@ void obtener_recursos()
         recurso->nombre = recursos[i];
         recurso->instancias = atoi(instancias_recursos[i]);
         recurso->procesos_esperando = queue_create();
+        recurso->procesos_asignados = list_create();
         list_add(lista_recursos, recurso);
         i++;
     }
@@ -996,6 +997,27 @@ void esperar_cpu()
         {
             if (recurso_a_asignar->instancias > 0)
             {
+                // Al proceso se le asigna una instancia
+                int ya_tiene_una_instancia = -1;
+                for (int i = 0; i < list_size(recurso_a_asignar->procesos_asignados); i++)
+                {
+                    t_instancias_por_procesos *instancias_por_proceso =
+                        (t_instancias_por_procesos *)list_get(recurso_a_asignar->procesos_asignados, i);
+                    if (instancias_por_proceso->pid == recurso_wait->pcb->pid)
+                    {
+                        ya_tiene_una_instancia = i;
+                        instancias_por_proceso->instancias++;
+                    }
+                }
+                if (ya_tiene_una_instancia == -1)
+                {
+                    t_instancias_por_procesos *instancias_proceso = malloc(sizeof(t_instancias_por_procesos));
+                    instancias_proceso->pid = recurso_wait->pcb->pid;
+                    instancias_proceso->instancias = 1;
+                    list_add(recurso_a_asignar->procesos_asignados, instancias_proceso);
+                }
+
+                // Se le quita una instanica disponible al recurso
                 recurso_a_asignar->instancias--;
                 enviar_pcb(socket_cpu_dispatch, recurso_wait->pcb);
                 esperar_cpu();
@@ -1035,8 +1057,24 @@ void esperar_cpu()
         }
         else
         {
+            // Al proceso que hizo el signal se le quita una instancia
+            for (int i = 0; i < list_size(recurso_a_liberar->procesos_asignados); i++)
+            {
+                t_instancias_por_procesos *instancias_por_pid =
+                    (t_instancias_por_procesos *)list_get(recurso_a_liberar->procesos_asignados, i);
+                if (instancias_por_pid->pid == recurso_signal->pcb->pid)
+                {
+                    instancias_por_pid->instancias--;
+                    if (instancias_por_pid->instancias == 0)
+                    {
+                        list_remove_and_destroy_element(recurso_a_liberar->procesos_asignados, i, free);
+                    }
+                }
+            }
+
             if (list_is_empty(recurso_a_liberar->procesos_esperando->elements))
             {
+                // Se le agrega una instanica disponible al recurso
                 recurso_a_liberar->instancias++;
                 enviar_pcb(socket_cpu_dispatch, recurso_signal->pcb);
                 esperar_cpu();
@@ -1044,6 +1082,28 @@ void esperar_cpu()
             else
             {
                 t_numero *proceso = queue_pop(recurso_a_liberar->procesos_esperando);
+
+                // Al proceso que estaba esperando se le asigna una instancia
+                int ya_tiene_una_instancia = -1;
+                for (int i = 0; i < list_size(recurso_a_liberar->procesos_asignados); i++)
+                {
+                    t_instancias_por_procesos *instancias_por_proceso =
+                        (t_instancias_por_procesos *)list_get(recurso_a_liberar->procesos_asignados, i);
+                    if (instancias_por_proceso->pid == proceso->numero)
+                    {
+                        ya_tiene_una_instancia = i;
+                        instancias_por_proceso->instancias++;
+                    }
+                }
+                if (ya_tiene_una_instancia == -1)
+                {
+                    t_instancias_por_procesos *instancias_proceso = malloc(sizeof(t_instancias_por_procesos));
+                    instancias_proceso->pid = proceso->numero;
+                    instancias_proceso->instancias = 1;
+                    list_add(recurso_a_liberar->procesos_asignados, instancias_proceso);
+                }
+
+                // El proceso que estaba esperando deja de estar bloqueado y entra en la cola de READY
                 for (int i = 0; i < list_size(lista_bloqueados); i++)
                 {
                     t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
@@ -1498,6 +1558,63 @@ void eliminar_proceso(t_pcb *pcb)
     {
         free(pcb_ejecutandose->cpu_registers);
         free(pcb_ejecutandose);
+    }
+
+    // Se liberan los recursos que tiene asignado el proceso, si los hubiere
+    for (int i = 0; i < list_size(lista_recursos); i++)
+    {
+        bool el_recurso_tiene_nuevas_instancias_disponibles = false;
+        t_manejo_de_recurso *recurso_buscado = (t_manejo_de_recurso *)list_get(lista_recursos, i);
+        for (int j = 0; j < list_size(recurso_buscado->procesos_asignados); j++)
+        {
+            t_instancias_por_procesos *instancias_por_pid =
+                (t_instancias_por_procesos *)list_get(recurso_buscado->procesos_asignados, j);
+            if (instancias_por_pid->pid == pcb->pid)
+            {
+                recurso_buscado->instancias += instancias_por_pid->instancias;
+                list_remove_and_destroy_element(recurso_buscado->procesos_asignados, j, free);
+                el_recurso_tiene_nuevas_instancias_disponibles = true;
+            }
+        }
+        if(el_recurso_tiene_nuevas_instancias_disponibles && !list_is_empty(recurso_buscado->procesos_esperando->elements))
+        {
+            t_numero *proceso = queue_pop(recurso_buscado->procesos_esperando);
+
+            // Al proceso que estaba esperando se le asigna una instancia
+            int ya_tiene_una_instancia = -1;
+            for (int j = 0; j < list_size(recurso_buscado->procesos_asignados); j++)
+            {
+                t_instancias_por_procesos *instancias_por_proceso =
+                    (t_instancias_por_procesos *)list_get(recurso_buscado->procesos_asignados, j);
+                if (instancias_por_proceso->pid == proceso->numero)
+                {
+                    ya_tiene_una_instancia = j;
+                    instancias_por_proceso->instancias++;
+                }
+            }
+            if (ya_tiene_una_instancia == -1)
+            {
+                t_instancias_por_procesos *instancias_proceso = malloc(sizeof(t_instancias_por_procesos));
+                instancias_proceso->pid = proceso->numero;
+                instancias_proceso->instancias = 1;
+                list_add(recurso_buscado->procesos_asignados, instancias_proceso);
+            }
+
+            // El proceso que estaba esperando deja de estar bloqueado y entra en la cola de READY
+            for (int j = 0; j < list_size(lista_bloqueados); j++)
+            {
+                t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, j);
+                if (pcb->pid == proceso->numero)
+                {
+                    log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
+                    pcb->estado = READY;
+                    list_remove(lista_bloqueados, j);
+                    queue_push(cola_ready, pcb);
+                    sem_post(&sem_proceso_ready);
+                }
+            }
+            free(proceso);
+        }
     }
 
     free(pcb->cpu_registers);
