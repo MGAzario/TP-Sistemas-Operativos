@@ -779,6 +779,8 @@ int mover_archivo(int bloque_origen, int bloque_destino)
     {
         bitarray_clean_bit(bitmap_de_bloques_libres, metadata_archivo_a_mover->bloque_inicial + i);
     }
+    char placeholder[25] = "No hay bloque inicial";
+    list_replace(lista_archivos_por_bloque_inicial, bloque_origen, placeholder);
 
     // Escribir en la posición destino
     escribir_archivo_compactacion(nombre_archivo_a_mover, bloque_destino, buffer);
@@ -935,6 +937,7 @@ void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, voi
             valor + desplazamiento_valor,
             tamanio_a_escribir);
     }
+    free(valor);
 
     char *archivo_path = string_new();
     string_append(&archivo_path, path_base_dialfs);
@@ -945,7 +948,8 @@ void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, voi
     config_save(metadata);
     config_destroy(metadata);
     free(archivo_path);
-    free(valor);
+
+    list_replace(lista_archivos_por_bloque_inicial, bloque_inicial, nombre_archivo);
 }
 
 void *leer_archivo_compactacion(char *nombre_archivo)
