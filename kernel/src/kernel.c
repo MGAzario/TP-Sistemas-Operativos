@@ -771,8 +771,8 @@ void quantum_count(void *proceso_con_quantum)
     //sem_wait(&mutex_quantum); 
     
     log_trace(logger, "A ver flaco? %d pero emapanda: %d", pcb_ejecutandose->quantum, pcb->quantum);
-    usleep((quantum - pcb_ejecutandose->quantum) * 1000);
-    pcb_ejecutandose->quantum = 0;
+    usleep((quantum - pcb->quantum) * 1000);
+    
     //sem_post(&mutex_quantum);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0)
