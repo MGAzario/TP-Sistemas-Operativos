@@ -727,6 +727,8 @@ void planificar_vrr()
     log_trace(logger, "Envio PCB");
     cron_quant_vrr = temporal_create();
     pcb_ejecutandose = proceso_a_ejecutar;
+    free(proceso_a_ejecutar);
+    free(proceso_a_ejecutar->cpu_registers);
     proceso_en_ejecucion = true;
     pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     pthread_detach(hilo_quantum_vrr);
@@ -759,6 +761,8 @@ void quantum_block()
 
 void quantum_count(void *proceso_con_quantum)
 {
+    /*
+    //propuesta solucion vrr facu/martin
     t_pcb *pcb = proceso_con_quantum;
 
     sem_wait(&mutex_quantum); 
@@ -767,6 +771,21 @@ void quantum_count(void *proceso_con_quantum)
     pcb_ejecutandose->quantum = 0;
     sem_post(&mutex_quantum);
 
+    if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    {
+        temporal_destroy(cron_quant_vrr);
+    }
+    if(proceso_en_ejecucion)
+    {
+        enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+    }
+    log_trace(logger, "Esperando CPU");
+    
+    sem_post(&sem_round_robin);
+    */
+    t_pcb *pcb = proceso_con_quantum;
+    
+    usleep(quantum * 1000);
     if (strcmp(algoritmo_planificacion, "VRR") == 0)
     {
         temporal_destroy(cron_quant_vrr);
