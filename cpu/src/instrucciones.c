@@ -126,6 +126,7 @@ void execute_mov_out(t_pcb *pcb, t_list *direcciones, char *registro_datos)
 
 void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
+    log_info(logger, "PID: %i - Ejecutando: SUM - %s %s", pcb->pid, registro_destino, registro_origen);
     uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
     uint8_t *puntero_destino_normales = NULL, *puntero_origen_normales = NULL;
 
@@ -146,6 +147,12 @@ void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
         puntero_destino_extendidos = &pcb->cpu_registers->extendidos[2];
     } else if (strcmp(registro_destino, "EDX") == 0) {
         puntero_destino_extendidos = &pcb->cpu_registers->extendidos[3];
+    } else if (strcmp(registro_destino, "SI") == 0) {
+        puntero_destino_extendidos = &pcb->cpu_registers->si;
+    } else if (strcmp(registro_destino, "DI") == 0) {
+        puntero_destino_extendidos = &pcb->cpu_registers->di;
+    } else if (strcmp(registro_destino, "PC") == 0) {
+        puntero_destino_extendidos = &pcb->cpu_registers->pc;
     }
 
     // Asignar puntero de origen
@@ -165,6 +172,12 @@ void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
         puntero_origen_extendidos = &pcb->cpu_registers->extendidos[2];
     } else if (strcmp(registro_origen, "EDX") == 0) {
         puntero_origen_extendidos = &pcb->cpu_registers->extendidos[3];
+    } else if (strcmp(registro_origen, "SI") == 0) {
+        puntero_origen_extendidos = &pcb->cpu_registers->si;
+    } else if (strcmp(registro_origen, "DI") == 0) {
+        puntero_origen_extendidos = &pcb->cpu_registers->di;
+    } else if (strcmp(registro_origen, "PC") == 0) {
+        puntero_origen_extendidos = &pcb->cpu_registers->pc;
     }
 
     // Realizar la suma
@@ -179,6 +192,7 @@ void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
 
 void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
+    log_info(logger, "PID: %i - Ejecutando: SUB - %s %s", pcb->pid, registro_destino, registro_origen);
     uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
     uint8_t *puntero_destino_normales = NULL, *puntero_origen_normales = NULL;
 
@@ -199,6 +213,12 @@ void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
         puntero_destino_extendidos = &pcb->cpu_registers->extendidos[2];
     } else if (strcmp(registro_destino, "EDX") == 0) {
         puntero_destino_extendidos = &pcb->cpu_registers->extendidos[3];
+    } else if (strcmp(registro_destino, "SI") == 0) {
+        puntero_destino_extendidos = &pcb->cpu_registers->si;
+    } else if (strcmp(registro_destino, "DI") == 0) {
+        puntero_destino_extendidos = &pcb->cpu_registers->di;
+    } else if (strcmp(registro_destino, "PC") == 0) {
+        puntero_destino_extendidos = &pcb->cpu_registers->pc;
     }
 
     // Asignar puntero de origen
@@ -218,6 +238,12 @@ void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
         puntero_origen_extendidos = &pcb->cpu_registers->extendidos[2];
     } else if (strcmp(registro_origen, "EDX") == 0) {
         puntero_origen_extendidos = &pcb->cpu_registers->extendidos[3];
+    } else if (strcmp(registro_origen, "SI") == 0) {
+        puntero_origen_extendidos = &pcb->cpu_registers->si;
+    } else if (strcmp(registro_origen, "DI") == 0) {
+        puntero_origen_extendidos = &pcb->cpu_registers->di;
+    } else if (strcmp(registro_origen, "PC") == 0) {
+        puntero_origen_extendidos = &pcb->cpu_registers->pc;
     }
 
     // Realizar la resta
@@ -232,6 +258,7 @@ void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
 
 void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)
 {
+    log_info(logger, "PID: %i - Ejecutando: SUM - %s %u", pcb->pid, registro, nuevo_program_counter);
     uint32_t *puntero_registro_extendidos = NULL;
     uint8_t *puntero_registro_normales = NULL;
 
@@ -252,6 +279,12 @@ void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)
         puntero_registro_extendidos = &pcb->cpu_registers->extendidos[2];
     } else if (strcmp(registro, "EDX") == 0) {
         puntero_registro_extendidos = &pcb->cpu_registers->extendidos[3];
+    } else if (strcmp(registro, "SI") == 0) {
+        puntero_registro_extendidos = &pcb->cpu_registers->si;
+    } else if (strcmp(registro, "DI") == 0) {
+        puntero_registro_extendidos = &pcb->cpu_registers->di;
+    } else if (strcmp(registro, "PC") == 0) {
+        puntero_registro_extendidos = &pcb->cpu_registers->pc;
     }
 
     // Realizar la comparación y el salto

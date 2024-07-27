@@ -153,7 +153,7 @@ void crear_logger()
 
 void crear_config()
 {
-    config = config_create("./kernel.config");
+    config = config_create("./kernel_deadlock.config");
     if (config == NULL)
     {
         log_error(logger, "Ocurrió un error al leer el archivo de Configuración del Kernel\n");
@@ -461,8 +461,6 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
         {
             list_remove(lista_bloqueados, i);
             pcb->estado = READY;
-            log_info(logger, "PID: %i - Estado Anterior: BLOCK - Estado Actual: READY", pcb_a_desbloquear->pid);
-            mostrar_cola_ready();
 
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
@@ -471,6 +469,8 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
             else
             {
                 queue_push(cola_ready, pcb);
+                log_info(logger, "PID: %i - Estado Anterior: BLOCK - Estado Actual: READY", pcb_a_desbloquear->pid);
+                mostrar_cola_ready();
             }
 
             sem_post(&sem_proceso_ready);
@@ -592,10 +592,13 @@ void crear_pcb(char *path)
 void encontrar_y_eliminar_proceso(int pid_a_eliminar)
 {
     // Buscamos en EXEC
-    if (pcb_ejecutandose->pid == pid_a_eliminar)
+    if(proceso_en_ejecucion)
     {
-        enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FINALIZAR_PROCESO);
-        return;
+        if (pcb_ejecutandose->pid == pid_a_eliminar)
+        {
+            enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FINALIZAR_PROCESO);
+            return;
+        }
     }
 
     // Buscamos en la cola de NEW
@@ -1230,11 +1233,11 @@ void esperar_cpu()
                     t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
                     if (pcb->pid == proceso->numero)
                     {
-                        log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
-                        mostrar_cola_ready();
                         pcb->estado = READY;
                         list_remove(lista_bloqueados, i);
                         queue_push(cola_ready, pcb);
+                        log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
+                        mostrar_cola_ready();
                         sem_post(&sem_proceso_ready);
                     }
                 }
@@ -1771,6 +1774,15 @@ void eliminar_proceso(t_pcb *pcb)
     {
         bool el_recurso_tiene_nuevas_instancias_disponibles = false;
         t_manejo_de_recurso *recurso_buscado = (t_manejo_de_recurso *)list_get(lista_recursos, i);
+        for (int j = 0; j < list_size(recurso_buscado->procesos_esperando->elements); j++)
+        {
+            t_numero *pid_esperando_recurso =
+                (t_numero *)list_get(recurso_buscado->procesos_esperando->elements, j);
+            if (pid_esperando_recurso->numero == pcb->pid)
+            {
+                list_remove_and_destroy_element(recurso_buscado->procesos_esperando->elements, j, free);
+            }
+        }
         for (int j = 0; j < list_size(recurso_buscado->procesos_asignados); j++)
         {
             t_instancias_por_procesos *instancias_por_pid =
@@ -1805,6 +1817,7 @@ void eliminar_proceso(t_pcb *pcb)
                 instancias_proceso->instancias = 1;
                 list_add(recurso_buscado->procesos_asignados, instancias_proceso);
             }
+            recurso_buscado->instancias--;
 
             // El proceso que estaba esperando deja de estar bloqueado y entra en la cola de READY
             for (int j = 0; j < list_size(lista_bloqueados); j++)
@@ -1812,11 +1825,11 @@ void eliminar_proceso(t_pcb *pcb)
                 t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, j);
                 if (pcb->pid == proceso->numero)
                 {
-                    log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
-                    mostrar_cola_ready();
                     pcb->estado = READY;
                     list_remove(lista_bloqueados, j);
                     queue_push(cola_ready, pcb);
+                    log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
+                    mostrar_cola_ready();
                     sem_post(&sem_proceso_ready);
                 }
             }
@@ -1921,7 +1934,7 @@ void mostrar_cola_ready()
             }
         }
     }
-    log_info(logger, "Cola Ready: [%s]");
+    log_info(logger, "Cola Ready: [%s]", pids);
 }
 
 void procesos_por_estado()
@@ -1948,6 +1961,21 @@ void procesos_por_estado()
         else
         {
             listar_procesos(list_size(lista_bloqueados));
+        }
+    }
+}
+
+void recursos_e_instancias()
+{
+    for (int i = 0; i < list_size(lista_recursos); i++)
+    {
+        t_manejo_de_recurso *recurso = (t_manejo_de_recurso *)list_get(lista_recursos, i);
+        printf("%s: %i instancias disponibles\n", recurso->nombre, recurso->instancias);
+        for (int j = 0; j < list_size(recurso->procesos_asignados); j++)
+        {
+            t_instancias_por_procesos *instancias_por_procesos = (t_instancias_por_procesos *)list_get(recurso->procesos_asignados, j);
+            printf("    El proceso %i tiene %i instancias asignadas\n",
+                instancias_por_procesos->pid, instancias_por_procesos->instancias);
         }
     }
 }
@@ -2074,6 +2102,7 @@ void script(char *path)
 }
 
 /*-----------------------------CONSOLA--------------------------------------------------------------------*/
+
 void consola()
 {
     char *linea;
@@ -2133,6 +2162,10 @@ void consola()
         else if ((strcmp(comando, "PROCESO_ESTADO") == 0) || (strcmp(comando, "7") == 0))
         {
             procesos_por_estado();
+        }
+        else if ((strcmp(comando, "RECURSOS") == 0) || (strcmp(comando, "8") == 0))
+        {
+            recursos_e_instancias();
         }
         else
         {

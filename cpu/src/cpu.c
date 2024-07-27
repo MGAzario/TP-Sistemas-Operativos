@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 
 void crear_logger()
 {
-    logger = log_create("./cpu.log", "LOG_CPU", true, LOG_LEVEL_TRACE);
+    logger = log_create("./cpu_deadlock.log", "LOG_CPU", true, LOG_LEVEL_TRACE);
     // Tira error si no se pudo crear
     if (logger == NULL)
     {

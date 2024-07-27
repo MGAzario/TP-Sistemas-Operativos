@@ -42,6 +42,7 @@ void comprobar_planificacion();
 void modificar_grado_multiprogramacion(int nuevo_valor);
 void mostrar_cola_ready();
 void procesos_por_estado();
+void recursos_e_instancias();
 void listar_procesos(int cantidad_filas);
 void planificar_round_robin();
 void planificar_vrr();

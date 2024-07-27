@@ -85,7 +85,7 @@ void crear_logger(){
 }
 
 void crear_config(){
-    config = config_create("./memoria.config");
+    config = config_create("./memoria_deadlock.config");
     if (config == NULL)
     {
         log_error(logger,"Ocurrió un error al leer el archivo de configuración\n");
