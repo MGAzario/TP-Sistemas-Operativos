@@ -100,7 +100,7 @@ void crear_interfaz()
         log_trace(logger, "Interfaz STDOUT");
         crear_interfaz_stdout();
     }
-    else if (strcmp(tipo_interfaz, "DialFS") == 0)
+    else if (strcmp(tipo_interfaz, "DIALFS") == 0)
     {
         log_trace(logger, "Interfaz DialFS");
         crear_interfaz_dialfs();
@@ -306,6 +306,27 @@ void crear_interfaz_dialfs()
     {
         char placeholder[25] = "No hay bloque inicial";
         list_add(lista_archivos_por_bloque_inicial, placeholder);
+    }
+
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(path_base_dialfs);
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (strcmp(dir->d_name, ".") != 0 
+                && strcmp(dir->d_name, "..") != 0
+                && strcmp(dir->d_name, "bloques.dat") != 0
+                && strcmp(dir->d_name, "bitmap.dat") != 0)
+            {
+                log_trace(logger, "Se encontró un archivo");
+                t_metadata_archivo *metadata_archivo = archivo(dir->d_name);
+                list_replace(lista_archivos_por_bloque_inicial, metadata_archivo->bloque_inicial, dir->d_name);
+                free(metadata_archivo);
+            }
+        }
+        // closedir(d);
     }
 
     // construir la ruta completa del archivo bloques.dat
@@ -523,7 +544,7 @@ void manejar_io_fs_delete()
     // Liberar estructura de solicitud después de su uso
     free(metadata_archivo);
     free(io_fs_delete->nombre_interfaz);
-    free(io_fs_delete->nombre_archivo);
+    // free(io_fs_delete->nombre_archivo);
     free(io_fs_delete->pcb->cpu_registers);
     free(io_fs_delete->pcb);
     free(io_fs_delete);
@@ -573,7 +594,7 @@ void manejar_io_fs_truncate()
     // Liberar recursos
     free(metadata_archivo);
     free(io_fs_truncate->nombre_interfaz);
-    free(io_fs_truncate->nombre_archivo);
+    // free(io_fs_truncate->nombre_archivo);
     free(io_fs_truncate->pcb->cpu_registers);
     free(io_fs_truncate->pcb);
     free(io_fs_truncate);
@@ -707,6 +728,7 @@ void verificar_y_compactar_fs(int bloque_inicial, int bloques_actuales, int nuev
     {
         if (bitarray_test_bit(bitmap_de_bloques_libres, bloque_inicial + i))
         {
+            log_trace(logger, "El bit %i está ocuapado", bloque_inicial + i);
             espacio_contiguo = false;
             break;
         }
@@ -757,13 +779,17 @@ void compactar_fs(int bloque_inicial, int bloques_actuales, char *archivo_nombre
     {
         if (bitarray_test_bit(bitmap_de_bloques_libres, i))
         {
+            if(indice_escritura > i)
+            {
+                continue;
+            }
             if (indice_escritura != i)
             {
                 // Simular el movimiento de bloques en el archivo físico
-                final_de_la_compactacion += mover_archivo(i, indice_escritura);
+                final_de_la_compactacion = mover_archivo(i, indice_escritura);
                 log_trace(logger, "Último bloque compactado: %i", final_de_la_compactacion);
 
-                indice_escritura++;
+                indice_escritura = final_de_la_compactacion;
             }
             else
             {
@@ -780,6 +806,7 @@ void compactar_fs(int bloque_inicial, int bloques_actuales, char *archivo_nombre
 
 int mover_archivo(int bloque_origen, int bloque_destino)
 {
+    log_trace(logger, "Buscando el archivo de bloque inicial %i", bloque_origen);
     char *nombre_archivo_a_mover = list_get(lista_archivos_por_bloque_inicial, bloque_origen);
     t_metadata_archivo *metadata_archivo_a_mover = archivo(nombre_archivo_a_mover);
 
@@ -802,7 +829,7 @@ int mover_archivo(int bloque_origen, int bloque_destino)
     // Escribir en la posición destino
     escribir_archivo_compactacion(nombre_archivo_a_mover, bloque_destino, buffer);
     
-    free(nombre_archivo_a_mover);
+    // free(nombre_archivo_a_mover);
     free(metadata_archivo_a_mover);
 
     return bloque_destino + bloques_del_archivo;
@@ -997,4 +1024,12 @@ void *leer_archivo_compactacion(char *nombre_archivo)
     }
 
     return valor;
+}
+
+void lista_de_bloques_iniciales()
+{
+    for (int i = 0; i < list_size(lista_archivos_por_bloque_inicial); i++)
+    {
+        log_trace(logger, "%i: %s", i, (char *)list_get(lista_archivos_por_bloque_inicial, i));
+    }
 }

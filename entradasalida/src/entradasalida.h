@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <dirent.h>
 
 
 typedef struct {
@@ -44,6 +45,7 @@ void escribir_archivo(char *nombre_archivo, int puntero, void *valor, uint32_t t
 void *leer_archivo(char *nombre_archivo, int puntero, uint32_t tamanio);
 void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, void *valor);
 void *leer_archivo_compactacion(char *nombre_archivo);
+void lista_de_bloques_iniciales();
 
 
 #endif /*ENTRADASALIDA_H*/

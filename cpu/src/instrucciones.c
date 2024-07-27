@@ -325,7 +325,8 @@ void execute_copy_string(t_pcb *pcb, int tamanio_texto)
     t_list *direcciones_fisicas_si = mmu(leer_registro(pcb, "SI"), tamanio_texto, pcb->pid);
     t_list *direcciones_fisicas_di = mmu(leer_registro(pcb, "DI"), tamanio_texto, pcb->pid);
 
-    char *texto_completo = string_new();
+    void *texto_completo = malloc(tamanio_texto);
+    int desplazamiento = 0;
     for (int i = 0; i < list_size(direcciones_fisicas_si); i++)
     {
         t_direccion_y_tamanio *direccion_fisica = list_get(direcciones_fisicas_si, i);
@@ -336,17 +337,19 @@ void execute_copy_string(t_pcb *pcb, int tamanio_texto)
             log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_LEIDA de la Memoria pero recibió otra operación");
         }
         t_lectura *leido = recibir_lectura(socket_memoria);
-        char *texto_parcial = string_new();
-        string_n_append_con_strnlen(&texto_parcial, leido->lectura, leido->tamanio_lectura);
-        string_n_append_con_strnlen(&texto_completo, leido->lectura, leido->tamanio_lectura);
-        log_info(logger, "PID: %i - Acción: LEER - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, texto_parcial);
+        void *texto_parcial = malloc(direccion_fisica->tamanio);
+        memcpy(texto_parcial, leido->lectura, leido->tamanio_lectura);
+        memcpy(texto_completo + desplazamiento, leido->lectura, leido->tamanio_lectura);
+        desplazamiento += leido->tamanio_lectura;
+        log_info(logger, "PID: %i - Acción: LEER - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, (char *)texto_parcial);
     }
 
     int indice = 0;
     for (int i = 0; i < list_size(direcciones_fisicas_di); i++)
     {
         t_direccion_y_tamanio *direccion_fisica = list_get(direcciones_fisicas_di, i);
-        char *texto = string_substring(texto_completo, indice, direccion_fisica->tamanio);
+        void *texto = malloc(direccion_fisica->tamanio);
+        memcpy(texto, texto_completo + indice, direccion_fisica->tamanio);
         enviar_escribir_memoria(socket_memoria, pcb->pid, direccion_fisica->direccion, direccion_fisica->tamanio, texto);
         indice += direccion_fisica->tamanio;
         op_code cod_op = recibir_operacion(socket_memoria);
@@ -355,7 +358,7 @@ void execute_copy_string(t_pcb *pcb, int tamanio_texto)
             log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
         }
         recibir_ok(socket_memoria);
-        log_info(logger, "PID: %i - Acción: ESCRIBIR - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, texto);
+        log_info(logger, "PID: %i - Acción: ESCRIBIR - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, (char *)texto);
     }
 }
 

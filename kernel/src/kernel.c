@@ -153,7 +153,7 @@ void crear_logger()
 
 void crear_config()
 {
-    config = config_create("./kernel_io.config");
+    config = config_create("./kernel_fs.config");
     if (config == NULL)
     {
         log_error(logger, "Ocurrió un error al leer el archivo de Configuración del Kernel\n");
