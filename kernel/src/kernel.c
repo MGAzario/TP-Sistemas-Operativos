@@ -639,7 +639,32 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
         }
     }
 
-    // TODO: Buscar también en la cola (o colas) de bloqueados
+    // Buscamos en la lista de BLOCK
+    for (int i = 0; i < list_size(lista_bloqueados); i++)
+    {
+        t_pcb *pcb = (t_pcb *)list_get(lista_bloqueados, i);
+        if (pcb->pid == pid_a_eliminar)
+        {
+            for (int j = 0; j < list_size(lista_interfaces); j++)
+            {
+                t_interfaz *interfaz = (t_interfaz *)list_get(lista_interfaces, j);
+                for (int k = 0; k < list_size(interfaz->cola_procesos_esperando->elements); k++)
+                {
+                    t_pcb *pcb_esperando = (t_pcb *)list_get(interfaz->cola_procesos_esperando->elements, k);
+                    if (pcb_esperando->pid == pid_a_eliminar)
+                    {
+                        list_remove(interfaz->cola_procesos_esperando->elements, pid_a_eliminar);
+                    }
+                }
+            }
+
+            list_remove(lista_bloqueados, i);
+            eliminar_proceso(pcb);
+            return;
+        }
+    }
+
+    log_error(logger, "Se buscó en EXEC, NEW, READY y BLOCK, pero no se encontró el procesó a eliminar");
 }
 
 /*En caso de que el grado de multiprogramación lo permita, los procesos creados podrán pasar de la cola de NEW a la cola de READY,
