@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
 }
 
 void crear_logger(){
-    logger = log_create("./memoria.log","LOG_MEMORIA",true,LOG_LEVEL_TRACE);
+    logger = log_create("./memoria.log","LOG_MEMORIA",true,LOG_LEVEL_INFO);
     if(logger == NULL){
 		perror("Ocurrió un error al leer el archivo de Log de Memoria");
 		abort();

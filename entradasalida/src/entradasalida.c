@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
 // Funciones de configuracion y funcionamiento general
 void crear_logger()
 {
-    logger = log_create("./entradasalida.log", "LOG_IO", true, LOG_LEVEL_TRACE);
+    logger = log_create("./entradasalida.log", "LOG_IO", true, LOG_LEVEL_INFO);
     if (logger == NULL)
     {
         perror("Ocurrió un error al leer el archivo de Log de Entrada/Salida");
