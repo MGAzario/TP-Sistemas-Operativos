@@ -422,6 +422,7 @@ void manejar_io_fs_create()
     // Recibir la estructura t_io_fs_archivo desde el Kernel
     log_debug(logger, "El Kernel solicito crear un archivo");
     t_io_fs_archivo *solicitud = recibir_io_fs_archivo(socket_kernel);
+    log_info(logger, "PID: %i - Operacion: IO_FS_CREATE", solicitud->pcb->pid);
 
 
     // Extraer el PID y el nombre del archivo desde la solicitud
@@ -475,6 +476,10 @@ void manejar_io_fs_delete()
     // Recibir la estructura t_io_fs_delete desde el kernel
     log_debug(logger, "El Kernel solicito eliminar un archivo");
     t_io_fs_archivo *io_fs_delete = recibir_io_fs_archivo(socket_kernel);
+    log_info(logger, "PID: %i - Operacion: IO_FS_DELETE", io_fs_delete->pcb->pid);
+
+    // Log de la acción
+    log_info(logger, "PID: %d - Eliminar Archivo: %s", io_fs_delete->pcb->pid, io_fs_delete->nombre_archivo);
 
     // Leer el archivo de metadatos para obtener bloques utilizados
     t_metadata_archivo *metadata_archivo = archivo(io_fs_delete->nombre_archivo);
@@ -524,6 +529,10 @@ void manejar_io_fs_truncate()
 
     // Recibir la solicitud de IO_FS_TRUNCATE
     t_io_fs_truncate *io_fs_truncate = recibir_io_fs_truncate(socket_kernel);
+    log_info(logger, "PID: %i - Operacion: IO_FS_TRUNCATE", io_fs_truncate->pcb->pid);
+
+    // Log de la acción
+    log_info(logger, "PID: %d - Truncar Archivo: %s", io_fs_truncate->pcb->pid, io_fs_truncate->nombre_archivo);
 
     // Buscar si el archivo existe en el sistema de archivos DialFS
     t_metadata_archivo *metadata_archivo = archivo(io_fs_truncate->nombre_archivo);
@@ -568,6 +577,7 @@ void manejar_io_fs_write()
 {
     // Recibir la estructura t_io_fs_rw desde el Kernel
     t_io_fs_rw *io_fs_write = recibir_io_fs_rw(socket_kernel);
+    log_info(logger, "PID: %i - Operacion: IO_FS_WRITE", io_fs_write->pcb->pid);
 
     log_info(logger, "PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %u - Puntero Archivo: %i",
              io_fs_write->pcb->pid, io_fs_write->nombre_archivo, io_fs_write->tamanio, io_fs_write->puntero_archivo);
@@ -611,6 +621,7 @@ void manejar_io_fs_write()
 void manejar_io_fs_read()
 {
     t_io_fs_rw *io_fs_read = recibir_io_fs_rw(socket_kernel);
+    log_info(logger, "PID: %i - Operacion: IO_FS_READ", io_fs_read->pcb->pid);
 
     // Logear inicio de la operación con el formato específico
     log_info(logger, "PID: %d - Leer Archivo: %s - Tamaño a Leer: %u - Puntero Archivo: %u",

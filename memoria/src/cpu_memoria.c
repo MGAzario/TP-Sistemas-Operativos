@@ -141,7 +141,7 @@ bool ajustar_tamanio(int pid, int tamanio_proceso)
     // Si es el mismo tamaño:
     if(tamanio_tabla == cantidad_de_marcos_necesaria)
     {
-        log_trace(logger, "El tamaño pedido para el RESIZE es el mismo tamaño que ya tiene el proceso");
+        log_warning(logger, "El tamaño pedido para el RESIZE es el mismo tamaño que ya tiene el proceso");
         return TAMANIO_AJUSTADO_EXITOSAMENTE;
     }
 

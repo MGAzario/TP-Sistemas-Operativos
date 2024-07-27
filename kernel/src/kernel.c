@@ -461,6 +461,8 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
         {
             list_remove(lista_bloqueados, i);
             pcb->estado = READY;
+            log_info(logger, "PID: %i - Estado Anterior: BLOCK - Estado Actual: READY", pcb_a_desbloquear->pid);
+            mostrar_cola_ready();
 
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
@@ -623,6 +625,7 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
             free(pcb->cpu_registers);
             free(pcb);
 
+            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", pid_a_eliminar);
             return;
         }
     }
@@ -635,6 +638,7 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
         {
             list_remove(cola_ready->elements, i);
             eliminar_proceso(pcb);
+            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", pid_a_eliminar);
             return;
         }
     }
@@ -660,6 +664,7 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
 
             list_remove(lista_bloqueados, i);
             eliminar_proceso(pcb);
+            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", pid_a_eliminar);
             return;
         }
     }
@@ -693,6 +698,8 @@ void *planificador_largo_plazo()
         // Agregar el proceso a la cola de READY
 
         queue_push(cola_ready, proceso_nuevo);
+        log_info(logger, "PID: %i - Estado Anterior: NEW - Estado Actual: READY", proceso_nuevo->pid);
+        mostrar_cola_ready();
 
         sem_post(&sem_proceso_ready);
         
@@ -756,6 +763,7 @@ void planificar_fifo()
 
         // Le envío el pcb al CPU a traves del dispatch
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+        log_info(logger, "PID: %i - Estado Anterior: READY - Estado Actual: EXEC", proceso_a_ejecutar->pid);
 
         // Guardamos registro en el Kernel de qué proceso está ejecutándose
         pcb_ejecutandose = proceso_a_ejecutar;
@@ -790,6 +798,7 @@ void planificar_round_robin()
         proceso_a_ejecutar->estado = EXEC;
 
         enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+        log_info(logger, "PID: %i - Estado Anterior: READY - Estado Actual: EXEC", proceso_a_ejecutar->pid);
         pcb_ejecutandose = proceso_a_ejecutar;
         proceso_en_ejecucion = true;
         log_trace(logger, "PCBenviado");
@@ -836,6 +845,7 @@ void planificar_vrr()
     proceso_a_ejecutar->estado = EXEC;
 
     enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    log_info(logger, "PID: %i - Estado Anterior: READY - Estado Actual: EXEC", proceso_a_ejecutar->pid);
     log_trace(logger, "Envio PCB");
     cron_quant_vrr = temporal_create();
     pcb_ejecutandose = proceso_a_ejecutar;
@@ -971,14 +981,14 @@ void esperar_cpu()
         // Si la interfaz no existe mandamos el proceso a EXIT
         if (interfaz_sleep == NULL)
         {
-            log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+            log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", sleep->pcb->pid);
             eliminar_proceso(sleep->pcb);
         }
 
         // Si la interfaz no es del tipo "Interfaz Genérica" mandamos el proceso a EXIT
         else if (interfaz_sleep->tipo != GENERICA)
         {
-            log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+            log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", sleep->pcb->pid);
             eliminar_proceso(sleep->pcb);
         }
 
@@ -986,6 +996,8 @@ void esperar_cpu()
         {
             sleep->pcb->estado = BLOCKED;
             list_add(lista_bloqueados, sleep->pcb);
+            log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", sleep->pcb->pid);
+            log_info(logger, "PID: %i - Bloqueado por: %s", sleep->pcb->pid, interfaz_sleep->nombre);
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
                 sem_post(&sem_vrr_block);
@@ -1050,7 +1062,7 @@ void esperar_cpu()
     case INSTRUCCION_EXIT:
         log_debug(logger, "El CPU informa que le llegó una instrucción EXIT");
         t_pcb *pcb_exit = recibir_pcb(socket_cpu_dispatch);
-        log_info(logger, "Finaliza el proceso %i - Motivo: EXIT", pcb_exit->pid);
+        log_info(logger, "Finaliza el proceso %i - Motivo: SUCCESS", pcb_exit->pid);
         eliminar_proceso(pcb_exit);
         break;
     case INTERRUPCION:
@@ -1062,12 +1074,14 @@ void esperar_cpu()
         {
             log_debug(logger, "Este motivo es FINALIZAR_PROCESO, entonces se elimina el proceso");
             eliminar_proceso(interrupcion->pcb);
+            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", interrupcion->pcb->pid);
         }
         if (interrupcion->motivo == FIN_DE_QUANTUM)
         {
             if (strcmp(algoritmo_planificacion, "RR") == 0)
             {
                 log_debug(logger, "Este motivo es FIN_DE_QUANTUM con RR, entonces se agrega al final de la cola el proceso");
+                log_info(logger, "PID: %i - Desalojado por fin de Quantum", interrupcion->pcb->pid);
                 interrupcion->pcb->estado = READY;
                 queue_push(cola_ready, interrupcion->pcb);
                 sem_post(&sem_proceso_ready);
@@ -1080,7 +1094,6 @@ void esperar_cpu()
                 sem_post(&sem_proceso_ready);
             }
         }
-
         break;
     case WAIT:
         log_debug(logger, "El CPU informa que le llegó una instrucción WAIT");
@@ -1218,6 +1231,7 @@ void esperar_cpu()
                     if (pcb->pid == proceso->numero)
                     {
                         log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
+                        mostrar_cola_ready();
                         pcb->estado = READY;
                         list_remove(lista_bloqueados, i);
                         queue_push(cola_ready, pcb);
@@ -1272,14 +1286,14 @@ void pedido_io_stdin_read()
     // Si la interfaz no existe mandamos el proceso a EXIT
     if (interfaz_stdin_read == NULL)
     {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_stdin_read->pcb->pid);
         eliminar_proceso(io_stdin_read->pcb);
     }
 
     // Si la interfaz no es del tipo "STDIN" mandamos el proceso a EXIT
     else if (interfaz_stdin_read->tipo != STDIN)
     {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_stdin_read->pcb->pid);
         eliminar_proceso(io_stdin_read->pcb);
     }
 
@@ -1287,6 +1301,8 @@ void pedido_io_stdin_read()
     {
         io_stdin_read->pcb->estado = BLOCKED;
         list_add(lista_bloqueados, io_stdin_read->pcb);
+        log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_stdin_read->pcb->pid);
+        log_info(logger, "PID: %i - Bloqueado por: %s", io_stdin_read->pcb->pid, interfaz_stdin_read->nombre);
 
         if (strcmp(algoritmo_planificacion, "VRR") == 0)
         {
@@ -1331,13 +1347,13 @@ void pedido_io_stdout_write() {
 
     // Si la interfaz no existe mandamos el proceso a EXIT
     if (interfaz_stdout_write == NULL) {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_stdout_write->pcb->pid);
         eliminar_proceso(io_stdout_write->pcb);
     }
 
     // Si la interfaz no es del tipo "STDOUT" mandamos el proceso a EXIT
     else if (interfaz_stdout_write->tipo != STDOUT) {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_stdout_write->pcb->pid);
         eliminar_proceso(io_stdout_write->pcb);
     }
 
@@ -1345,6 +1361,8 @@ void pedido_io_stdout_write() {
     {
         io_stdout_write->pcb->estado = BLOCKED;
         list_add(lista_bloqueados, io_stdout_write->pcb);
+        log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_stdout_write->pcb->pid);
+        log_info(logger, "PID: %i - Bloqueado por: %s", io_stdout_write->pcb->pid, interfaz_stdout_write->nombre);
 
         if (strcmp(algoritmo_planificacion, "VRR") == 0) {
             sem_post(&sem_vrr_block);
@@ -1387,13 +1405,13 @@ void pedido_io_fs_create() {
 
     // Si la interfaz no existe mandamos el proceso a EXIT
     if (interfaz_fs_create == NULL) {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_create->pcb->pid);
         eliminar_proceso(io_fs_create->pcb);
     }
 
     // Si la interfaz no es del tipo "DialFS" mandamos el proceso a EXIT
     else if (interfaz_fs_create->tipo != DialFS) {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_create->pcb->pid);
         eliminar_proceso(io_fs_create->pcb);
     }
 
@@ -1401,6 +1419,8 @@ void pedido_io_fs_create() {
     {
         io_fs_create->pcb->estado = BLOCKED;
         list_add(lista_bloqueados, io_fs_create->pcb);
+        log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_fs_create->pcb->pid);
+        log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_create->pcb->pid, interfaz_fs_create->nombre);
 
         if (strcmp(algoritmo_planificacion, "VRR") == 0) {
             sem_post(&sem_vrr_block);
@@ -1453,18 +1473,22 @@ void pedido_io_fs_delete() {
 
     // Si la interfaz no existe, mandar el proceso a EXIT
     if (interfaz_fs_delete == NULL) {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_delete->pcb->pid);
         eliminar_proceso(io_fs_delete->pcb);
+        return;
     }
 
     // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
     if (interfaz_fs_delete->tipo != DialFS) {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_delete->pcb->pid);
         eliminar_proceso(io_fs_delete->pcb);
+        return;
     }
 
     io_fs_delete->pcb->estado = BLOCKED;
     list_add(lista_bloqueados, io_fs_delete->pcb);
+    log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_fs_delete->pcb->pid);
+    log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_delete->pcb->pid, interfaz_fs_delete->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
         sem_post(&sem_vrr_block);
@@ -1516,18 +1540,22 @@ void pedido_io_fs_truncate() {
 
     // Si la interfaz no existe, mandar el proceso a EXIT
     if (interfaz_fs_truncate == NULL) {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_truncate->pcb->pid);
         eliminar_proceso(io_fs_truncate->pcb);
+        return;
     }
 
     // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
     if (interfaz_fs_truncate->tipo != DialFS) {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_truncate->pcb->pid);
         eliminar_proceso(io_fs_truncate->pcb);
+        return;
     }
 
     io_fs_truncate->pcb->estado = BLOCKED;
     list_add(lista_bloqueados, io_fs_truncate->pcb);
+    log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_fs_truncate->pcb->pid);
+    log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_truncate->pcb->pid, interfaz_fs_truncate->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
         sem_post(&sem_vrr_block);
@@ -1579,18 +1607,22 @@ void pedido_io_fs_write() {
 
     // Si la interfaz no existe mandamos el proceso a EXIT
     if (interfaz_fs_write == NULL) {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_write->pcb->pid);
         eliminar_proceso(io_fs_write->pcb);
+        return;
     }
 
     // Si la interfaz no es del tipo "DialFS", mandamos el proceso a EXIT
     if (interfaz_fs_write->tipo != DialFS) {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_write->pcb->pid);
         eliminar_proceso(io_fs_write->pcb);
+        return;
     }
 
     io_fs_write->pcb->estado = BLOCKED;
     list_add(lista_bloqueados, io_fs_write->pcb);
+    log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_fs_write->pcb->pid);
+    log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_write->pcb->pid, interfaz_fs_write->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
         sem_post(&sem_vrr_block);
@@ -1643,18 +1675,22 @@ void pedido_io_fs_read() {
 
     // Si la interfaz no existe, mandar el proceso a EXIT
     if (interfaz_fs_read == NULL) {
-        log_warning(logger, "La interfaz no existe. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_read->pcb->pid);
         eliminar_proceso(io_fs_read->pcb);
+        return;
     }
 
     // Si la interfaz no es del tipo "DialFS", mandar el proceso a EXIT
     if (interfaz_fs_read->tipo != DialFS) {
-        log_warning(logger, "La interfaz no admite la operación solicitada. Se mandará el proceso a EXIT");
+        log_info(logger, "Finaliza el proceso %i - Motivo: INVALID_INTERFACE", io_fs_read->pcb->pid);
         eliminar_proceso(io_fs_read->pcb);
+        return;
     }
 
     io_fs_read->pcb->estado = BLOCKED;
     list_add(lista_bloqueados, io_fs_read->pcb);
+    log_info(logger, "PID: %i - Estado Anterior: EXEC - Estado Actual: BLOCKED", io_fs_read->pcb->pid);
+    log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_read->pcb->pid, interfaz_fs_read->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
         sem_post(&sem_vrr_block);
@@ -1777,6 +1813,7 @@ void eliminar_proceso(t_pcb *pcb)
                 if (pcb->pid == proceso->numero)
                 {
                     log_info(logger, "PID: %i - Estado Anterior: BLOCKED - Estado Actual: READY", pcb->pid);
+                    mostrar_cola_ready();
                     pcb->estado = READY;
                     list_remove(lista_bloqueados, j);
                     queue_push(cola_ready, pcb);
@@ -1863,6 +1900,28 @@ void modificar_grado_multiprogramacion(int nuevo_valor)
 
     log_trace(logger, "El grado de multiprogramación anterior era %i y se cambió a %i", grado_multiprogramacion_max, nuevo_valor);
     grado_multiprogramacion_max = nuevo_valor;
+}
+
+void mostrar_cola_ready()
+{
+    char *pids = string_new();
+    if (list_is_empty(cola_ready->elements))
+    {
+        string_append(&pids, "Vacía");
+    }
+    else
+    {
+        for (int i = 0; i < list_size(cola_ready->elements); i++)
+        {
+            t_pcb *pcb = list_get(cola_ready->elements, i);
+            string_append(&pids, string_itoa(pcb->pid));
+            if (i != list_size(cola_ready->elements) - 1)
+            {
+                string_append(&pids, "|");
+            }
+        }
+    }
+    log_info(logger, "Cola Ready: [%s]");
 }
 
 void procesos_por_estado()

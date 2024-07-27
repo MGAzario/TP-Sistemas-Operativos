@@ -40,6 +40,7 @@ void detener_planificacion();
 void iniciar_planificacion();
 void comprobar_planificacion();
 void modificar_grado_multiprogramacion(int nuevo_valor);
+void mostrar_cola_ready();
 void procesos_por_estado();
 void listar_procesos(int cantidad_filas);
 void planificar_round_robin();
