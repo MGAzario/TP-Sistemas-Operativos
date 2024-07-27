@@ -139,16 +139,36 @@ typedef struct {
     int puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
 } t_io_fs_rw;
 
+typedef enum {
+    CREATE,
+    DELETE,
+    TRUNCATE,
+    WRITE,
+    READ
+} operacion_fs;
+
 typedef struct {
+    operacion_fs operacion;
     t_pcb *pcb;
     char *nombre_interfaz;
     uint32_t tamanio_nombre_interfaz;
     char *nombre_archivo;
     uint32_t tamanio_nombre_archivo;
-    t_list *direcciones_fisicas; // Lista de direcciones físicas
-    uint32_t tamanio;            // Tamaño de los datos a escribir
-    uint32_t puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
-} t_io_fs_read;
+    t_list *direcciones_fisicas;
+    uint32_t tamanio;
+    int puntero_archivo;
+} t_io_fs_comodin;
+
+// typedef struct {
+//     t_pcb *pcb;
+//     char *nombre_interfaz;
+//     uint32_t tamanio_nombre_interfaz;
+//     char *nombre_archivo;
+//     uint32_t tamanio_nombre_archivo;
+//     t_list *direcciones_fisicas; // Lista de direcciones físicas
+//     uint32_t tamanio;            // Tamaño de los datos a escribir
+//     uint32_t puntero_archivo;    // Puntero dentro del archivo donde empezar a escribir
+// } t_io_fs_read;
 
 typedef struct
 {
@@ -156,6 +176,7 @@ typedef struct
     char *nombre;
     tipo_interfaz tipo;
     bool ocupada;
+    t_queue *cola_procesos_esperando;
 } t_interfaz;
 
 typedef struct

@@ -277,6 +277,7 @@ void cargar_interfaz_recibida(t_interfaz *interfaz, int socket_entradasalida, ch
     interfaz->nombre = nombre;
     interfaz->tipo = tipo;
     interfaz->ocupada = false;
+    interfaz->cola_procesos_esperando = queue_create();
     list_add(lista_interfaces, interfaz);
 }
 
@@ -297,6 +298,11 @@ bool fin_sleep(t_interfaz *interfaz)
     else
     {
         desbloquear_proceso_io(interfaz);
+        if (!list_is_empty(interfaz->cola_procesos_esperando->elements))
+        {
+            t_sleep *sleep = queue_pop(interfaz->cola_procesos_esperando);
+            enviar_sleep(interfaz->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
+        }
         return true;
     }
 }
@@ -318,6 +324,11 @@ bool fin_io_read(t_interfaz *interfaz)
     else
     {
         desbloquear_proceso_io(interfaz);
+        if (!list_is_empty(interfaz->cola_procesos_esperando->elements))
+        {
+            t_io_std *io_stdin_read = queue_pop(interfaz->cola_procesos_esperando);
+            enviar_io_stdin_read(interfaz->socket, io_stdin_read);
+        }
         return true;
     }
 }
@@ -339,6 +350,11 @@ bool fin_io_write(t_interfaz *interfaz)
     else
     {
         desbloquear_proceso_io(interfaz);
+        if (!list_is_empty(interfaz->cola_procesos_esperando->elements))
+        {
+            t_io_std *io_stdout_write = queue_pop(interfaz->cola_procesos_esperando);
+            enviar_io_stdout_write(interfaz->socket, io_stdout_write);
+        }
         return true;
     }
 }
@@ -361,6 +377,69 @@ bool fin_io_fs(t_interfaz *interfaz)
     else
     {
         desbloquear_proceso_io(interfaz);
+        if (!list_is_empty(interfaz->cola_procesos_esperando->elements))
+        {
+            t_io_fs_comodin *comodin = queue_pop(interfaz->cola_procesos_esperando);
+            switch(comodin->operacion)
+            {
+            case CREATE:
+                t_io_fs_archivo *io_fs_create = malloc(sizeof(t_io_fs_archivo));
+                io_fs_create->pcb = comodin->pcb;
+                io_fs_create->nombre_interfaz = comodin->nombre_interfaz;
+                io_fs_create->tamanio_nombre_interfaz = comodin->tamanio_nombre_interfaz;
+                io_fs_create->nombre_archivo = comodin->nombre_archivo;
+                io_fs_create->tamanio_nombre_archivo = comodin->tamanio_nombre_archivo;
+                enviar_io_fs_create(interfaz->socket, io_fs_create);
+                break;
+            case DELETE:
+                t_io_fs_archivo *io_fs_delete = malloc(sizeof(t_io_fs_archivo));
+                io_fs_delete->pcb = comodin->pcb;
+                io_fs_delete->nombre_interfaz = comodin->nombre_interfaz;
+                io_fs_delete->tamanio_nombre_interfaz = comodin->tamanio_nombre_interfaz;
+                io_fs_delete->nombre_archivo = comodin->nombre_archivo;
+                io_fs_delete->tamanio_nombre_archivo = comodin->tamanio_nombre_archivo;
+                enviar_io_fs_delete(interfaz->socket, io_fs_delete);
+                break;
+            case TRUNCATE:
+                t_io_fs_truncate *io_fs_truncate = malloc(sizeof(t_io_fs_truncate));
+                io_fs_truncate->pcb = comodin->pcb;
+                io_fs_truncate->nombre_interfaz = comodin->nombre_interfaz;
+                io_fs_truncate->tamanio_nombre_interfaz = comodin->tamanio_nombre_interfaz;
+                io_fs_truncate->nombre_archivo = comodin->nombre_archivo;
+                io_fs_truncate->tamanio_nombre_archivo = comodin->tamanio_nombre_archivo;
+                io_fs_truncate->nuevo_tamanio = comodin->tamanio;
+                enviar_io_fs_truncate(interfaz->socket, io_fs_truncate);
+                break;
+            case WRITE:
+                t_io_fs_rw *io_fs_write = malloc(sizeof(t_io_fs_rw));
+                io_fs_write->pcb = comodin->pcb;
+                io_fs_write->nombre_interfaz = comodin->nombre_interfaz;
+                io_fs_write->tamanio_nombre_interfaz = comodin->tamanio_nombre_interfaz;
+                io_fs_write->nombre_archivo = comodin->nombre_archivo;
+                io_fs_write->tamanio_nombre_archivo = comodin->tamanio_nombre_archivo;
+                io_fs_write->tamanio = comodin->tamanio;
+                io_fs_write->puntero_archivo = comodin->puntero_archivo;
+                io_fs_write->direcciones_fisicas = comodin->direcciones_fisicas;
+                enviar_io_fs_write(interfaz->socket, io_fs_write);
+                break;
+            case READ:
+                t_io_fs_rw *io_fs_read = malloc(sizeof(t_io_fs_rw));
+                io_fs_read->pcb = comodin->pcb;
+                io_fs_read->nombre_interfaz = comodin->nombre_interfaz;
+                io_fs_read->tamanio_nombre_interfaz = comodin->tamanio_nombre_interfaz;
+                io_fs_read->nombre_archivo = comodin->nombre_archivo;
+                io_fs_read->tamanio_nombre_archivo = comodin->tamanio_nombre_archivo;
+                io_fs_read->tamanio = comodin->tamanio;
+                io_fs_read->puntero_archivo = comodin->puntero_archivo;
+                io_fs_read->direcciones_fisicas = comodin->direcciones_fisicas;
+                enviar_io_fs_read(interfaz->socket, io_fs_read);
+                break;
+            default:
+                log_error(logger, "Hay un proceso esperando para usar la interfaz, pero no se sabe qué operación necesita");
+                break;
+            }
+            free(comodin);
+        }
         return true;
     }
 }
@@ -393,7 +472,10 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
             }
 
             sem_post(&sem_proceso_ready);
-            interfaz->ocupada = false;
+            if (list_is_empty(interfaz->cola_procesos_esperando->elements))
+            {
+                interfaz->ocupada = false;
+            }
         }
     }
 }
@@ -891,7 +973,8 @@ void esperar_cpu()
             }
             else
             {
-                log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+                queue_push(interfaz_sleep->cola_procesos_esperando, sleep);
+                log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
             }
         }
 
@@ -1194,7 +1277,8 @@ void pedido_io_stdin_read()
         }
         else
         {
-            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+            queue_push(interfaz_stdin_read->cola_procesos_esperando, io_stdin_read);
+            log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
         }
     }
 
@@ -1249,7 +1333,8 @@ void pedido_io_stdout_write() {
         }
         else
         {
-            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+            queue_push(interfaz_stdout_write->cola_procesos_esperando, io_stdout_write);
+            log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
         }
     }
 
@@ -1302,7 +1387,19 @@ void pedido_io_fs_create() {
             enviar_io_fs_create(interfaz_fs_create->socket, io_fs_create);
             interfaz_fs_create->ocupada = true;
         } else {
-            log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+            t_io_fs_comodin *comodin = malloc(sizeof(t_io_fs_comodin));
+            comodin->operacion = CREATE;
+            comodin->pcb = io_fs_create->pcb;
+            comodin->nombre_interfaz = io_fs_create->nombre_interfaz;
+            comodin->tamanio_nombre_interfaz = io_fs_create->tamanio_nombre_interfaz;
+            comodin->nombre_archivo = io_fs_create->nombre_archivo;
+            comodin->tamanio_nombre_archivo = io_fs_create->tamanio_nombre_archivo;
+            comodin->tamanio = 0;
+            comodin->puntero_archivo = 0;
+            comodin->direcciones_fisicas = list_create();
+            free(io_fs_create);
+            queue_push(interfaz_fs_create->cola_procesos_esperando, comodin);
+            log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
         }
     }
 
@@ -1354,7 +1451,19 @@ void pedido_io_fs_delete() {
         enviar_io_fs_delete(interfaz_fs_delete->socket, io_fs_delete);
         interfaz_fs_delete->ocupada = true;
     } else {
-        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        t_io_fs_comodin *comodin = malloc(sizeof(t_io_fs_comodin));
+        comodin->operacion = DELETE;
+        comodin->pcb = io_fs_delete->pcb;
+        comodin->nombre_interfaz = io_fs_delete->nombre_interfaz;
+        comodin->tamanio_nombre_interfaz = io_fs_delete->tamanio_nombre_interfaz;
+        comodin->nombre_archivo = io_fs_delete->nombre_archivo;
+        comodin->tamanio_nombre_archivo = io_fs_delete->tamanio_nombre_archivo;
+        comodin->tamanio = 0;
+        comodin->puntero_archivo = 0;
+        comodin->direcciones_fisicas = list_create();
+        free(io_fs_delete);
+        queue_push(interfaz_fs_delete->cola_procesos_esperando, comodin);
+        log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
     }
 
     // Liberar memoria de la estructura t_io_fs_delete
@@ -1405,7 +1514,19 @@ void pedido_io_fs_truncate() {
         enviar_io_fs_truncate(interfaz_fs_truncate->socket, io_fs_truncate);
         interfaz_fs_truncate->ocupada = true;
     } else {
-        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        t_io_fs_comodin *comodin = malloc(sizeof(t_io_fs_comodin));
+        comodin->operacion = TRUNCATE;
+        comodin->pcb = io_fs_truncate->pcb;
+        comodin->nombre_interfaz = io_fs_truncate->nombre_interfaz;
+        comodin->tamanio_nombre_interfaz = io_fs_truncate->tamanio_nombre_interfaz;
+        comodin->nombre_archivo = io_fs_truncate->nombre_archivo;
+        comodin->tamanio_nombre_archivo = io_fs_truncate->tamanio_nombre_archivo;
+        comodin->tamanio = io_fs_truncate->nuevo_tamanio;
+        comodin->puntero_archivo = 0;
+        comodin->direcciones_fisicas = list_create();
+        free(io_fs_truncate);
+        queue_push(interfaz_fs_truncate->cola_procesos_esperando, comodin);
+        log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
     }
 
     // Liberar memoria de la estructura t_io_fs_truncate
@@ -1456,7 +1577,19 @@ void pedido_io_fs_write() {
         enviar_io_fs_write(interfaz_fs_write->socket, io_fs_write);
         interfaz_fs_write->ocupada = true;
     } else {
-        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        t_io_fs_comodin *comodin = malloc(sizeof(t_io_fs_comodin));
+        comodin->operacion = WRITE;
+        comodin->pcb = io_fs_write->pcb;
+        comodin->nombre_interfaz = io_fs_write->nombre_interfaz;
+        comodin->tamanio_nombre_interfaz = io_fs_write->tamanio_nombre_interfaz;
+        comodin->nombre_archivo = io_fs_write->nombre_archivo;
+        comodin->tamanio_nombre_archivo = io_fs_write->tamanio_nombre_archivo;
+        comodin->tamanio = io_fs_write->tamanio;
+        comodin->puntero_archivo = io_fs_write->puntero_archivo;
+        comodin->direcciones_fisicas = io_fs_write->direcciones_fisicas;
+        free(io_fs_write);
+        queue_push(interfaz_fs_write->cola_procesos_esperando, comodin);
+        log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
     }
 
     // Liberar memoria de la estructura t_io_fs_rw
@@ -1508,7 +1641,19 @@ void pedido_io_fs_read() {
         enviar_io_fs_read(interfaz_fs_read->socket, io_fs_read);
         interfaz_fs_read->ocupada = true;
     } else {
-        log_error(logger, "La interfaz estaba ocupada pero falta implementar el comportamiento"); // TODO
+        t_io_fs_comodin *comodin = malloc(sizeof(t_io_fs_comodin));
+        comodin->operacion = READ;
+        comodin->pcb = io_fs_read->pcb;
+        comodin->nombre_interfaz = io_fs_read->nombre_interfaz;
+        comodin->tamanio_nombre_interfaz = io_fs_read->tamanio_nombre_interfaz;
+        comodin->nombre_archivo = io_fs_read->nombre_archivo;
+        comodin->tamanio_nombre_archivo = io_fs_read->tamanio_nombre_archivo;
+        comodin->tamanio = io_fs_read->tamanio;
+        comodin->puntero_archivo = io_fs_read->puntero_archivo;
+        comodin->direcciones_fisicas = io_fs_read->direcciones_fisicas;
+        free(io_fs_read);
+        queue_push(interfaz_fs_read->cola_procesos_esperando, comodin);
+        log_debug(logger, "La interfaz estaba ocupada y el proceso entró en la cola espera");
     }
 
     // Liberar memoria de la estructura t_io_fs_read
