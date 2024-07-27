@@ -21,6 +21,8 @@ int ultimo_pid;
 char *ip_cpu;
 char *ip_memoria;
 
+char *archivo_configuracion;
+
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 int socket_memoria;
@@ -29,6 +31,8 @@ int numero_de_entradasalida;
 int grado_multiprogramacion_activo;
 int grado_multiprogramacion_max;
 int quantum;
+int quantum_restante;
+bool se_uso_quantum_restante;
 
 t_pcb *pcb_ejecutandose;
 bool proceso_en_ejecucion;
@@ -52,10 +56,12 @@ pthread_t hilo_planificador_largo_plazo;
 pthread_t hilo_planificador_corto_plazo;
 pthread_t hilo_recibir_entradasalida;
 pthread_t hilo_entradasalida[100];
-pthread_t hilo_quantum_vrr;
+// pthread_t hilo_quantum_vrr;
 
 int main(int argc, char *argv[])
 {
+    archivo_configuracion = argv[1];
+
     sem_init(&sem_multiprogramacion, 0, 0);
     sem_init(&mutex_cola_new, 0, 1);
     sem_init(&sem_proceso_ready, 0, 0);
@@ -153,7 +159,7 @@ void crear_logger()
 
 void crear_config()
 {
-    config = config_create("./kernel_fs.config");
+    config = config_create(archivo_configuracion);
     if (config == NULL)
     {
         log_error(logger, "Ocurrió un error al leer el archivo de Configuración del Kernel\n");
@@ -465,6 +471,8 @@ void desbloquear_proceso_io(t_interfaz *interfaz)
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
                 queue_push(cola_prio, pcb);
+                log_info(logger, "PID: %i - Estado Anterior: BLOCK - Estado Actual: READY", pcb_a_desbloquear->pid);
+                mostrar_cola_prio();
             }
             else
             {
@@ -548,7 +556,8 @@ void crear_pcb(char *path)
     ultimo_pid++;
     // Termino de completar el PCB
     pcb->cpu_registers = registros;
-    pcb->quantum = 0;
+    int quantum_del_config = config_get_int_value(config, "QUANTUM");
+    pcb->quantum = quantum_del_config;
     pcb->estado = NEW;
 
     // Informar a la memoria
@@ -645,6 +654,17 @@ void encontrar_y_eliminar_proceso(int pid_a_eliminar)
             return;
         }
     }
+    for (int i = 0; i < list_size(cola_prio->elements); i++)
+    {
+        t_pcb *pcb = (t_pcb *)list_get(cola_prio->elements, i);
+        if (pcb->pid == pid_a_eliminar)
+        {
+            list_remove(cola_prio->elements, i);
+            eliminar_proceso(pcb);
+            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", pid_a_eliminar);
+            return;
+        }
+    }
 
     // Buscamos en la lista de BLOCK
     for (int i = 0; i < list_size(lista_bloqueados); i++)
@@ -716,12 +736,11 @@ void *planificador_largo_plazo()
 // Planificador corto plazo
 void *planificador_corto_plazo()
 {
-    pthread_t hilo_quantum_block;
     quantum = config_get_int_value(config, "QUANTUM");
-    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-    {
-        pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, NULL);
-    }
+    // if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    // {
+    //     pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, NULL);
+    // }
     
     while (1)
     {
@@ -820,65 +839,122 @@ void planificar_round_robin()
 
 void planificar_vrr()
 {
+    // sem_wait(&sem_round_robin);
+
+    // if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
+    // {
+    //     t_pcb *proceso_a_ejecutar;
+    //     // Obtener el proceso listo para ejecutarse de la cola
+        
+    //     if (!queue_is_empty(cola_prio))
+    //     {
+    //         log_trace(logger, "Entro cola prio");
+    //         proceso_a_ejecutar = queue_pop(cola_prio);
+    //     }
+    //     else if (!queue_is_empty(cola_ready))
+    //     {
+    //         log_trace(logger, "Entro cola ready");
+    //         proceso_a_ejecutar = queue_pop(cola_ready);
+    //     }
+    
+    // // sem_mutex_interrupt
+    // // sem_wait(sem_mutex_interrupt);
+    // //enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
+    // //esperar_cpu();
+    // // sem_post(sem_mutex_interrupt);
+    // //  Cambiar el estado del proceso a EXEC
+
+    // proceso_a_ejecutar->estado = EXEC;
+
+    // enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+    // log_info(logger, "PID: %i - Estado Anterior: READY - Estado Actual: EXEC", proceso_a_ejecutar->pid);
+    // log_trace(logger, "Envio PCB");
+    // cron_quant_vrr = temporal_create();
+    // pcb_ejecutandose = proceso_a_ejecutar;
+    // free(proceso_a_ejecutar);
+    // free(proceso_a_ejecutar->cpu_registers);
+    // proceso_en_ejecucion = true;
+    // pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
+    // pthread_detach(hilo_quantum_vrr);
+    // esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
+
+    // log_trace(logger, "Termino ciclo");
+    // }
+
+    pthread_t hilo_quantum_vrr;
+    log_trace(logger, "Inicia ciclo");
     sem_wait(&sem_round_robin);
 
-    if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
+    // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
+    if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
     {
-        t_pcb *proceso_a_ejecutar;
+        //INICIAR_PROCESO PRUEBARR
+        log_trace(logger, "Entro if");
         // Obtener el proceso listo para ejecutarse de la cola
-        
-        if (!queue_is_empty(cola_prio))
+        t_pcb *proceso_a_ejecutar;
+        if (!list_is_empty(cola_prio->elements))
         {
-            log_trace(logger, "Entro cola prio");
             proceso_a_ejecutar = queue_pop(cola_prio);
         }
-        else if (!queue_is_empty(cola_ready))
+        else
         {
-            log_trace(logger, "Entro cola ready");
             proceso_a_ejecutar = queue_pop(cola_ready);
         }
-    
-    // sem_mutex_interrupt
-    // sem_wait(sem_mutex_interrupt);
-    //enviar_interrupcion(socket_cpu_interrupt, pcb_ejecutandose, FIN_DE_QUANTUM);
-    //esperar_cpu();
-    // sem_post(sem_mutex_interrupt);
-    //  Cambiar el estado del proceso a EXEC
+        //log_trace(logger, "FALLO ENVIAR INT");
+        // wait(sem_mutex_interrupt)
+        
+        // sem_post(sem_mutex_interrupt)
+        
+        // Cambiar el estado del proceso a EXEC
+        proceso_a_ejecutar->estado = EXEC;
 
-    proceso_a_ejecutar->estado = EXEC;
-
-    enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
-    log_info(logger, "PID: %i - Estado Anterior: READY - Estado Actual: EXEC", proceso_a_ejecutar->pid);
-    log_trace(logger, "Envio PCB");
-    cron_quant_vrr = temporal_create();
-    pcb_ejecutandose = proceso_a_ejecutar;
-    free(proceso_a_ejecutar);
-    free(proceso_a_ejecutar->cpu_registers);
-    proceso_en_ejecucion = true;
-    pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
-    pthread_detach(hilo_quantum_vrr);
-    esperar_cpu(); //Cambie de lugar la interrupcion al hilo de quantum, deje comentado lo que estaba antes
-
-    log_trace(logger, "Termino ciclo");
+        enviar_pcb(socket_cpu_dispatch, proceso_a_ejecutar);
+        log_info(logger, "PID: %i - Estado Anterior: READY - Estado Actual: EXEC", proceso_a_ejecutar->pid);
+        pcb_ejecutandose = proceso_a_ejecutar;
+        proceso_en_ejecucion = true;
+        log_trace(logger, "PCBenviado");
+        quantum_restante = quantum;
+        se_uso_quantum_restante = false;
+        pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, proceso_a_ejecutar);
+        pthread_detach(hilo_quantum_vrr);
+        
+        esperar_cpu();
+        
+        log_trace(logger, "Termino ciclo");
+        // Si el proceso que envie tiene quantum, voy a chequear cuando tengo que decirle al CPU que corte
+        // Tambien lo podriamos hacer del lado de CPU, pero funcionalmente no estaria OK.
+        // TODO, desalojar de CPU con interrupcion. ¿Ya está hecho?
     }
+    // mutex en la cola de interrupt
 
 }
 
 void quantum_block()
 {
-    while(1)
+    int ticks = quantum / 10;
+    for (int i = 0; i < ticks; i++)
     {
-        sem_wait(&sem_vrr_block);
-        log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
-        sem_wait(&mutex_quantum);
-        pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
-        log_trace(logger, "Emapanda? %d", pcb_ejecutandose->quantum);
-        sem_post(&mutex_quantum);
-        temporal_destroy(cron_quant_vrr);
-        pthread_cancel(hilo_quantum_vrr);
-        //pthread_kill(hilo_quantum_vrr, SIGKILL);
-        sem_post(&sem_round_robin);
+        usleep(10 * 1000);
+        quantum_restante -= 10;
+        if (se_uso_quantum_restante)
+        {
+            break;
+        }
     }
+
+    // while(1)
+    // {
+    //     sem_wait(&sem_vrr_block);
+    //     log_trace(logger, "Tenemos un 3312 (proceso bloqueado)");
+    //     sem_wait(&mutex_quantum);
+    //     pcb_ejecutandose->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
+    //     log_trace(logger, "Emapanda? %d", pcb_ejecutandose->quantum);
+    //     sem_post(&mutex_quantum);
+    //     temporal_destroy(cron_quant_vrr);
+    //     pthread_cancel(hilo_quantum_vrr);
+    //     //pthread_kill(hilo_quantum_vrr, SIGKILL);
+    //     sem_post(&sem_round_robin);
+    // }
 }
 
 // en caso de que muera el proceso, se resetea cron_quant_vrr y se mata a quantumcount y se agrega a queue_prio
@@ -886,6 +962,41 @@ void quantum_block()
 
 void quantum_count(void *proceso_con_quantum)
 {
+    t_pcb *pcb = proceso_con_quantum;
+    if (pcb->quantum == quantum)
+    {
+        pthread_t hilo_quantum_block;
+        pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, NULL);
+        pthread_detach(hilo_quantum_block);
+    }
+
+    if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    {
+        usleep(pcb->quantum * 1000);
+        if(proceso_en_ejecucion)
+        {
+            enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+        }
+        log_trace(logger, "Esperando CPU");
+        
+        sem_post(&sem_round_robin);
+    }
+    else if (strcmp(algoritmo_planificacion, "RR") == 0)
+    {
+        usleep(quantum * 1000);
+        if(proceso_en_ejecucion)
+        {
+            enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+        }
+        log_trace(logger, "Esperando CPU");
+        
+        sem_post(&sem_round_robin);
+    }
+    else
+    {
+        log_error(logger, "No se sabe si es RR o VRR");
+    }
+
     /*
     //propuesta solucion vrr facu/martin
     t_pcb *pcb = proceso_con_quantum;
@@ -908,20 +1019,6 @@ void quantum_count(void *proceso_con_quantum)
     
     sem_post(&sem_round_robin);
     */
-    t_pcb *pcb = proceso_con_quantum;
-    
-    usleep(quantum * 1000);
-    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-    {
-        temporal_destroy(cron_quant_vrr);
-    }
-    if(proceso_en_ejecucion)
-    {
-        enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
-    }
-    log_trace(logger, "Esperando CPU");
-    
-    sem_post(&sem_round_robin);
 }
 
 void esperar_cpu()
@@ -1003,7 +1100,9 @@ void esperar_cpu()
             log_info(logger, "PID: %i - Bloqueado por: %s", sleep->pcb->pid, interfaz_sleep->nombre);
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
-                sem_post(&sem_vrr_block);
+                sleep->pcb->quantum = quantum_restante;
+                se_uso_quantum_restante = true;
+                quantum_restante = quantum;
             }
             // Verficamos si la interfaz está ocupada
             if (!interfaz_sleep->ocupada)
@@ -1025,38 +1124,6 @@ void esperar_cpu()
 
         break;
     case IO_STDIN_READ:
-        // t_io_std *io_stdin_read = recibir_io_std(socket_cpu_dispatch);
-
-        // log_debug(logger, "PID: %i", io_stdin_read->pcb->pid);
-        // log_debug(logger, "program counter: %i", io_stdin_read->pcb->cpu_registers->pc);
-        // log_debug(logger, "quantum: %i", io_stdin_read->pcb->quantum);
-        // log_debug(logger, "estado: %i", io_stdin_read->pcb->estado);
-        // log_debug(logger, "SI: %i", io_stdin_read->pcb->cpu_registers->si);
-        // log_debug(logger, "DI: %i", io_stdin_read->pcb->cpu_registers->di);
-        // log_debug(logger, "AX: %i", io_stdin_read->pcb->cpu_registers->normales[AX]);
-        // log_debug(logger, "BX: %i", io_stdin_read->pcb->cpu_registers->normales[BX]);
-        // log_debug(logger, "CX: %i", io_stdin_read->pcb->cpu_registers->normales[CX]);
-        // log_debug(logger, "DX: %i", io_stdin_read->pcb->cpu_registers->normales[DX]);
-        // log_debug(logger, "EAX: %i", io_stdin_read->pcb->cpu_registers->extendidos[EAX]);
-        // log_debug(logger, "EBX: %i", io_stdin_read->pcb->cpu_registers->extendidos[EBX]);
-        // log_debug(logger, "ECX: %i", io_stdin_read->pcb->cpu_registers->extendidos[ECX]);
-        // log_debug(logger, "EDX: %i", io_stdin_read->pcb->cpu_registers->extendidos[EDX]);
-
-        // log_debug(logger, "Nombre de la interfaz: %s", io_stdin_read->nombre_interfaz);
-        
-        // log_debug(logger, "Tamaño de la interfaz: %i", io_stdin_read->tamanio_nombre_interfaz);
-
-        // log_debug(logger, "Tamaño del contenido: %i", io_stdin_read->tamanio_contenido);
-
-        // t_direccion_y_tamanio *primera_direccion = list_get(io_stdin_read->direcciones_fisicas, 0);
-        // t_direccion_y_tamanio *segunda_direccion = list_get(io_stdin_read->direcciones_fisicas, 1);
-        // t_direccion_y_tamanio *tercera_direccion = list_get(io_stdin_read->direcciones_fisicas, 2);
-
-        // log_debug(logger, "Primera dirección: %i; Tamaño: %i", primera_direccion->direccion, primera_direccion->tamanio);
-        // log_debug(logger, "Segunda dirección: %i; Tamaño: %i", segunda_direccion->direccion, segunda_direccion->tamanio);
-        // log_debug(logger, "Segunda dirección: %i; Tamaño: %i", tercera_direccion->direccion, tercera_direccion->tamanio);
-
-        // while(1);
         pedido_io_stdin_read();
         break;
     case IO_STDOUT_WRITE:
@@ -1076,8 +1143,9 @@ void esperar_cpu()
         if (interrupcion->motivo == FINALIZAR_PROCESO)
         {
             log_debug(logger, "Este motivo es FINALIZAR_PROCESO, entonces se elimina el proceso");
+            int pid_que_va_a_finalizar = interrupcion->pcb->pid;
             eliminar_proceso(interrupcion->pcb);
-            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", interrupcion->pcb->pid);
+            log_info(logger, "Finaliza el proceso %i - Motivo: INTERRUPTED_BY_USER", pid_que_va_a_finalizar);
         }
         if (interrupcion->motivo == FIN_DE_QUANTUM)
         {
@@ -1092,6 +1160,8 @@ void esperar_cpu()
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
                 log_debug(logger, "Este motivo es FIN_DE_QUANTUM con VRR, entonces se agrega al final de la cola el proceso");
+                log_info(logger, "PID: %i - Desalojado por fin de Quantum", interrupcion->pcb->pid);
+                interrupcion->pcb->quantum = quantum;
                 interrupcion->pcb->estado = READY;
                 queue_push(cola_ready, interrupcion->pcb);
                 sem_post(&sem_proceso_ready);
@@ -1309,7 +1379,9 @@ void pedido_io_stdin_read()
 
         if (strcmp(algoritmo_planificacion, "VRR") == 0)
         {
-            sem_post(&sem_vrr_block);
+            io_stdin_read->pcb->quantum = quantum_restante;
+            se_uso_quantum_restante = true;
+            quantum_restante = quantum;
         }
 
         // Verificamos si la interfaz está ocupada
@@ -1368,7 +1440,9 @@ void pedido_io_stdout_write() {
         log_info(logger, "PID: %i - Bloqueado por: %s", io_stdout_write->pcb->pid, interfaz_stdout_write->nombre);
 
         if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-            sem_post(&sem_vrr_block);
+            io_stdout_write->pcb->quantum = quantum_restante;
+            se_uso_quantum_restante = true;
+            quantum_restante = quantum;
         }
 
         // Verificamos si la interfaz está ocupada
@@ -1426,7 +1500,9 @@ void pedido_io_fs_create() {
         log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_create->pcb->pid, interfaz_fs_create->nombre);
 
         if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-            sem_post(&sem_vrr_block);
+            io_fs_create->pcb->quantum = quantum_restante;
+            se_uso_quantum_restante = true;
+            quantum_restante = quantum;
         }
 
         // Verificamos si la interfaz está ocupada
@@ -1494,7 +1570,9 @@ void pedido_io_fs_delete() {
     log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_delete->pcb->pid, interfaz_fs_delete->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-        sem_post(&sem_vrr_block);
+        io_fs_delete->pcb->quantum = quantum_restante;
+        se_uso_quantum_restante = true;
+        quantum_restante = quantum;
     }
 
     // Verificar si la interfaz está ocupada
@@ -1561,7 +1639,9 @@ void pedido_io_fs_truncate() {
     log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_truncate->pcb->pid, interfaz_fs_truncate->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-        sem_post(&sem_vrr_block);
+        io_fs_truncate->pcb->quantum = quantum_restante;
+        se_uso_quantum_restante = true;
+        quantum_restante = quantum;
     }
     
     // Verificar si la interfaz está ocupada
@@ -1628,7 +1708,9 @@ void pedido_io_fs_write() {
     log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_write->pcb->pid, interfaz_fs_write->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-        sem_post(&sem_vrr_block);
+        io_fs_write->pcb->quantum = quantum_restante;
+        se_uso_quantum_restante = true;
+        quantum_restante = quantum;
     }
 
     // Verificamos si la interfaz está ocupada
@@ -1696,7 +1778,9 @@ void pedido_io_fs_read() {
     log_info(logger, "PID: %i - Bloqueado por: %s", io_fs_read->pcb->pid, interfaz_fs_read->nombre);
 
     if (strcmp(algoritmo_planificacion, "VRR") == 0) {
-        sem_post(&sem_vrr_block);
+        io_fs_read->pcb->quantum = quantum_restante;
+        se_uso_quantum_restante = true;
+        quantum_restante = quantum;
     }
 
     // Verificar si la interfaz está ocupada
@@ -1937,11 +2021,33 @@ void mostrar_cola_ready()
     log_info(logger, "Cola Ready: [%s]", pids);
 }
 
+void mostrar_cola_prio()
+{
+    char *pids = string_new();
+    if (list_is_empty(cola_prio->elements))
+    {
+        string_append(&pids, "Vacía");
+    }
+    else
+    {
+        for (int i = 0; i < list_size(cola_prio->elements); i++)
+        {
+            t_pcb *pcb = list_get(cola_prio->elements, i);
+            string_append(&pids, string_itoa(pcb->pid));
+            if (i != list_size(cola_prio->elements) - 1)
+            {
+                string_append(&pids, "|");
+            }
+        }
+    }
+    log_info(logger, "Cola Prioridad: [%s]", pids);
+}
+
 void procesos_por_estado()
 {
     printf("NEW | READY | BLOCKED | EXEC\n");
     
-    if(list_size(cola_new->elements) > list_size(cola_ready->elements))
+    if(list_size(cola_new->elements) > list_size(cola_ready->elements) + list_size(cola_prio->elements))
     {
         if(list_size(cola_new->elements) > list_size(lista_bloqueados))
         {
@@ -1954,9 +2060,9 @@ void procesos_por_estado()
     }
     else
     {
-        if(list_size(cola_ready->elements) > list_size(lista_bloqueados))
+        if(list_size(cola_ready->elements) + list_size(cola_prio->elements) > list_size(lista_bloqueados))
         {
-            listar_procesos(list_size(cola_ready->elements));
+            listar_procesos(list_size(cola_ready->elements) + list_size(cola_prio->elements));
         }
         else
         {
@@ -2019,8 +2125,18 @@ void listar_procesos(int cantidad_filas)
             }
             else
             {
-                strcpy(pid_ready, "   ");
+                if(list_size(cola_prio->elements) > i)
+                {
+                    t_pcb *proceso_ready = list_get(cola_prio->elements, i);
+                    strcpy(pid_ready, string_itoa_hasta_tres_cifras(proceso_ready->pid));
+                }
+                else
+                {
+                    strcpy(pid_ready, "   ");
+                }
             }
+
+            
 
             if(list_size(lista_bloqueados) > i)
             {

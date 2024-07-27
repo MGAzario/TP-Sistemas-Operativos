@@ -41,6 +41,7 @@ void iniciar_planificacion();
 void comprobar_planificacion();
 void modificar_grado_multiprogramacion(int nuevo_valor);
 void mostrar_cola_ready();
+void mostrar_cola_prio();
 void procesos_por_estado();
 void recursos_e_instancias();
 void listar_procesos(int cantidad_filas);

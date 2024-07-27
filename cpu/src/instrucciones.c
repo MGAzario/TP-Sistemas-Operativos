@@ -339,6 +339,8 @@ void execute_copy_string(t_pcb *pcb, int tamanio_texto)
         t_lectura *leido = recibir_lectura(socket_memoria);
         void *texto_parcial = malloc(direccion_fisica->tamanio);
         memcpy(texto_parcial, leido->lectura, leido->tamanio_lectura);
+        char fin_de_cadena = '\0';
+        memcpy(texto_parcial, &(fin_de_cadena), sizeof(char));
         memcpy(texto_completo + desplazamiento, leido->lectura, leido->tamanio_lectura);
         desplazamiento += leido->tamanio_lectura;
         log_info(logger, "PID: %i - Acción: LEER - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, (char *)texto_parcial);
@@ -358,6 +360,8 @@ void execute_copy_string(t_pcb *pcb, int tamanio_texto)
             log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
         }
         recibir_ok(socket_memoria);
+        char fin_de_cadena = '\0';
+        memcpy(texto, &(fin_de_cadena), sizeof(char));
         log_info(logger, "PID: %i - Acción: ESCRIBIR - Dirección Física: %i - Valor: %s", pcb->pid, direccion_fisica->direccion, (char *)texto);
     }
 }

@@ -4,6 +4,7 @@ t_config *config;
 t_log *logger;
 
 char *ip_memoria;
+char *archivo_configuracion;
 int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 int socket_kernel_dispatch;
@@ -25,6 +26,7 @@ pthread_t hilo_interrupciones;
 
 int main(int argc, char *argv[])
 {
+    archivo_configuracion = argv[1];
     // Las creaciones se pasan a funciones para limpiar el main.
     crear_logger();
     crear_config();
@@ -91,7 +93,7 @@ void crear_logger()
 
 void crear_config()
 {
-    config = config_create("./cpu_fs.config");
+    config = config_create(archivo_configuracion);
     if (config == NULL)
     {
         log_error(logger, "Ocurrió un error al leer el archivo de configuración\n");

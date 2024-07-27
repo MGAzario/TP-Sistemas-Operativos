@@ -10,6 +10,8 @@ int socket_kernel;
 int socket_cpu;
 int socket_entradasalida;
 
+char *archivo_configuracion;
+
 pthread_t hilo_cpu;
 pthread_t hilo_kernel;
 pthread_t hilo_entradasalida[100];
@@ -33,6 +35,8 @@ t_list *lista_instrucciones_por_proceso;
 
 int main(int argc, char* argv[])
 {
+    archivo_configuracion = argv[1];
+
     crear_logger();
     crear_config();
 
@@ -85,7 +89,7 @@ void crear_logger(){
 }
 
 void crear_config(){
-    config = config_create("./memoria_fs.config");
+    config = config_create(archivo_configuracion);
     if (config == NULL)
     {
         log_error(logger,"Ocurrió un error al leer el archivo de configuración\n");
