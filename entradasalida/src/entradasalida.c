@@ -27,10 +27,10 @@ t_bitarray *bitmap_de_bloques_libres;
 
 int main(int argc, char *argv[])
 {
-    // nombre = argv[1];
-    // archivo_configuracion = argv[2];
-    nombre = "IO_GEN_SLEEP";
-    archivo_configuracion = "./IO_GEN_SLEEP.config";
+    nombre = argv[1];
+    archivo_configuracion = argv[2];
+    // nombre = "IO_GEN_SLEEP";
+    // archivo_configuracion = "./IO_GEN_SLEEP.config";
     crear_logger();
     create_config();
 
@@ -249,8 +249,9 @@ void crear_interfaz_stdout() {
         log_info(logger, "PID: %i - Operacion: STDOUT_WRITE", io_stdout_write->pcb->pid);
 
         // Leer desde memoria la información solicitada
-        char *texto = string_new();
+        void *texto = malloc(io_stdout_write->tamanio_contenido + 1);
 
+        int desplazamiento = 0;
         for (int i = 0; i < list_size(io_stdout_write->direcciones_fisicas); i++)
         {
             t_direccion_y_tamanio *direccion_fisica = list_get(io_stdout_write->direcciones_fisicas, i);
@@ -262,10 +263,15 @@ void crear_interfaz_stdout() {
                 log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_LEIDA de la Memoria pero recibió otra operación");
             }
             t_lectura *leido = recibir_lectura(socket_memoria);
-            string_n_append_con_strnlen(&texto, leido->lectura, leido->tamanio_lectura);
+            memcpy(texto + desplazamiento, leido->lectura, leido->tamanio_lectura);
+            desplazamiento += leido->tamanio_lectura;
+            free(leido->lectura);
+            free(leido);
         }
+        char fin_de_cadena = '\0';
+        memcpy(texto + desplazamiento, &(fin_de_cadena), sizeof(char));
 
-        printf("%s\n", texto);
+        printf("%s \n", (char *) texto);
 
         // Enviar confirmación de escritura completada al kernel
         enviar_fin_io_write(socket_kernel, io_stdout_write->pcb);

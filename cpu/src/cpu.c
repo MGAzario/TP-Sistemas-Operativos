@@ -91,7 +91,7 @@ void crear_logger()
 
 void crear_config()
 {
-    config = config_create("./cpu_mem.config");
+    config = config_create("./cpu_io.config");
     if (config == NULL)
     {
         log_error(logger, "Ocurrió un error al leer el archivo de configuración\n");
