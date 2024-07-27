@@ -99,6 +99,10 @@ bool ajustar_tamanio(int pid, int tamanio_proceso)
 
     int tamanio_tabla = list_size(tabla_de_paginas_del_proceso->lista_marcos);
     int cantidad_de_marcos_necesaria = tamanio_proceso / tamanio_pagina;
+    if (tamanio_proceso % tamanio_pagina != 0)
+    {
+        cantidad_de_marcos_necesaria++;
+    }
 
     // Si queremos ampliar el tamaño (o la tabla esta vacía):
     if(tamanio_tabla < cantidad_de_marcos_necesaria)
@@ -163,7 +167,8 @@ int buscar_marco_libre()
 
 int obtener_marco(int pagina, int pid)
 {
-    int *marco = list_get(buscar_tabla_de_paginas(pid)->lista_marcos, pagina);
+    t_tabla_de_paginas *tabla = buscar_tabla_de_paginas(pid);
+    int *marco = list_get(tabla->lista_marcos, pagina);
     log_info(logger, "PID: %i - Pagina: %i - Marco: %i", pid, pagina, *marco);
     return *marco;
 }

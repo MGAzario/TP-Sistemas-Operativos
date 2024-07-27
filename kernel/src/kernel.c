@@ -153,7 +153,7 @@ void crear_logger()
 
 void crear_config()
 {
-    config = config_create("./kernel_deadlock.config");
+    config = config_create("./kernel_mem.config");
     if (config == NULL)
     {
         log_error(logger, "Ocurrió un error al leer el archivo de Configuración del Kernel\n");

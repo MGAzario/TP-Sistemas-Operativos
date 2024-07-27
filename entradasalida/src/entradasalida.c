@@ -29,8 +29,8 @@ int main(int argc, char *argv[])
 {
     // nombre = argv[1];
     // archivo_configuracion = argv[2];
-    nombre = "ESPERA";
-    archivo_configuracion = "./ESPERA.config";
+    nombre = "IO_GEN_SLEEP";
+    archivo_configuracion = "./IO_GEN_SLEEP.config";
     crear_logger();
     create_config();
 
