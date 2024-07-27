@@ -8,7 +8,7 @@ t_list *lista_interfaces;
 t_queue *cola_new;
 t_queue *cola_ready;
 t_queue *cola_prio;
-
+t_temporal *cron_quant_vrr;
 t_list *lista_bloqueados;
 
 t_list *lista_recursos;
@@ -29,6 +29,7 @@ int grado_multiprogramacion_max;
 int quantum;
 
 t_pcb *pcb_ejecutandose;
+t_pcb *pcb_quantum;
 bool proceso_en_ejecucion;
 
 char *algoritmo_planificacion;
@@ -44,6 +45,8 @@ sem_t sem_vrr_block;
 sem_t sem_planificacion;
 sem_t mutex_memoria;
 sem_t mutex_quantum;
+sem_t sem_quantum_saved;
+
 
 /*-----------------------------HILOS--------------------------------------------------------------------*/
 pthread_t hilo_planificador_largo_plazo;
@@ -51,6 +54,7 @@ pthread_t hilo_planificador_corto_plazo;
 pthread_t hilo_recibir_entradasalida;
 pthread_t hilo_entradasalida[100];
 pthread_t hilo_quantum_vrr;
+pthread_t hilo_quantum_block;
 
 int main(int argc, char *argv[])
 {
@@ -62,7 +66,8 @@ int main(int argc, char *argv[])
     sem_init(&sem_planificacion, 0, 0);
     sem_init(&mutex_memoria, 0, 1);
     sem_init(&mutex_quantum,0,1);
-
+    sem_init(&sem_quantum_saved,0,0);
+ 
     planificar = false;
 
     crear_logger();
@@ -693,7 +698,7 @@ void planificar_round_robin()
 
 void planificar_vrr()
 {
-    pthread_t hilo_quantum_block;
+    
     sem_wait(&sem_round_robin);
 
     if ((!queue_is_empty(cola_ready)) || (!queue_is_empty(cola_prio)))
@@ -727,7 +732,7 @@ void planificar_vrr()
 
     proceso_en_ejecucion = true;
     
-    pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, pcb_ejecutandose);
+    pthread_create(&hilo_quantum_block, NULL, (void *)quantum_block, NULL);
     pthread_detach(hilo_quantum_block);
     pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, pcb_ejecutandose);
     pthread_detach(hilo_quantum_vrr);
@@ -738,26 +743,30 @@ void planificar_vrr()
 
 }
 
-void quantum_block(void *proceso_con_quantum)
+void quantum_block()
 {
-    t_temporal *cron_quant_vrr;
-    t_pcb* pcb = proceso_con_quantum;
+    
     cron_quant_vrr = temporal_create();
+    log_trace(logger, "empiezo a contar ");
+    
     sem_wait(&sem_vrr_block);
-    //sem_wait(&mutex_quantum);
-    pcb->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
+    
 
-    if(pcb->quantum >= 2750)
+    pcb_quantum->quantum = (int)temporal_gettime(cron_quant_vrr); // agregarlo a todas las io
+
+
+    log_trace(logger, "pcbquantum: %d ", pcb_quantum->quantum);
+    if(pcb_quantum->quantum >= quantum)
     {
-        pcb->quantum = 0;
+        pcb_quantum->quantum = 0;
     }
 
-    log_trace(logger, "Emapanda? %d", pcb->quantum);
     //sem_post(&mutex_quantum);
     temporal_destroy(cron_quant_vrr);
     pthread_cancel(hilo_quantum_vrr);
     //pthread_kill(hilo_quantum_vrr, SIGKILL);
-    sem_post(&sem_round_robin);
+    sem_post(&sem_quantum_saved);
+    
 }
 
 // en caso de que muera el proceso, se resetea cron_quant_vrr y se mata a quantumcount y se agrega a queue_prio
@@ -765,24 +774,29 @@ void quantum_block(void *proceso_con_quantum)
 
 void quantum_count(void *proceso_con_quantum)
 {
-    //propuesta solucion vrr facu/martin
     t_pcb *pcb = proceso_con_quantum;
 
     //sem_wait(&mutex_quantum); 
-    
-    log_trace(logger, "A ver flaco? %d pero emapanda: %d", pcb_ejecutandose->quantum, pcb->quantum);
+     log_trace(logger, "pid = %d", pcb->pid);
+    log_trace(logger, "quantum restante de %d = %d", pcb-> pid,(quantum - pcb->quantum));
     usleep((quantum - pcb->quantum) * 1000);
-    
-    //sem_post(&mutex_quantum);
 
-    if (strcmp(algoritmo_planificacion, "VRR") == 0)
-    {
-        sem_post(&sem_vrr_block);
-    }
+    log_trace(logger, "quantum restante = %d", pcb-> quantum);
+    //sem_post(&mutex_quantum);
+    log_trace(logger, "pid = %d", pcb->pid);
     if(proceso_en_ejecucion)
     {
+        log_trace(logger, "no envie interrupcion");
         enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+        log_trace(logger, "envie interrupcion");
     }
+    log_trace(logger, "sali del if");
+    if (strcmp(algoritmo_planificacion, "VRR") == 0)
+    {
+        sem_post(&hilo_quantum_block);
+        //pthread_cancel(hilo_quantum_block);
+    }
+   
     log_trace(logger, "Esperando CPU");
     
     sem_post(&sem_round_robin);
@@ -876,17 +890,27 @@ void esperar_cpu()
 
         else
         {
-            sleep->pcb->estado = BLOCKED;
-            list_add(lista_bloqueados, sleep->pcb);
+            
             if (strcmp(algoritmo_planificacion, "VRR") == 0)
             {
+                temporal_stop(cron_quant_vrr);
+                pcb_quantum = sleep -> pcb;
                 sem_post(&sem_vrr_block);
+                sem_wait(&sem_quantum_saved);
+                log_trace(logger, "pcb_quantum zona sleep %d" , pcb_quantum->quantum);
+                sleep->pcb->quantum = pcb_quantum->quantum;
+                
             }
             // Verficamos si la interfaz está ocupada
             if (!interfaz_sleep->ocupada)
             {
+                log_trace(logger, "pcb en sleep %d" , sleep->pcb->quantum);
+                sleep->pcb->estado = BLOCKED;
+                list_add(lista_bloqueados, sleep->pcb);
                 enviar_sleep(interfaz_sleep->socket, sleep->pcb, sleep->nombre_interfaz, sleep->unidades_de_trabajo);
                 interfaz_sleep->ocupada = true;
+                
+                sem_post(&sem_round_robin);
             }
             else
             {
@@ -967,6 +991,7 @@ void esperar_cpu()
             {
                 log_debug(logger, "Este motivo es FIN_DE_QUANTUM con VRR, entonces se agrega al final de la cola el proceso");
                 interrupcion->pcb->estado = READY;
+                interrupcion->pcb->quantum = 0;
                 queue_push(cola_ready, interrupcion->pcb);
                 sem_post(&sem_proceso_ready);
             }
