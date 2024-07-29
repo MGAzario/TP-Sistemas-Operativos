@@ -2,6 +2,7 @@
 
 t_config *config;
 t_log *logger;
+t_log_level nivel_del_log;
 
 char *ip_memoria;
 char *archivo_configuracion;
@@ -27,6 +28,15 @@ pthread_t hilo_interrupciones;
 int main(int argc, char *argv[])
 {
     archivo_configuracion = argv[1];
+    if (argc > 2)
+    {
+        nivel_del_log = LOG_LEVEL_TRACE;
+    }
+    else
+    {
+        nivel_del_log = LOG_LEVEL_INFO;
+    }
+
     // Las creaciones se pasan a funciones para limpiar el main.
     crear_logger();
     crear_config();
@@ -82,7 +92,7 @@ int main(int argc, char *argv[])
 
 void crear_logger()
 {
-    logger = log_create("./cpu.log", "LOG_CPU", true, LOG_LEVEL_INFO);
+    logger = log_create("./cpu.log", "LOG_CPU", true, nivel_del_log);
     // Tira error si no se pudo crear
     if (logger == NULL)
     {

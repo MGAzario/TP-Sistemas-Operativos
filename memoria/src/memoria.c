@@ -2,6 +2,7 @@
 
 t_config *config;
 t_log *logger;
+t_log_level nivel_del_log;
 
 char *path_instrucciones;
 
@@ -36,8 +37,17 @@ t_list *lista_instrucciones_por_proceso;
 int main(int argc, char* argv[])
 {
     archivo_configuracion = argv[1];
+    if (argc > 2)
+    {
+        nivel_del_log = LOG_LEVEL_TRACE;
+    }
+    else
+    {
+        nivel_del_log = LOG_LEVEL_INFO;
+    }
 
     crear_logger();
+    
     crear_config();
 
     decir_hola("Memoria");
@@ -81,7 +91,7 @@ int main(int argc, char* argv[])
 }
 
 void crear_logger(){
-    logger = log_create("./memoria.log","LOG_MEMORIA",true,LOG_LEVEL_INFO);
+    logger = log_create("./memoria.log","LOG_MEMORIA", true, nivel_del_log);
     if(logger == NULL){
 		perror("Ocurrió un error al leer el archivo de Log de Memoria");
 		abort();
@@ -139,7 +149,9 @@ void iniciar_servidor_memoria() {
     char *puerto_memoria= config_get_string_value(config, "PUERTO_ESCUCHA");
     socket_memoria = iniciar_servidor(puerto_memoria);
     socket_cpu = esperar_cliente(socket_memoria);
+    log_trace(logger, "Se conectó el CPU");
     socket_kernel = esperar_cliente(socket_memoria);
+    log_trace(logger, "Se conectó el Kernel");
 }
 
 void *interfaz(void *socket)

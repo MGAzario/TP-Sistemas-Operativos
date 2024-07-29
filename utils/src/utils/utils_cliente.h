@@ -8,6 +8,7 @@
 #include<sys/socket.h>
 #include<netdb.h>
 #include<string.h>
+#include<errno.h>
 #include<commons/log.h>
 #include<commons/config.h>
 #include<commons/string.h>

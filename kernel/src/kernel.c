@@ -4,6 +4,7 @@
 
 t_config *config;
 t_log *logger;
+t_log_level nivel_del_log;
 t_list *lista_interfaces;
 t_queue *cola_new;
 t_queue *cola_ready;
@@ -61,6 +62,14 @@ pthread_t hilo_entradasalida[100];
 int main(int argc, char *argv[])
 {
     archivo_configuracion = argv[1];
+    if (argc > 2)
+    {
+        nivel_del_log = LOG_LEVEL_TRACE;
+    }
+    else
+    {
+        nivel_del_log = LOG_LEVEL_INFO;
+    }
 
     sem_init(&sem_multiprogramacion, 0, 0);
     sem_init(&mutex_cola_new, 0, 1);
@@ -149,7 +158,7 @@ int main(int argc, char *argv[])
 
 void crear_logger()
 {
-    logger = log_create("./kernel.log", "LOG_KERNEL", true, LOG_LEVEL_INFO);
+    logger = log_create("./kernel.log", "LOG_KERNEL", true, nivel_del_log);
     if (logger == NULL)
     {
         perror("Ocurrió un error al leer el archivo de Log de Kernel");

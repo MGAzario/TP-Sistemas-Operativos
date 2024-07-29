@@ -3,6 +3,9 @@
 int iniciar_servidor(char *puerto)
 {
 	int socket_servidor;
+	int error_bind;
+	int error_listen;
+	int error_getaddrinfo;
 
 	struct addrinfo hints, *servinfo;
 
@@ -11,21 +14,41 @@ int iniciar_servidor(char *puerto)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	getaddrinfo(NULL, puerto, &hints, &servinfo);
+	error_getaddrinfo = getaddrinfo(NULL, puerto, &hints, &servinfo);
+	if (error_getaddrinfo == -1)
+	{
+		log_error(logger, "%s (error en el getaddrinfo)", strerror(errno));
+		abort();
+	}
 
 	// Creamos el socket de escucha del servidor
 	socket_servidor = socket(servinfo->ai_family,
 							 servinfo->ai_socktype,
 							 servinfo->ai_protocol);
+	if (socket_servidor == -1)
+	{
+		log_error(logger, "%s (error al crear el socket)", strerror(errno));
+		abort();
+	}
 
 	/* Esto está para que se pueda  reutilizar el puerto. Si esto no está solo se conecta una vez
 	y luego no puede conectarse una segunda vez*/
 	const int cosa = 1;
 	setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &cosa, sizeof(int));
 	// Asociamos el socket a un puerto
-	bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
+	error_bind = bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
+	if (error_bind == -1)
+	{
+		log_error(logger, "%s (error en el bind)", strerror(errno));
+		abort();
+	}
 	// Escuchamos las conexiones entrantes
-	listen(socket_servidor, SOMAXCONN);
+	error_listen = listen(socket_servidor, SOMAXCONN);
+	if (error_listen == -1)
+	{
+		log_error(logger, "%s (error en el listen)", strerror(errno));
+		abort();
+	}
 
 	freeaddrinfo(servinfo);
 	log_trace(logger, "Listo para escuchar a mi cliente");
@@ -37,7 +60,12 @@ int esperar_cliente(int socket_servidor)
 {
 	// Aceptamos un nuevo cliente
 	int socket_cliente = accept(socket_servidor, NULL, NULL);
-	log_trace(logger, "Se conecto un cliente!");
+	if (socket_cliente == -1)
+    {
+        log_error(logger, "%s (error al aceptar un cliente)", strerror(errno));
+        abort();
+    }
+	log_trace(logger, "Se conecto un cliente, su socket es %i", socket_cliente);
 
 	return socket_cliente;
 }

@@ -17,6 +17,7 @@
 
 extern t_config *config;
 extern t_log *logger;
+extern t_log_level nivel_del_log;
 
 extern char *ip_memoria;
 extern int socket_cpu_dispatch;
