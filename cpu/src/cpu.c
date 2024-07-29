@@ -43,11 +43,11 @@ int main(int argc, char *argv[])
 
     decir_hola("CPU");
 
-    iniciar_servidores();
-    
     // Establecer conexión con el módulo Memoria
     conectar_memoria();
-
+    
+    iniciar_servidores();
+    
     // Se inicializan variables globales
     tamanio_pagina = -1;
     continuar_ciclo = 1;
