@@ -162,6 +162,7 @@ void crear_interfaz_generica()
 
         enviar_fin_sleep(socket_kernel, sleep->pcb);
 
+        free(sleep->nombre_interfaz);
         free(sleep->pcb->cpu_registers);
         free(sleep->pcb);
         free(sleep);
@@ -218,6 +219,7 @@ void crear_interfaz_stdin()
                 log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
             }
             recibir_ok(socket_memoria);
+            free(texto);
         }
 
         // Enviar confirmación de lectura completada al kernel
@@ -229,6 +231,7 @@ void crear_interfaz_stdin()
         free(io_stdin_read->pcb->cpu_registers);
         free(io_stdin_read->pcb);
         free(io_stdin_read);
+        free(linea);
     }
 }
 
@@ -292,6 +295,7 @@ void crear_interfaz_stdout() {
         free(io_stdout_write->pcb->cpu_registers);
         free(io_stdout_write->pcb);
         free(io_stdout_write);
+        free(texto);
     }
 }
 
@@ -502,6 +506,7 @@ void manejar_io_fs_create()
 
     //  Liberar memoria
     free(solicitud->nombre_interfaz);
+    //free(solicitud->nombre_archivo); //Nuevo free 
     free(solicitud->pcb->cpu_registers);
     free(solicitud->pcb);
     free(solicitud);
@@ -554,7 +559,7 @@ void manejar_io_fs_delete()
     // Liberar estructura de solicitud después de su uso
     free(metadata_archivo);
     free(io_fs_delete->nombre_interfaz);
-    // free(io_fs_delete->nombre_archivo);
+    //free(io_fs_delete->nombre_archivo); //Nuevo free
     free(io_fs_delete->pcb->cpu_registers);
     free(io_fs_delete->pcb);
     free(io_fs_delete);
@@ -597,6 +602,7 @@ void manejar_io_fs_truncate()
         config_save(metadata);
         config_destroy(metadata);
         metadata_archivo->tamanio_archivo = nuevo_tamanio;
+        //free(string_itoa(nuevo_tamanio));
     }
 
     enviar_fin_io_fs(socket_kernel, io_fs_truncate->pcb);
@@ -604,7 +610,7 @@ void manejar_io_fs_truncate()
     // Liberar recursos
     free(metadata_archivo);
     free(io_fs_truncate->nombre_interfaz);
-    // free(io_fs_truncate->nombre_archivo);
+    //free(io_fs_truncate->nombre_archivo); //Nuevo free
     free(io_fs_truncate->pcb->cpu_registers);
     free(io_fs_truncate->pcb);
     free(io_fs_truncate);
@@ -647,6 +653,7 @@ void manejar_io_fs_write()
     enviar_fin_io_fs(socket_kernel, io_fs_write->pcb);
 
     // Liberar recursos
+    free(valor); //Nuevo free
     free(io_fs_write->nombre_interfaz);
     free(io_fs_write->nombre_archivo);
     free(io_fs_write->pcb->cpu_registers);
@@ -697,6 +704,7 @@ void manejar_io_fs_read()
     free(io_fs_read->pcb);
     list_destroy_and_destroy_elements(io_fs_read->direcciones_fisicas, destruir_direccion);
     free(io_fs_read);
+    free(valor); //Nuevo free
 }
 
 void actualizar_estructura_bloques(int bloque_inicial, int tamanio_actual, int nuevo_tamanio, int pid, char *archivo_nombre)
@@ -998,12 +1006,13 @@ void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, voi
     string_append(&archivo_path, "/");
     string_append(&archivo_path, nombre_archivo);
     t_config *metadata = config_create(archivo_path);
-    config_set_value(metadata, "BLOQUE_INICIAL", string_itoa(bloque_inicial));
+    config_set_value(metadata, "BLOQUE_INICIAL",string_itoa(bloque_inicial));
     config_save(metadata);
     config_destroy(metadata);
     free(archivo_path);
 
     list_replace(lista_archivos_por_bloque_inicial, bloque_inicial, nombre_archivo);
+    //free(string_itoa(bloque_inicial));
 }
 
 void *leer_archivo_compactacion(char *nombre_archivo)
