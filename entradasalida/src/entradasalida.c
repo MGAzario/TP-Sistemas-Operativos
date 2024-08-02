@@ -598,10 +598,12 @@ void manejar_io_fs_truncate()
         string_append(&archivo_path, io_fs_truncate->nombre_archivo);
         t_config *metadata = config_create(archivo_path);
         free(archivo_path);
-        config_set_value(metadata, "TAMANIO_ARCHIVO", string_itoa(nuevo_tamanio));
+        char *nuevo_tamanio_string = string_itoa(nuevo_tamanio);
+        config_set_value(metadata, "TAMANIO_ARCHIVO", nuevo_tamanio_string);
         config_save(metadata);
         config_destroy(metadata);
         metadata_archivo->tamanio_archivo = nuevo_tamanio;
+        free(nuevo_tamanio_string);
     }
 
     enviar_fin_io_fs(socket_kernel, io_fs_truncate->pcb);
@@ -1004,13 +1006,15 @@ void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, voi
     string_append(&archivo_path, "/");
     string_append(&archivo_path, nombre_archivo);
     t_config *metadata = config_create(archivo_path);
-    config_set_value(metadata, "BLOQUE_INICIAL", string_itoa(bloque_inicial));
+    char* bloque_inicial_string = string_itoa(bloque_inicial);
+    config_set_value(metadata, "BLOQUE_INICIAL",bloque_inicial_string);
     config_save(metadata);
     config_destroy(metadata);
     free(archivo_path);
 
     list_replace(lista_archivos_por_bloque_inicial, bloque_inicial, nombre_archivo);
     free(metadata_archivo); // Nuevo free
+    free(bloque_inicial_string);
 }
 
 void *leer_archivo_compactacion(char *nombre_archivo)
