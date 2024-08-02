@@ -219,6 +219,7 @@ void crear_interfaz_stdin()
                 log_error(logger, "La interfaz esperaba recibir una operación MEMORIA_ESCRITA de la Memoria pero recibió otra operación");
             }
             recibir_ok(socket_memoria);
+            free(texto);
         }
 
         // Enviar confirmación de lectura completada al kernel
@@ -231,7 +232,6 @@ void crear_interfaz_stdin()
         free(io_stdin_read->pcb);
         free(io_stdin_read);
         free(linea);
-        free(texto);
     }
 }
 
