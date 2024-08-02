@@ -559,7 +559,7 @@ void manejar_io_fs_delete()
     // Liberar estructura de solicitud después de su uso
     free(metadata_archivo);
     free(io_fs_delete->nombre_interfaz);
-    // free(io_fs_delete->nombre_archivo);
+    free(io_fs_delete->nombre_archivo); //Nuevo free
     free(io_fs_delete->pcb->cpu_registers);
     free(io_fs_delete->pcb);
     free(io_fs_delete);
@@ -704,6 +704,7 @@ void manejar_io_fs_read()
     free(io_fs_read->pcb);
     list_destroy_and_destroy_elements(io_fs_read->direcciones_fisicas, destruir_direccion);
     free(io_fs_read);
+    free(valor); //Nuevo free
 }
 
 void actualizar_estructura_bloques(int bloque_inicial, int tamanio_actual, int nuevo_tamanio, int pid, char *archivo_nombre)
