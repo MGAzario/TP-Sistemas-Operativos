@@ -506,6 +506,7 @@ void manejar_io_fs_create()
 
     //  Liberar memoria
     free(solicitud->nombre_interfaz);
+    free(solicitud->nombre_archivo); //Nuevo free 
     free(solicitud->pcb->cpu_registers);
     free(solicitud->pcb);
     free(solicitud);
@@ -608,7 +609,7 @@ void manejar_io_fs_truncate()
     // Liberar recursos
     free(metadata_archivo);
     free(io_fs_truncate->nombre_interfaz);
-    // free(io_fs_truncate->nombre_archivo);
+    free(io_fs_truncate->nombre_archivo); //Nuevo free
     free(io_fs_truncate->pcb->cpu_registers);
     free(io_fs_truncate->pcb);
     free(io_fs_truncate);
@@ -651,6 +652,7 @@ void manejar_io_fs_write()
     enviar_fin_io_fs(socket_kernel, io_fs_write->pcb);
 
     // Liberar recursos
+    free(valor); //Nuevo free
     free(io_fs_write->nombre_interfaz);
     free(io_fs_write->nombre_archivo);
     free(io_fs_write->pcb->cpu_registers);
@@ -1008,6 +1010,7 @@ void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, voi
     free(archivo_path);
 
     list_replace(lista_archivos_por_bloque_inicial, bloque_inicial, nombre_archivo);
+    free(metadata_archivo); // Nuevo free
 }
 
 void *leer_archivo_compactacion(char *nombre_archivo)
