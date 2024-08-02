@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
     // Establecer conexión con el módulo Memoria
     conectar_memoria();
-    
+
     iniciar_servidores();
     
     // Se inicializan variables globales
@@ -482,7 +482,7 @@ void decode(t_pcb *pcb, char *instruccion)
         // Llamar a la función de ejecución para IO_FS_READ
         execute_io_fs_read(pcb, nombre_interfaz, nombre_archivo, direcciones_fisicas, tamanio, puntero_archivo);
     }
-    else if (strcmp("EXIT", operacion) == 0)
+    else if (strcmp("EXIT", operacion) == 0 || strcmp("E", operacion) == 0) // Explicación de la comparación con "E" en leer_archivo_pseudocodigo()
     {
         pcb->cpu_registers->pc++;
         execute_exit(pcb);

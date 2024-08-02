@@ -127,133 +127,185 @@ void execute_mov_out(t_pcb *pcb, t_list *direcciones, char *registro_datos)
 void execute_sum(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
     log_info(logger, "PID: %i - Ejecutando: SUM - %s %s", pcb->pid, registro_destino, registro_origen);
-    uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
-    uint8_t *puntero_destino_normales = NULL, *puntero_origen_normales = NULL;
+    escribir_registro(pcb, registro_destino, leer_registro(pcb, registro_destino) + leer_registro(pcb, registro_origen));
 
-    // Asignar puntero de destino
-    if (strcmp(registro_destino, "AX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[0];
-    } else if (strcmp(registro_destino, "BX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[1];
-    } else if (strcmp(registro_destino, "CX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[2];
-    } else if (strcmp(registro_destino, "DX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[3];
-    } else if (strcmp(registro_destino, "EAX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[0];
-    } else if (strcmp(registro_destino, "EBX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[1];
-    } else if (strcmp(registro_destino, "ECX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[2];
-    } else if (strcmp(registro_destino, "EDX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[3];
-    } else if (strcmp(registro_destino, "SI") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->si;
-    } else if (strcmp(registro_destino, "DI") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->di;
-    } else if (strcmp(registro_destino, "PC") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->pc;
-    }
+    // uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
+    // uint8_t *puntero_destino_normales = NULL, *puntero_origen_normales = NULL;
 
-    // Asignar puntero de origen
-    if (strcmp(registro_origen, "AX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[0];
-    } else if (strcmp(registro_origen, "BX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[1];
-    } else if (strcmp(registro_origen, "CX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[2];
-    } else if (strcmp(registro_origen, "DX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[3];
-    } else if (strcmp(registro_origen, "EAX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[0];
-    } else if (strcmp(registro_origen, "EBX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[1];
-    } else if (strcmp(registro_origen, "ECX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[2];
-    } else if (strcmp(registro_origen, "EDX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[3];
-    } else if (strcmp(registro_origen, "SI") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->si;
-    } else if (strcmp(registro_origen, "DI") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->di;
-    } else if (strcmp(registro_origen, "PC") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->pc;
-    }
+    // // Asignar puntero de destino
+    // if (strcmp(registro_destino, "AX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[0];
+    //     log_trace(logger, "El registro destino es AX");
+    // } else if (strcmp(registro_destino, "BX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[1];
+    //     log_trace(logger, "El registro destino es BX");
+    // } else if (strcmp(registro_destino, "CX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[2];
+    //     log_trace(logger, "El registro destino es CX");
+    // } else if (strcmp(registro_destino, "DX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[3];
+    //     log_trace(logger, "El registro destino es DX");
+    // } else if (strcmp(registro_destino, "EAX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[0];
+    //     log_trace(logger, "El registro destino es EAX");
+    // } else if (strcmp(registro_destino, "EBX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[1];
+    //     log_trace(logger, "El registro destino es EBX");
+    // } else if (strcmp(registro_destino, "ECX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[2];
+    //     log_trace(logger, "El registro destino es ECX");
+    // } else if (strcmp(registro_destino, "EDX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[3];
+    //     log_trace(logger, "El registro destino es EDX");
+    // } else if (strcmp(registro_destino, "SI") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->si;
+    //     log_trace(logger, "El registro destino es SI");
+    // } else if (strcmp(registro_destino, "DI") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->di;
+    //     log_trace(logger, "El registro destino es DI");
+    // } else if (strcmp(registro_destino, "PC") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->pc;
+    //     log_trace(logger, "El registro destino es PC");
+    // }
 
-    // Realizar la suma
-    if (puntero_destino_normales != NULL && puntero_origen_normales != NULL) {
-        *puntero_destino_normales += *puntero_origen_normales;
-    } else if (puntero_destino_extendidos != NULL && puntero_origen_extendidos != NULL) {
-        *puntero_destino_extendidos += *puntero_origen_extendidos;
-    } else {
-        log_error(logger, "Registros desconocidos en SUM: %s, %s", registro_destino, registro_origen);
-    }
+    // // Asignar puntero de origen
+    // if (strcmp(registro_origen, "AX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[0];
+    //     log_trace(logger, "El registro origen es AX");
+    // } else if (strcmp(registro_origen, "BX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[1];
+    //     log_trace(logger, "El registro origen es BX");
+    // } else if (strcmp(registro_origen, "CX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[2];
+    //     log_trace(logger, "El registro origen es CX");
+    // } else if (strcmp(registro_origen, "DX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[3];
+    //     log_trace(logger, "El registro origen es DX");
+    // } else if (strcmp(registro_origen, "EAX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[0];
+    //     log_trace(logger, "El registro origen es EAX");
+    // } else if (strcmp(registro_origen, "EBX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[1];
+    //     log_trace(logger, "El registro origen es EBX");
+    // } else if (strcmp(registro_origen, "ECX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[2];
+    //     log_trace(logger, "El registro origen es ECX");
+    // } else if (strcmp(registro_origen, "EDX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[3];
+    //     log_trace(logger, "El registro origen es EDX");
+    // } else if (strcmp(registro_origen, "SI") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->si;
+    //     log_trace(logger, "El registro origen es SI");
+    // } else if (strcmp(registro_origen, "DI") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->di;
+    //     log_trace(logger, "El registro origen es DI");
+    // } else if (strcmp(registro_origen, "PC") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->pc;
+    //     log_trace(logger, "El registro origen es PC");
+    // }
+
+    // // Realizar la suma
+    // if (puntero_destino_normales != NULL && puntero_origen_normales != NULL) {
+    //     *puntero_destino_normales += *puntero_origen_normales;
+    // } else if (puntero_destino_extendidos != NULL && puntero_origen_extendidos != NULL) {
+    //     *puntero_destino_extendidos += *puntero_origen_extendidos;
+    // } else if (puntero_destino_extendidos != NULL && puntero_origen_normales != NULL) {
+    //     *puntero_destino_extendidos -= (uint32_t)*puntero_origen_normales;
+    // } else {
+    //     log_error(logger, "Registros desconocidos en SUM: %s, %s", registro_destino, registro_origen);
+    // }
 }
 
 void execute_sub(t_pcb *pcb, char *registro_destino, char *registro_origen)
 {
     log_info(logger, "PID: %i - Ejecutando: SUB - %s %s", pcb->pid, registro_destino, registro_origen);
-    uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
-    uint8_t *puntero_destino_normales = NULL, *puntero_origen_normales = NULL;
+    escribir_registro(pcb, registro_destino, leer_registro(pcb, registro_destino) - leer_registro(pcb, registro_origen));
 
-    // Asignar puntero de destino
-    if (strcmp(registro_destino, "AX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[0];
-    } else if (strcmp(registro_destino, "BX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[1];
-    } else if (strcmp(registro_destino, "CX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[2];
-    } else if (strcmp(registro_destino, "DX") == 0) {
-        puntero_destino_normales = &pcb->cpu_registers->normales[3];
-    } else if (strcmp(registro_destino, "EAX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[0];
-    } else if (strcmp(registro_destino, "EBX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[1];
-    } else if (strcmp(registro_destino, "ECX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[2];
-    } else if (strcmp(registro_destino, "EDX") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->extendidos[3];
-    } else if (strcmp(registro_destino, "SI") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->si;
-    } else if (strcmp(registro_destino, "DI") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->di;
-    } else if (strcmp(registro_destino, "PC") == 0) {
-        puntero_destino_extendidos = &pcb->cpu_registers->pc;
-    }
+    // uint32_t *puntero_destino_extendidos = NULL, *puntero_origen_extendidos = NULL;
+    // uint8_t *puntero_destino_normales = NULL, *puntero_origen_normales = NULL;
 
-    // Asignar puntero de origen
-    if (strcmp(registro_origen, "AX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[0];
-    } else if (strcmp(registro_origen, "BX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[1];
-    } else if (strcmp(registro_origen, "CX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[2];
-    } else if (strcmp(registro_origen, "DX") == 0) {
-        puntero_origen_normales = &pcb->cpu_registers->normales[3];
-    } else if (strcmp(registro_origen, "EAX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[0];
-    } else if (strcmp(registro_origen, "EBX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[1];
-    } else if (strcmp(registro_origen, "ECX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[2];
-    } else if (strcmp(registro_origen, "EDX") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->extendidos[3];
-    } else if (strcmp(registro_origen, "SI") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->si;
-    } else if (strcmp(registro_origen, "DI") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->di;
-    } else if (strcmp(registro_origen, "PC") == 0) {
-        puntero_origen_extendidos = &pcb->cpu_registers->pc;
-    }
+    // // Asignar puntero de destino
+    // if (strcmp(registro_destino, "AX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[0];
+    //     log_trace(logger, "El registro destino es AX");
+    // } else if (strcmp(registro_destino, "BX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[1];
+    //     log_trace(logger, "El registro destino es BX");
+    // } else if (strcmp(registro_destino, "CX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[2];
+    //     log_trace(logger, "El registro destino es CX");
+    // } else if (strcmp(registro_destino, "DX") == 0) {
+    //     puntero_destino_normales = &pcb->cpu_registers->normales[3];
+    //     log_trace(logger, "El registro destino es DX");
+    // } else if (strcmp(registro_destino, "EAX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[0];
+    //     log_trace(logger, "El registro destino es EAX");
+    // } else if (strcmp(registro_destino, "EBX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[1];
+    //     log_trace(logger, "El registro destino es EBX");
+    // } else if (strcmp(registro_destino, "ECX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[2];
+    //     log_trace(logger, "El registro destino es ECX");
+    // } else if (strcmp(registro_destino, "EDX") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->extendidos[3];
+    //     log_trace(logger, "El registro destino es EDX");
+    // } else if (strcmp(registro_destino, "SI") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->si;
+    //     log_trace(logger, "El registro destino es SI");
+    // } else if (strcmp(registro_destino, "DI") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->di;
+    //     log_trace(logger, "El registro destino es DI");
+    // } else if (strcmp(registro_destino, "PC") == 0) {
+    //     puntero_destino_extendidos = &pcb->cpu_registers->pc;
+    //     log_trace(logger, "El registro destino es PC");
+    // }
 
-    // Realizar la resta
-    if (puntero_destino_normales != NULL && puntero_origen_normales != NULL) {
-        *puntero_destino_normales -= *puntero_origen_normales;
-    } else if (puntero_destino_extendidos != NULL && puntero_origen_extendidos != NULL) {
-        *puntero_destino_extendidos -= *puntero_origen_extendidos;
-    } else {
-        log_error(logger, "Registros desconocidos en SUB: %s, %s", registro_destino, registro_origen);
-    }
+    // // Asignar puntero de origen
+    // if (strcmp(registro_origen, "AX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[0];
+    //     log_trace(logger, "El registro origen es AX");
+    // } else if (strcmp(registro_origen, "BX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[1];
+    //     log_trace(logger, "El registro origen es BX");
+    // } else if (strcmp(registro_origen, "CX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[2];
+    //     log_trace(logger, "El registro origen es CX");
+    // } else if (strcmp(registro_origen, "DX") == 0) {
+    //     puntero_origen_normales = &pcb->cpu_registers->normales[3];
+    //     log_trace(logger, "El registro origen es DX");
+    // } else if (strcmp(registro_origen, "EAX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[0];
+    //     log_trace(logger, "El registro origen es EAX");
+    // } else if (strcmp(registro_origen, "EBX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[1];
+    //     log_trace(logger, "El registro origen es EBX");
+    // } else if (strcmp(registro_origen, "ECX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[2];
+    //     log_trace(logger, "El registro origen es ECX");
+    // } else if (strcmp(registro_origen, "EDX") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->extendidos[3];
+    //     log_trace(logger, "El registro origen es EDX");
+    // } else if (strcmp(registro_origen, "SI") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->si;
+    //     log_trace(logger, "El registro origen es SI");
+    // } else if (strcmp(registro_origen, "DI") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->di;
+    //     log_trace(logger, "El registro origen es DI");
+    // } else if (strcmp(registro_origen, "PC") == 0) {
+    //     puntero_origen_extendidos = &pcb->cpu_registers->pc;
+    //     log_trace(logger, "El registro origen es PC");
+    // }
+
+    // // Realizar la resta
+    // if (puntero_destino_normales != NULL && puntero_origen_normales != NULL) {
+    //     *puntero_destino_normales -= *puntero_origen_normales;
+    // } else if (puntero_destino_extendidos != NULL && puntero_origen_extendidos != NULL) {
+    //     *puntero_destino_extendidos -= *puntero_origen_extendidos;
+    // } else if (puntero_destino_extendidos != NULL && puntero_origen_normales != NULL) {
+    // *puntero_destino_extendidos -= (uint32_t)*puntero_origen_normales;
+    // } else {
+    //     log_error(logger, "Registros desconocidos en SUB: %s, %s", registro_destino, registro_origen);
+    // }
 }
 
 void execute_jnz(t_pcb *pcb, char *registro, uint32_t nuevo_program_counter)

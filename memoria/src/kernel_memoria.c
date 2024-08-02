@@ -67,7 +67,11 @@ t_instrucciones_de_proceso* leer_archivo_pseudocodigo(t_creacion_proceso* creaci
 
     while (getline(&linea, &size, archivo) != -1)
     {
-        if (strcmp(linea, "EXIT") == 0)
+        // El "|| strcmp(linea, "E") == 0" está porque el getline se comporta mal si la última linea no tiene newline (\n).
+        // En lugar de leer "EXIT" lee los caracteres por separado: "E", "X", "I",...
+        // La comparación con "E" es solo un workaround para que todo siga funcionando normalmente,
+        // pero lo ideal es agregar un newline (un enter) luego del EXIT en todos los archivos de pseudocódigo.
+        if (strcmp(linea, "EXIT") == 0 || strcmp(linea, "E") == 0)
         {
             int tamanio = strlen(linea) + 1;
 
