@@ -162,6 +162,7 @@ void crear_interfaz_generica()
 
         enviar_fin_sleep(socket_kernel, sleep->pcb);
 
+        free(sleep->nombre_interfaz);
         free(sleep->pcb->cpu_registers);
         free(sleep->pcb);
         free(sleep);
@@ -229,6 +230,7 @@ void crear_interfaz_stdin()
         free(io_stdin_read->pcb->cpu_registers);
         free(io_stdin_read->pcb);
         free(io_stdin_read);
+        free(linea);
     }
 }
 
@@ -292,6 +294,7 @@ void crear_interfaz_stdout() {
         free(io_stdout_write->pcb->cpu_registers);
         free(io_stdout_write->pcb);
         free(io_stdout_write);
+        free(texto);
     }
 }
 
