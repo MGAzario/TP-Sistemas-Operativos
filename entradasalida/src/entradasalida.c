@@ -1012,7 +1012,6 @@ void escribir_archivo_compactacion(char *nombre_archivo, int bloque_inicial, voi
     free(archivo_path);
 
     list_replace(lista_archivos_por_bloque_inicial, bloque_inicial, nombre_archivo);
-    free(metadata_archivo); // Nuevo free
     //free(string_itoa(bloque_inicial));
 }
 
