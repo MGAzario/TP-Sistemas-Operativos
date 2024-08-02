@@ -506,7 +506,7 @@ void manejar_io_fs_create()
 
     //  Liberar memoria
     free(solicitud->nombre_interfaz);
-    free(solicitud->nombre_archivo); //Nuevo free 
+    //free(solicitud->nombre_archivo); //Nuevo free 
     free(solicitud->pcb->cpu_registers);
     free(solicitud->pcb);
     free(solicitud);
@@ -559,7 +559,7 @@ void manejar_io_fs_delete()
     // Liberar estructura de solicitud después de su uso
     free(metadata_archivo);
     free(io_fs_delete->nombre_interfaz);
-    free(io_fs_delete->nombre_archivo); //Nuevo free
+    //free(io_fs_delete->nombre_archivo); //Nuevo free
     free(io_fs_delete->pcb->cpu_registers);
     free(io_fs_delete->pcb);
     free(io_fs_delete);
@@ -610,7 +610,7 @@ void manejar_io_fs_truncate()
     // Liberar recursos
     free(metadata_archivo);
     free(io_fs_truncate->nombre_interfaz);
-    free(io_fs_truncate->nombre_archivo); //Nuevo free
+    //free(io_fs_truncate->nombre_archivo); //Nuevo free
     free(io_fs_truncate->pcb->cpu_registers);
     free(io_fs_truncate->pcb);
     free(io_fs_truncate);
