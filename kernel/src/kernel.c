@@ -892,7 +892,6 @@ void planificar_vrr()
 
     pthread_t hilo_quantum_vrr;
     log_trace(logger, "Inicia ciclo");
-    //sem_wait(&sem_round_robin); Salvation edge
 
     // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
     if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
