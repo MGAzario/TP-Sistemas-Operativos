@@ -231,6 +231,7 @@ void crear_interfaz_stdin()
         free(io_stdin_read->pcb);
         free(io_stdin_read);
         free(linea);
+        free(texto);
     }
 }
 
