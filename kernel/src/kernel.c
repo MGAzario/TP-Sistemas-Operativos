@@ -924,6 +924,7 @@ void planificar_vrr()
         quantum_restante = quantum;
         se_uso_quantum_restante = false;
         pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, proceso_a_ejecutar);
+        log_trace(logger, "PID: %i - Crea hilo", proceso_a_ejecutar->pid);
         pthread_detach(hilo_quantum_vrr);
         
         esperar_cpu();
@@ -983,6 +984,7 @@ void quantum_count(void *proceso_con_quantum)
         usleep(pcb->quantum * 1000);
         if(proceso_en_ejecucion)
         {
+            log_trace(logger, "PID: %i - Crea hilo", pcb->pid);
             enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
         }
         log_trace(logger, "Esperando CPU");
