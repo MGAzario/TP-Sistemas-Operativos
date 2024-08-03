@@ -34,6 +34,7 @@ int grado_multiprogramacion_max;
 int quantum;
 int quantum_restante;
 bool se_uso_quantum_restante;
+bool proceso_eliminado_recientemente;
 
 t_pcb *pcb_ejecutandose;
 bool proceso_en_ejecucion;
@@ -892,6 +893,7 @@ void planificar_vrr()
 
     pthread_t hilo_quantum_vrr;
     log_trace(logger, "Inicia ciclo");
+    //sem_wait(&sem_round_robin); 
 
     // Ahora mismo, hasta que no se termine el quantum, si un proceso finaliza, el siguiente no se ejecuta.
     if (!queue_is_empty(cola_ready) || !queue_is_empty(cola_prio))
@@ -924,7 +926,6 @@ void planificar_vrr()
         quantum_restante = quantum;
         se_uso_quantum_restante = false;
         pthread_create(&hilo_quantum_vrr, NULL, (void *)quantum_count, proceso_a_ejecutar);
-        log_trace(logger, "PID: %i - Crea hilo", proceso_a_ejecutar->pid);
         pthread_detach(hilo_quantum_vrr);
         
         esperar_cpu();
@@ -984,8 +985,14 @@ void quantum_count(void *proceso_con_quantum)
         usleep(pcb->quantum * 1000);
         if(proceso_en_ejecucion)
         {
-            log_trace(logger, "PID: %i - Crea hilo", pcb->pid);
-            enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+            if (!proceso_eliminado_recientemente)
+            {
+                enviar_interrupcion(socket_cpu_interrupt, pcb, FIN_DE_QUANTUM);
+            }
+            else
+            {
+                proceso_eliminado_recientemente = false;
+            }
         }
         log_trace(logger, "Esperando CPU");
         
@@ -1846,8 +1853,8 @@ void desbloquear_proceso(t_pcb *pcb_a_desbloquear)
 void eliminar_proceso(t_pcb *pcb)
 {
     sem_wait(&mutex_memoria);
+    proceso_eliminado_recientemente = true;
     enviar_finalizacion_proceso(socket_memoria, pcb);
-
     op_code cod_op = recibir_operacion(socket_memoria);
     if (cod_op != FINALIZACION_PROCESO_OK)
     {
