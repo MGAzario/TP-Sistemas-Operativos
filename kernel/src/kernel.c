@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     sem_init(&sem_planificacion, 0, 0);
     sem_init(&mutex_memoria, 0, 1);
     sem_init(&mutex_quantum,0,1);
-
+    proceso_eliminado_recientemente = false;
     planificar = false;
 
     crear_logger();
